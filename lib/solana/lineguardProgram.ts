@@ -19,6 +19,18 @@ export interface ParsedOnChainMarket {
   sourceEventHashHex: string;
 }
 
+export interface ParsedOnChainMarketConfig {
+  address: string;
+  marketTypeCode: number;
+  marketType: "MATCH_WINNER" | "TOTAL_GOALS" | "NEXT_GOAL" | "CUSTOM_YES_NO" | "UNKNOWN";
+  fixtureIdHashHex: string;
+  marketTitleHashHex: string;
+  materialityConfigHashHex: string;
+  settlementConfigHashHex: string;
+  authority: string;
+  createdAtSlot: number;
+}
+
 export interface ParsedOnChainOrder {
   address: string;
   trader: string;
@@ -35,6 +47,10 @@ export interface ParsedOnChainOrder {
   verdictCode: number;
   verdict: "ALLOWED" | "STALE_ALLOWED_NO_EDGE" | "VOIDED_REFUNDED" | "UNKNOWN";
   bump: number;
+  settlementDestinationCode: number;
+  settlementDestination: "REFUNDED_TO_TRADER" | "FINALIZED_TO_VAULT" | "PENDING" | "UNKNOWN";
+  sourceEventHashHex: string;
+  materialityConfigHashHex: string;
 }
 
 export interface OnChainApiState {
@@ -46,6 +62,7 @@ export interface OnChainApiState {
   programId: string;
   programExplorerUrl?: string;
   marketPda?: string;
+  marketConfigPda?: string;
   orderEscrowPda?: string;
   yesOrderEscrowPda?: string;
   noOrderEscrowPda?: string;
@@ -55,6 +72,7 @@ export interface OnChainApiState {
   signatures?: string[];
   explorerUrls?: string[];
   market: ParsedOnChainMarket | null;
+  marketConfig: ParsedOnChainMarketConfig | null;
   order: ParsedOnChainOrder | null;
   localTestsAvailable: boolean;
 }
@@ -95,6 +113,7 @@ export const DEFAULT_ONCHAIN_STATE: OnChainApiState = {
   programId: LOCAL_LINEGUARD_PROGRAM_ID,
   selectedSide: "YES",
   market: null,
+  marketConfig: null,
   order: null,
   localTestsAvailable: true,
 };

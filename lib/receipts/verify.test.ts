@@ -76,6 +76,27 @@ describe("receipt verification", () => {
     expect(verifyReceipt(tampered, Date.now()).valid).toBe(false);
   });
 
+  it("includes market config proof and fails if its hash is tampered", () => {
+    const receipt = createReceipt({
+      ...draft,
+      marketConfigProof: {
+        marketType: "MATCH_WINNER",
+        fixtureIdHash: "1".repeat(64),
+        marketTitleHash: "2".repeat(64),
+        materialityConfigHash: "3".repeat(64),
+        settlementConfigHash: "4".repeat(64),
+        onChainMarketPda: "market-pda",
+      },
+    });
+    expect(receipt.marketConfigProof?.materialityConfigHash).toBe("3".repeat(64));
+    expect(verifyReceipt(receipt, Date.now()).valid).toBe(true);
+    const tampered = {
+      ...receipt,
+      marketConfigProof: { ...receipt.marketConfigProof!, materialityConfigHash: "9".repeat(64) },
+    };
+    expect(verifyReceipt(tampered, Date.now()).valid).toBe(false);
+  });
+
   it("survives a url encode/decode round-trip and still verifies", () => {
     const receipt = createReceipt(draft);
     const decoded = decodeReceiptFromUrl(encodeReceiptForUrl(receipt));

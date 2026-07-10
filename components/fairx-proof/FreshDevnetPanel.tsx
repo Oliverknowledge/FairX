@@ -51,7 +51,7 @@ const EXPECTED_VERDICT: Record<OnChainSide, string> = {
   NO: "STALE_ALLOWED_NO_EDGE",
 };
 
-const STEP_LABELS = ["Initialize market", "Ingest material event", "Place order into escrow", "Evaluate order"];
+const STEP_LABELS = ["Initialize market + config", "Ingest material event", "Place order into escrow", "Evaluate order"];
 
 function short(value: string | undefined, lead = 6, tail = 6): string {
   if (!value) return "—";
@@ -135,8 +135,8 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
             <p className="mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-[#8fb0e6]">Live devnet execution</p>
             <h2 className="mt-0.5 text-[15px] font-bold leading-tight">Generate fresh on-chain proof</h2>
             <p className="mt-1 max-w-lg text-[10.5px] leading-relaxed text-[#a9bad6]">
-              Each run sends four real Solana devnet transactions through the deployed LineGuard program: it binds the source event hash on-chain,
-              then refunds a stale YES attack to the trader or finalizes a NO fill into the ProtocolVault.
+              Each run sends four Solana devnet transactions through the deployed LineGuard program: it commits market config, binds an authority-controlled
+              source event hash, then refunds a stale YES attack or finalizes a NO fill into the ProtocolVault.
             </p>
           </div>
         </div>
@@ -290,6 +290,7 @@ function FreshResult({ run }: { run: RunState }) {
         <Metric label="On-chain edge" value={signedMicros(demo?.edgeMicros ?? proof.edgeMicros)} tone={blocked ? "red" : "blue"} />
         <Metric label="Settlement" value={demo?.settlementDestination === "FINALIZED_TO_VAULT" ? "Finalized → vault" : "Refunded → trader"} tone={demo?.refunded ? "green" : "blue"} />
         <Metric label="Market PDA" value={short(proof.marketPda)} mono />
+        <Metric label="Config PDA" value={short(proof.marketConfigPda)} mono />
         <Metric label="Order PDA" value={short(proof.orderEscrowPda)} mono />
       </div>
 
@@ -297,9 +298,19 @@ function FreshResult({ run }: { run: RunState }) {
         <div className="mt-2 flex items-start gap-1.5 rounded-md border border-[#cddcf5] bg-[#f7faff] px-2.5 py-1.5">
           <Hash className="mt-0.5 h-3 w-3 shrink-0 text-(--blue)" />
           <div className="min-w-0">
-            <p className="text-[9px] font-bold text-(--blue)">Event hash attached to on-chain guard verdict</p>
+            <p className="text-[9px] font-bold text-(--blue)">Event hash committed by authority</p>
             <p className="mono truncate text-[9px] text-(--ink-2)">{proof.sourceEventHash}</p>
+            <p className="mt-0.5 text-[8.5px] font-semibold text-(--green)">Order evaluated against source event hash</p>
           </div>
+        </div>
+      )}
+
+      {proof.materialityConfigHash && (
+        <div className="mt-2 rounded-md border border-[#bce6d5] bg-(--green-bg) px-2.5 py-1.5">
+          <p className="text-[9px] font-bold text-(--green)">Market config committed on-chain</p>
+          <p className="mono truncate text-[9px] text-(--ink-2)">{proof.materialityConfigHash}</p>
+          <p className="mt-0.5 text-[8.5px] font-semibold text-(--green)">Order evaluated against committed market config</p>
+          <p className="mt-0.5 text-[8.5px] text-(--ink-2)">Oracle authority: <span className="mono">{short(proof.oracleAuthority)}</span></p>
         </div>
       )}
 

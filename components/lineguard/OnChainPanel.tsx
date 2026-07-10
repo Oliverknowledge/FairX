@@ -138,6 +138,12 @@ export function OnChainPanel({
             />
           )}
           <Stat label="Market PDA" value={<Mono value={chain.marketPda ?? "—"} />} />
+          <Stat label="Market config PDA" value={<Mono value={chain.marketConfigPda ?? "—"} />} />
+          <Stat label="Market config committed" value={chain.marketConfig ? "YES" : "NO"} tone={chain.marketConfig ? "green" : "amber"} strong />
+          <Stat label="Materiality config hash" value={<Mono value={chain.marketConfig?.materialityConfigHashHex ?? "—"} />} />
+          <Stat label="Settlement config hash" value={<Mono value={chain.marketConfig?.settlementConfigHashHex ?? "—"} />} />
+          <Stat label="Oracle authority" value={<Mono value={chain.marketConfig?.authority ?? chain.market?.authority ?? "—"} />} />
+          <Stat label="Event hash committed by authority" value={chain.market?.sourceEventHashHex && !/^0+$/.test(chain.market.sourceEventHashHex) ? "YES" : "—"} tone="green" />
           <Stat label={`${selectedSide} order PDA`} value={<Mono value={chain.orderEscrowPda ?? "—"} />} />
           <Stat
             label="Latest tx"
@@ -168,6 +174,7 @@ export function OnChainPanel({
             strong
           />
           <Stat label="On-chain verdict" value={chain.order?.verdict ?? "—"} tone={chain.order?.verdict === "VOIDED_REFUNDED" ? "red" : "green"} />
+          <Stat label="Settlement destination" value={chain.order?.settlementDestination ?? "—"} tone={chain.order?.settlementDestination === "REFUNDED_TO_TRADER" ? "red" : "blue"} />
           <Stat label="Frontend verdict" value={frontendVerdict ?? "—"} tone={frontendVerdict === "VOIDED_REFUNDED" ? "red" : frontendVerdict ? "green" : "neutral"} />
           <Stat
             label="Verdict match"

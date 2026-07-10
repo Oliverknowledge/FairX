@@ -39,6 +39,13 @@ export interface FairXOnChainMarket {
   /** True only after an actual market-initialization transaction has succeeded. */
   initialized: boolean;
   marketPda?: string;
+  marketConfigPda?: string;
+  marketType?: FairXMarketType;
+  fixtureIdHash?: string;
+  marketTitleHash?: string;
+  materialityConfigHash?: string;
+  settlementConfigHash?: string;
+  oracleAuthority?: string;
   txSignatures?: string[];
   cluster?: "devnet" | "localnet";
   programId?: string;

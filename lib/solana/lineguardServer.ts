@@ -11,6 +11,8 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import type { OnChainProof } from "@/lib/receipts/types";
+import type { FairXMarketType, MaterialityRules } from "@/lib/markets/fairx";
+import { buildMarketConfigCommitment, type MarketConfigCommitment } from "@/lib/markets/marketConfig";
 import {
   explorerUrl,
   programExplorerUrl,
@@ -18,6 +20,7 @@ import {
   type OnChainApiState,
   type OnChainMode,
   type ParsedOnChainMarket,
+  type ParsedOnChainMarketConfig,
   type ParsedOnChainOrder,
 } from "@/lib/solana/lineguardProgram";
 import {
@@ -25,6 +28,7 @@ import {
   deriveDefaultPdas,
   deriveLineGuardPdas,
   deriveMarketPda,
+  deriveMarketConfigPda,
   deriveOrderPda,
   LINEGUARD_MARKET_LABEL,
   LOCAL_LINEGUARD_PROGRAM_ID,
@@ -44,10 +48,19 @@ const TOLERANCE_2C = 20_000;
 const STAKE_LAMPORTS = 20_000_000;
 
 const MARKET_DISCRIMINATOR = accountDiscriminator("MarketState");
+const MARKET_CONFIG_DISCRIMINATOR = accountDiscriminator("MarketConfig");
 const ORDER_DISCRIMINATOR = accountDiscriminator("OrderEscrow");
 const VAULT_DISCRIMINATOR = accountDiscriminator("ProtocolVault");
 /** 32-byte normalized-event hash bound on-chain for the canonical proof flow. */
 const DEMO_SOURCE_EVENT_HASH = Buffer.from(DEMO_EVENT_HASHES.normalizedEventHash, "hex");
+const DEMO_CONFIG_COMMITMENT = buildMarketConfigCommitment({
+  marketType: "MATCH_WINNER",
+  fixtureId: "ENG-FRA-2026-QF",
+  marketTitle: "England wins",
+  materialityRules: { goals: true, redCards: true, penalties: true, oddsUpdates: true },
+  backedTeam: "England",
+  toleranceMicros: TOLERANCE_2C,
+});
 
 interface ServerConfig {
   mode: OnChainMode;
@@ -162,25 +175,37 @@ export interface CustomInitResult {
   programId: string;
   marketId: string;
   marketPda?: string;
+  marketConfigPda?: string;
   marketPdaExplorerUrl?: string;
   signature?: string;
   explorerUrl?: string;
   alreadyInitialized?: boolean;
+  marketType?: FairXMarketType;
+  fixtureIdHash?: string;
+  marketTitleHash?: string;
+  materialityConfigHash?: string;
+  settlementConfigHash?: string;
+  oracleAuthority?: string;
   reason?: string;
 }
 
 export interface CustomInitInput {
   /** The FairX app-level market id. Hashed to a deterministic 32-byte on-chain market id. */
   marketId: string;
+  marketType: FairXMarketType;
+  fixtureId: string;
+  marketTitle: string;
+  materialityRules: MaterialityRules;
+  backedTeam?: string;
+  targetSide?: string;
   displayedPriceMicros: number;
   fairPriceMicros: number;
   toleranceMicros: number;
 }
 
 /**
- * Initialize an arbitrary creator market on devnet. This ONLY creates the
- * MarketState account — it does not settle any trade. Callers must keep custom
- * trading labelled as local simulation unless they also route orders on-chain.
+ * Initialize an arbitrary creator market and its config PDA on devnet. This
+ * commits fairness rules; it does not itself place or settle an order.
  */
 export async function initializeCustomOnChainMarket(input: CustomInitInput): Promise<CustomInitResult> {
   const cfg = getLineGuardServerConfig();
@@ -192,53 +217,120 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
 
   const seed = marketIdSeed(input.marketId);
   const marketPda = deriveMarketPda(programId, seed);
+  const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
   const marketPdaExplorerUrl = addressExplorerUrl(cfg.cluster, marketPda.toBase58());
   const connection = new Connection(cfg.rpcUrl, "confirmed");
+  const commitment = configCommitment(input);
 
   try {
     const existing = await connection.getAccountInfo(marketPda, "confirmed");
-    if (existing) {
-      return { ...base, ok: true, marketPda: marketPda.toBase58(), marketPdaExplorerUrl, alreadyInitialized: true, reason: "Market already initialized on devnet." };
+    const existingConfig = await fetchMarketConfig(connection, marketConfigPda, cfg.programId);
+    if (existing && existingConfig) {
+      if (!configMatches(existingConfig, commitment)) {
+        return { ...base, marketPda: marketPda.toBase58(), marketConfigPda: marketConfigPda.toBase58(), marketPdaExplorerUrl, reason: "Existing on-chain market config does not match this local market definition." };
+      }
+      return configResult(base, marketPda, marketConfigPda, marketPdaExplorerUrl, commitment, cfg.payer.publicKey.toBase58(), undefined, true);
     }
 
-    const signature = await sendInstruction(
-      connection,
-      cfg,
-      new TransactionInstruction({
+    const instruction = existing
+      ? new TransactionInstruction({
+        programId: cfg.programId,
+        keys: [
+          { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
+          { pubkey: marketPda, isSigner: false, isWritable: false },
+          { pubkey: marketConfigPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: ixData("attach_market_config", configIxParts(commitment)),
+      })
+      : new TransactionInstruction({
         programId: cfg.programId,
         keys: [
           { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
           { pubkey: marketPda, isSigner: false, isWritable: true },
+          { pubkey: marketConfigPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-        data: ixData("initialize_market", [
+        data: ixData("initialize_market_config", [
           Buffer.from(seed),
           u64(1),
           u64(1),
           u64(clampMicros(input.displayedPriceMicros)),
           u64(clampMicros(input.fairPriceMicros)),
           u64(clampMicros(input.toleranceMicros)),
+          ...configIxParts(commitment),
         ]),
-      })
-    );
-    return {
-      ...base,
-      ok: true,
-      marketPda: marketPda.toBase58(),
-      marketPdaExplorerUrl,
-      signature,
-      explorerUrl: explorerUrl(cfg.cluster, signature),
-      reason: "Market initialized on devnet.",
-    };
+      });
+    const signature = await sendInstruction(connection, cfg, instruction);
+    return configResult(base, marketPda, marketConfigPda, marketPdaExplorerUrl, commitment, cfg.payer.publicKey.toBase58(), signature, Boolean(existing));
   } catch (err) {
-    return { ...base, marketPda: marketPda.toBase58(), marketPdaExplorerUrl, reason: err instanceof Error ? err.message : String(err) };
+    return { ...base, marketPda: marketPda.toBase58(), marketConfigPda: marketConfigPda.toBase58(), marketPdaExplorerUrl, reason: err instanceof Error ? err.message : String(err) };
   }
+}
+
+function configCommitment(input: Pick<CustomInitInput, "marketType" | "fixtureId" | "marketTitle" | "materialityRules" | "backedTeam" | "targetSide" | "toleranceMicros">): MarketConfigCommitment {
+  return buildMarketConfigCommitment({
+    marketType: input.marketType,
+    fixtureId: input.fixtureId,
+    marketTitle: input.marketTitle,
+    materialityRules: input.materialityRules,
+    backedTeam: input.backedTeam,
+    targetSide: input.targetSide,
+    toleranceMicros: clampMicros(input.toleranceMicros),
+  });
+}
+
+function configIxParts(commitment: MarketConfigCommitment): Buffer[] {
+  return [
+    Buffer.from([commitment.marketTypeCode]),
+    Buffer.from(commitment.fixtureIdHash, "hex"),
+    Buffer.from(commitment.marketTitleHash, "hex"),
+    Buffer.from(commitment.materialityConfigHash, "hex"),
+    Buffer.from(commitment.settlementConfigHash, "hex"),
+  ];
+}
+
+function configResult(
+  base: CustomInitResult,
+  marketPda: PublicKey,
+  marketConfigPda: PublicKey,
+  marketPdaExplorerUrl: string | undefined,
+  commitment: MarketConfigCommitment,
+  oracleAuthority: string,
+  signature?: string,
+  alreadyInitialized = false
+): CustomInitResult {
+  return {
+    ...base,
+    ok: true,
+    marketPda: marketPda.toBase58(),
+    marketConfigPda: marketConfigPda.toBase58(),
+    marketPdaExplorerUrl,
+    signature,
+    explorerUrl: signature && base.cluster ? explorerUrl(base.cluster, signature) : undefined,
+    alreadyInitialized,
+    marketType: commitment.marketType,
+    fixtureIdHash: commitment.fixtureIdHash,
+    marketTitleHash: commitment.marketTitleHash,
+    materialityConfigHash: commitment.materialityConfigHash,
+    settlementConfigHash: commitment.settlementConfigHash,
+    oracleAuthority,
+    reason: alreadyInitialized ? "Market config committed on-chain." : "Market and config committed on-chain.",
+  };
+}
+
+function configMatches(config: ParsedOnChainMarketConfig, commitment: MarketConfigCommitment): boolean {
+  return config.marketTypeCode === commitment.marketTypeCode
+    && config.fixtureIdHashHex === commitment.fixtureIdHash
+    && config.marketTitleHashHex === commitment.marketTitleHash
+    && config.materialityConfigHashHex === commitment.materialityConfigHash
+    && config.settlementConfigHashHex === commitment.settlementConfigHash;
 }
 
 /** Small sandbox stake (0.01 SOL) for custom devnet orders — filled stakes finalize into the vault. */
 const CUSTOM_STAKE_LAMPORTS = 10_000_000;
 
-export interface CustomOrderInput {
+export interface CustomOrderInput extends Omit<CustomInitInput, "fairPriceMicros" | "toleranceMicros"> {
   marketId: string;
   side: OnChainSide;
   displayedPriceMicros: number;
@@ -289,12 +381,15 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
   const connection = new Connection(cfg.rpcUrl, "confirmed");
   const seed = marketIdSeed(input.marketId);
   const marketPda = deriveMarketPda(programId, seed);
+  const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
   const displayed = clampMicros(input.displayedPriceMicros);
   const tolerance = clampMicros(input.toleranceMicros ?? TOLERANCE_2C);
+  const commitment = configCommitment({ ...input, toleranceMicros: tolerance });
   const signatures: string[] = [];
 
   try {
     let market = await fetchMarket(connection, marketPda, cfg.programId);
+    let marketConfig = await fetchMarketConfig(connection, marketConfigPda, cfg.programId);
     if (!market) {
       signatures.push(
         await sendInstruction(
@@ -305,20 +400,40 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
             keys: [
               { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
               { pubkey: marketPda, isSigner: false, isWritable: true },
+              { pubkey: marketConfigPda, isSigner: false, isWritable: true },
               { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ],
-            data: ixData("initialize_market", [
+            data: ixData("initialize_market_config", [
               Buffer.from(seed),
               u64(1),
               u64(1),
               u64(displayed),
               u64(clampMicros(input.fairPriceMicros ?? displayed)),
               u64(tolerance),
+              ...configIxParts(commitment),
             ]),
           })
         )
       );
       market = await fetchMarket(connection, marketPda, cfg.programId);
+      marketConfig = await fetchMarketConfig(connection, marketConfigPda, cfg.programId);
+    } else if (!marketConfig) {
+      signatures.push(
+        await sendInstruction(connection, cfg, new TransactionInstruction({
+          programId: cfg.programId,
+          keys: [
+            { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
+            { pubkey: marketPda, isSigner: false, isWritable: false },
+            { pubkey: marketConfigPda, isSigner: false, isWritable: true },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          ],
+          data: ixData("attach_market_config", configIxParts(commitment)),
+        }))
+      );
+      marketConfig = await fetchMarketConfig(connection, marketConfigPda, cfg.programId);
+    }
+    if (!marketConfig || !configMatches(marketConfig, commitment)) {
+      throw new Error("On-chain market config is missing or does not match the requested market definition.");
     }
 
     const vaultPda = await ensureVault(connection, cfg);
@@ -372,7 +487,7 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
       )
     );
 
-    signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, orderPda, vaultPda)));
+    signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, marketConfigPda, orderPda, vaultPda)));
 
     const finalMarket = await fetchMarket(connection, marketPda, cfg.programId);
     const order = await fetchOrder(connection, orderPda, cfg.programId);
@@ -391,7 +506,7 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
       result.edgeMicros = order.edgeMicros;
       result.settlementDestination = order.verdictCode === 2 ? "REFUNDED_TO_TRADER" : "FINALIZED_TO_VAULT";
       result.sourceEventHash = finalMarket.sourceEventHashHex;
-      result.proof = toProof(cfg.cluster, programId, marketPda.toBase58(), orderPda.toBase58(), signatures, finalMarket, order, vaultPda.toBase58());
+      result.proof = toProof(cfg.cluster, programId, marketPda.toBase58(), marketConfigPda.toBase58(), orderPda.toBase58(), signatures, finalMarket, marketConfig, order, vaultPda.toBase58());
     }
     return result;
   } catch (err) {
@@ -429,12 +544,14 @@ export async function getOnChainState(side: OnChainSide, latestSignature?: strin
   const yes = deriveDefaultPdas(cfg.programId.toBase58(), "YES");
   const no = deriveDefaultPdas(cfg.programId.toBase58(), "NO");
   let market: ParsedOnChainMarket | null = null;
+  let marketConfig: ParsedOnChainMarketConfig | null = null;
   let order: ParsedOnChainOrder | null = null;
 
   if (cfg.cluster) {
     try {
       const connection = new Connection(cfg.rpcUrl || defaultRpcUrl(cfg.cluster), "confirmed");
       market = await fetchMarket(connection, pdas.marketPda, cfg.programId);
+      marketConfig = await fetchMarketConfig(connection, pdas.marketConfigPda, cfg.programId);
       order = await fetchOrder(connection, pdas.orderEscrowPda, cfg.programId);
     } catch {
       // The state panel should stay usable even when localnet is offline or devnet is unreachable.
@@ -450,6 +567,7 @@ export async function getOnChainState(side: OnChainSide, latestSignature?: strin
     programId: cfg.programId.toBase58(),
     programExplorerUrl: cfg.cluster ? programExplorerUrl(cfg.cluster, cfg.programId.toBase58()) : undefined,
     marketPda: pdas.marketPda.toBase58(),
+    marketConfigPda: pdas.marketConfigPda.toBase58(),
     orderEscrowPda: pdas.orderEscrowPda.toBase58(),
     yesOrderEscrowPda: yes.orderEscrowPda.toBase58(),
     noOrderEscrowPda: no.orderEscrowPda.toBase58(),
@@ -459,30 +577,50 @@ export async function getOnChainState(side: OnChainSide, latestSignature?: strin
     signatures: latestSignature ? [latestSignature] : undefined,
     explorerUrls: cfg.cluster && latestSignature ? compact([explorerUrl(cfg.cluster, latestSignature)]) : undefined,
     market,
+    marketConfig,
     order,
     localTestsAvailable: true,
   };
 }
 
 export async function initializeOnChainMarket() {
-  return sendAndReturnState("YES", (cfg, pdas) =>
-    new TransactionInstruction({
-      programId: cfg.programId,
-      keys: [
-        { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: true },
-        { pubkey: pdas.marketPda, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: ixData("initialize_market", [
-        Buffer.from(bytes32(LINEGUARD_MARKET_LABEL)),
-        u64(1),
-        u64(1),
-        u64(DISPLAYED_40),
-        u64(FAIR_40),
-        u64(TOLERANCE_2C),
-      ]),
-    })
-  );
+  const cfg = getLineGuardServerConfig();
+  if (!cfg.configured || !cfg.cluster || !cfg.rpcUrl || !cfg.payer) return { ...(await getOnChainState("YES")), ok: false };
+  const pdas = deriveDefaultPdas(cfg.programId.toBase58(), "YES");
+  const connection = new Connection(cfg.rpcUrl, "confirmed");
+  try {
+    const marketExists = Boolean(await connection.getAccountInfo(pdas.marketPda, "confirmed"));
+    const configExists = Boolean(await connection.getAccountInfo(pdas.marketConfigPda, "confirmed"));
+    if (marketExists && configExists) return { ...(await getOnChainState("YES")), ok: true, alreadyInitialized: true };
+    const instruction = marketExists
+      ? new TransactionInstruction({
+        programId: cfg.programId,
+        keys: [
+          { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
+          { pubkey: pdas.marketPda, isSigner: false, isWritable: false },
+          { pubkey: pdas.marketConfigPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: ixData("attach_market_config", configIxParts(DEMO_CONFIG_COMMITMENT)),
+      })
+      : new TransactionInstruction({
+        programId: cfg.programId,
+        keys: [
+          { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
+          { pubkey: pdas.marketPda, isSigner: false, isWritable: true },
+          { pubkey: pdas.marketConfigPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: ixData("initialize_market_config", [
+          Buffer.from(bytes32(LINEGUARD_MARKET_LABEL)), u64(1), u64(1), u64(DISPLAYED_40), u64(FAIR_40), u64(TOLERANCE_2C),
+          ...configIxParts(DEMO_CONFIG_COMMITMENT),
+        ]),
+      });
+    const signature = await sendInstruction(connection, cfg, instruction);
+    return { ...(await getOnChainState("YES", signature)), signature };
+  } catch (err) {
+    return { ...(await getOnChainState("YES")), ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 export async function ingestOnChainEvent() {
@@ -535,10 +673,10 @@ export async function evaluateOnChainOrder(side: OnChainSide) {
   const connection = new Connection(cfg.rpcUrl, "confirmed");
   try {
     const vaultPda = await ensureVault(connection, cfg);
-    const signature = await sendInstruction(connection, cfg, evaluateInstruction(cfg, pdas.marketPda, pdas.orderEscrowPda, vaultPda));
+    const signature = await sendInstruction(connection, cfg, evaluateInstruction(cfg, pdas.marketPda, pdas.marketConfigPda, pdas.orderEscrowPda, vaultPda));
     const result: OnChainActionResponse = { ...(await getOnChainState(side, signature)), signature };
-    if (result.cluster && result.market && result.order) {
-      result.proof = toProof(result.cluster, result.programId, result.marketPda!, result.orderEscrowPda!, [signature], result.market, result.order, vaultPda.toBase58());
+    if (result.cluster && result.market && result.marketConfig && result.order) {
+      result.proof = toProof(result.cluster, result.programId, result.marketPda!, result.marketConfigPda!, result.orderEscrowPda!, [signature], result.market, result.marketConfig, result.order, vaultPda.toBase58());
     }
     return result;
   } catch (err) {
@@ -569,15 +707,17 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
         keys: [
           { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
           { pubkey: pdas.marketPda, isSigner: false, isWritable: true },
+          { pubkey: pdas.marketConfigPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-        data: ixData("initialize_market", [
+        data: ixData("initialize_market_config", [
           Buffer.from(pdas.marketId),
           u64(1),
           u64(1),
           u64(DISPLAYED_40),
           u64(FAIR_40),
           u64(TOLERANCE_2C),
+          ...configIxParts(DEMO_CONFIG_COMMITMENT),
         ]),
       })
     )
@@ -620,7 +760,7 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
   );
   const balanceAfterPlace = await connection.getBalance(cfg.payer.publicKey, "confirmed");
 
-  signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, pdas.marketPda, pdas.orderEscrowPda, vaultPda)));
+  signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, pdas.marketPda, pdas.marketConfigPda, pdas.orderEscrowPda, vaultPda)));
   const balanceAfterEvaluate = await connection.getBalance(cfg.payer.publicKey, "confirmed");
 
   const latestSignature = signatures.at(-1);
@@ -636,14 +776,16 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
     explorerUrls,
   };
 
-  if (state.cluster && state.market && state.order) {
+  if (state.cluster && state.market && state.marketConfig && state.order) {
     response.proof = toProof(
       state.cluster,
       state.programId,
       pdas.marketPda.toBase58(),
+      pdas.marketConfigPda.toBase58(),
       pdas.orderEscrowPda.toBase58(),
       signatures,
       state.market,
+      state.marketConfig,
       state.order,
       vaultPda.toBase58()
     );
@@ -763,6 +905,25 @@ async function fetchMarket(connection: Connection, address: PublicKey, programId
   };
 }
 
+async function fetchMarketConfig(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainMarketConfig | null> {
+  const info = await connection.getAccountInfo(address, "confirmed");
+  if (!info || !info.owner.equals(programId) || info.data.length < 177) return null;
+  const data = Buffer.from(info.data);
+  if (!data.subarray(0, 8).equals(MARKET_CONFIG_DISCRIMINATOR)) return null;
+  const marketTypeCode = data[8] ?? 255;
+  return {
+    address: address.toBase58(),
+    marketTypeCode,
+    marketType: marketTypeName(marketTypeCode),
+    fixtureIdHashHex: data.subarray(9, 41).toString("hex"),
+    marketTitleHashHex: data.subarray(41, 73).toString("hex"),
+    materialityConfigHashHex: data.subarray(73, 105).toString("hex"),
+    settlementConfigHashHex: data.subarray(105, 137).toString("hex"),
+    authority: new PublicKey(data.subarray(137, 169)).toBase58(),
+    createdAtSlot: Number(readU64(data, 169)),
+  };
+}
+
 async function fetchOrder(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainOrder | null> {
   const info = await connection.getAccountInfo(address, "confirmed");
   if (!info || !info.owner.equals(programId) || info.data.length < 140) return null;
@@ -772,6 +933,7 @@ async function fetchOrder(connection: Connection, address: PublicKey, programId:
   const side = data[104] ?? 255;
   const status = data[137] ?? 255;
   const verdict = data[138] ?? 255;
+  const settlementDestination = data.length >= 141 ? data[140] ?? 255 : 255;
 
   return {
     address: address.toBase58(),
@@ -789,6 +951,10 @@ async function fetchOrder(connection: Connection, address: PublicKey, programId:
     verdictCode: verdict,
     verdict: guardVerdict(verdict),
     bump: data[139] ?? 0,
+    settlementDestinationCode: settlementDestination,
+    settlementDestination: settlementDestination === 0 ? "REFUNDED_TO_TRADER" : settlementDestination === 1 ? "FINALIZED_TO_VAULT" : settlementDestination === 2 ? "PENDING" : "UNKNOWN",
+    sourceEventHashHex: data.length >= 173 ? data.subarray(141, 173).toString("hex") : "00".repeat(32),
+    materialityConfigHashHex: data.length >= 205 ? data.subarray(173, 205).toString("hex") : "00".repeat(32),
   };
 }
 
@@ -850,12 +1016,13 @@ async function fetchVaultBalance(connection: Connection, vaultPda: PublicKey): P
   }
 }
 
-/** evaluate_order accounts are [market (ro), order (mut), trader (mut), vault (mut)]. */
-function evaluateInstruction(cfg: ServerConfig, marketPda: PublicKey, orderPda: PublicKey, vaultPda: PublicKey): TransactionInstruction {
+/** evaluate_order accounts are [market, config, order, trader, vault]. */
+function evaluateInstruction(cfg: ServerConfig, marketPda: PublicKey, marketConfigPda: PublicKey, orderPda: PublicKey, vaultPda: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: cfg.programId,
     keys: [
       { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: marketConfigPda, isSigner: false, isWritable: false },
       { pubkey: orderPda, isSigner: false, isWritable: true },
       { pubkey: cfg.payer!.publicKey, isSigner: false, isWritable: true },
       { pubkey: vaultPda, isSigner: false, isWritable: true },
@@ -894,6 +1061,10 @@ function marketStatus(code: number): ParsedOnChainMarket["status"] {
   return code === 0 ? "Trading" : code === 1 ? "Stale" : code === 2 ? "Repricing" : "Unknown";
 }
 
+function marketTypeName(code: number): ParsedOnChainMarketConfig["marketType"] {
+  return code === 0 ? "MATCH_WINNER" : code === 1 ? "TOTAL_GOALS" : code === 2 ? "NEXT_GOAL" : code === 3 ? "CUSTOM_YES_NO" : "UNKNOWN";
+}
+
 function orderStatus(code: number): ParsedOnChainOrder["status"] {
   return code === 0
     ? "Submitted"
@@ -916,9 +1087,11 @@ function toProof(
   cluster: "devnet" | "localnet",
   programId: string,
   marketPda: string,
+  marketConfigPda: string,
   orderEscrowPda: string,
   txSignatures: string[],
   market: ParsedOnChainMarket,
+  marketConfig: ParsedOnChainMarketConfig,
   order: ParsedOnChainOrder,
   vaultPda?: string
 ): OnChainProof {
@@ -927,6 +1100,7 @@ function toProof(
     cluster,
     programId,
     marketPda,
+    marketConfigPda,
     orderEscrowPda,
     txSignatures,
     explorerUrls: compact(txSignatures.map((signature) => explorerUrl(cluster, signature))),
@@ -939,6 +1113,14 @@ function toProof(
     verdictCode: order.verdictCode,
     statusCode: order.statusCode,
     sourceEventHash: market.sourceEventHashHex && market.sourceEventHashHex !== zeroHash ? market.sourceEventHashHex : undefined,
+    orderSourceEventHash: order.sourceEventHashHex && order.sourceEventHashHex !== zeroHash ? order.sourceEventHashHex : undefined,
+    orderMaterialityConfigHash: order.materialityConfigHashHex && order.materialityConfigHashHex !== zeroHash ? order.materialityConfigHashHex : undefined,
+    marketType: marketConfig.marketType,
+    fixtureIdHash: marketConfig.fixtureIdHashHex,
+    marketTitleHash: marketConfig.marketTitleHashHex,
+    materialityConfigHash: marketConfig.materialityConfigHashHex,
+    settlementConfigHash: marketConfig.settlementConfigHashHex,
+    oracleAuthority: marketConfig.authority,
     settlementDestination: order.verdictCode === 2 ? "REFUNDED_TO_TRADER" : "FINALIZED_TO_VAULT",
     vaultPda,
   };

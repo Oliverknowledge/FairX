@@ -14,6 +14,13 @@ type InitResponse = {
   configured: boolean;
   programId: string;
   marketPda?: string;
+  marketConfigPda?: string;
+  marketType?: FairXMarket["type"];
+  fixtureIdHash?: string;
+  marketTitleHash?: string;
+  materialityConfigHash?: string;
+  settlementConfigHash?: string;
+  oracleAuthority?: string;
   signature?: string;
   reason?: string;
 };
@@ -46,7 +53,7 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
   const [placing, setPlacing] = useState<"YES" | "NO" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<PlacedOrder[]>([]);
-  const initialized = market.onChain?.initialized === true && market.onChain.cluster === "devnet";
+  const initialized = market.onChain?.initialized === true && market.onChain.cluster === "devnet" && Boolean(market.onChain.marketConfigPda);
   const mode: CustomMode = orders.length > 0 ? "devnet_settled" : initialized ? "devnet_initialized" : "local_simulation";
 
   const initialize = async () => {
@@ -59,6 +66,12 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           marketId: market.id,
+          marketType: market.type,
+          marketTitle: market.title,
+          fixtureId: market.fixtureId ?? `custom:${market.id}`,
+          materialityRules: market.materialityRules,
+          backedTeam: market.backedTeam,
+          targetSide: market.targetSide,
           displayedPriceMicros: Math.round(market.displayedPrice * 1_000_000),
           fairPriceMicros: Math.round(market.fairPrice * 1_000_000),
           toleranceMicros: Math.round(market.tolerance * 1_000_000),
@@ -73,6 +86,13 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
       next.onChain = {
         initialized: true,
         marketPda: data.marketPda,
+        marketConfigPda: data.marketConfigPda,
+        marketType: data.marketType,
+        fixtureIdHash: data.fixtureIdHash,
+        marketTitleHash: data.marketTitleHash,
+        materialityConfigHash: data.materialityConfigHash,
+        settlementConfigHash: data.settlementConfigHash,
+        oracleAuthority: data.oracleAuthority,
         cluster: "devnet",
         programId: data.programId || PROGRAM_ID,
         txSignatures: data.signature ? [data.signature] : next.onChain?.txSignatures,
@@ -96,6 +116,12 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
         body: JSON.stringify({
           marketId: market.id,
           side,
+          marketType: market.type,
+          marketTitle: market.title,
+          fixtureId: market.fixtureId ?? `custom:${market.id}`,
+          materialityRules: market.materialityRules,
+          backedTeam: market.backedTeam,
+          targetSide: market.targetSide,
           displayedPriceMicros: Math.round(market.displayedPrice * 1_000_000),
           toleranceMicros: Math.round(market.tolerance * 1_000_000),
         }),
@@ -133,8 +159,8 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
       {!initialized ? (
         <div className="mt-3 space-y-2.5">
           <p className="text-[10.5px] leading-relaxed text-(--ink-2)">
-            Create this market&rsquo;s <span className="mono">MarketState</span> account on Solana devnet. This derives a real market PDA and sends one
-            initialize transaction. Trading stays local simulation until you place a devnet order below.
+            Create this market&rsquo;s <span className="mono">MarketState</span> and config commitment on Solana devnet. The title, fixture,
+            materiality rules, settlement rules, tolerance, and allowed sides are committed without storing long strings.
           </p>
           <button
             type="button"
@@ -150,7 +176,7 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
       ) : (
         <div className="mt-3 space-y-2.5 text-[10.5px]">
           <div className="rounded-md border border-[#bce6d5] bg-(--green-bg) p-2.5 leading-relaxed text-(--green)">
-            <p className="flex items-center gap-1.5 font-bold"><ShieldCheck className="h-3.5 w-3.5" /> Market initialized on devnet.</p>
+            <p className="flex items-center gap-1.5 font-bold"><ShieldCheck className="h-3.5 w-3.5" /> Market config committed on-chain</p>
             <p className="mt-1 text-[10px] text-[#337e68]">
               {orders.length > 0
                 ? "This market is devnet-settled — the order below sent real place + evaluate transactions to the on-chain guard."
@@ -158,6 +184,12 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
             </p>
           </div>
           <InfoRow label="Market PDA" value={market.onChain?.marketPda ?? "—"} />
+          <InfoRow label="Config PDA" value={market.onChain?.marketConfigPda ?? "—"} />
+          <InfoRow label="Title hash" value={market.onChain?.marketTitleHash ?? "—"} />
+          <InfoRow label="Materiality config hash" value={market.onChain?.materialityConfigHash ?? "—"} />
+          <InfoRow label="Settlement config hash" value={market.onChain?.settlementConfigHash ?? "—"} />
+          <InfoRow label="Oracle authority" value={market.onChain?.oracleAuthority ?? "operator-controlled"} />
+          <p className="rounded-md border border-(--blue)/20 bg-(--blue-bg) px-2.5 py-2 text-[9.5px] text-(--ink-2)">Event hash committed by authority. This is oracle authority controlled, not a production decentralized oracle.</p>
           {market.onChain?.txSignatures?.[0] && (
             <a href={`https://explorer.solana.com/tx/${market.onChain.txSignatures[0]}?cluster=devnet`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-semibold text-(--blue) hover:underline">
               Open initialize tx <ArrowUpRight className="h-3 w-3" />

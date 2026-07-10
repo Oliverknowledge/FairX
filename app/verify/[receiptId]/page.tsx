@@ -48,6 +48,21 @@ export default function VerifyPage() {
   const verdictMatchesProof = Boolean(
     load.receipt?.onChain && receiptVerdictCode(load.receipt.verdict) === load.receipt.onChain.verdictCode
   );
+  const marketConfigAttached = Boolean(load.receipt?.marketConfigProof);
+  const materialityHashMatches = Boolean(
+    load.receipt?.marketConfigProof
+      && load.receipt.onChain?.materialityConfigHash === load.receipt.marketConfigProof.materialityConfigHash
+      && load.receipt.onChain?.orderMaterialityConfigHash === load.receipt.marketConfigProof.materialityConfigHash
+  );
+  const settlementHashMatches = Boolean(
+    load.receipt?.marketConfigProof
+      && load.receipt.onChain?.settlementConfigHash === load.receipt.marketConfigProof.settlementConfigHash
+  );
+  const eventHashMatches = Boolean(
+    load.receipt?.normalizedEventHash
+      && load.receipt.onChain?.sourceEventHash === load.receipt.normalizedEventHash
+      && load.receipt.onChain?.orderSourceEventHash === load.receipt.normalizedEventHash
+  );
   const verdict = !load.receipt
     ? "missing"
     : !verification?.valid
@@ -159,6 +174,10 @@ export default function VerifyPage() {
                     <ScopeCheck ok={idMatchesRoute} label="Receipt ID matches page URL" />
                     <ScopeCheck ok={Boolean(load.receipt.onChain)} label="On-chain proof attached" muted={!load.receipt.onChain} />
                     {load.receipt.onChain && <ScopeCheck ok={verdictMatchesProof} label="Verdict agrees with proof code" />}
+                    <ScopeCheck ok={marketConfigAttached} label={marketConfigAttached ? "Market config committed on-chain" : "No on-chain market config attached"} muted={!marketConfigAttached} />
+                    {marketConfigAttached && <ScopeCheck ok={materialityHashMatches} label="Materiality rules hash matches receipt" />}
+                    {marketConfigAttached && <ScopeCheck ok={settlementHashMatches} label="Settlement config hash matches receipt" />}
+                    {load.receipt.onChain?.sourceEventHash && <ScopeCheck ok={eventHashMatches} label="Order evaluated against source event hash" />}
                   </div>
                   <p className="mt-4 border-t border-(--border) pt-3 text-[10.5px] leading-relaxed text-(--ink-3)">
                     Explorer links below are not fetched or independently confirmed here. Use the proof hub or Solana Explorer for transaction-level inspection.
@@ -250,7 +269,18 @@ function OnChainEvidence({ proof }: { proof?: OnChainProof }) {
         <Evidence label="On-chain registers" value={`${proof.materialSeq} vs ${proof.pricedAtSeq}`} />
         <Evidence label="Observed → fair" value={`${microsToCents(proof.observedPriceMicros)} → ${microsToCents(proof.fairSidePriceMicros)}`} />
         <Evidence label="On-chain edge" value={signedMicrosToCents(proof.edgeMicros)} />
+        {proof.oracleAuthority && <Evidence label="Oracle authority" value={proof.oracleAuthority} />}
+        {proof.marketConfigPda && <Evidence label="Market config PDA" value={proof.marketConfigPda} />}
       </div>
+      {proof.materialityConfigHash ? (
+        <div className="mt-3 rounded-lg border border-(--green)/25 bg-(--green-bg) p-2.5 text-[10.5px] leading-relaxed text-(--ink-2)">
+          <p className="font-bold text-(--green)">Order evaluated against committed market config</p>
+          <p className="mt-1 mono break-all">materiality {proof.materialityConfigHash}</p>
+          <p className="mt-1 mono break-all">settlement {proof.settlementConfigHash}</p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-lg border border-(--border) bg-white p-2.5 text-[10.5px] text-(--ink-3)">No on-chain market config attached</p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         {proof.explorerUrls.map((url, index) => (
           <a key={url} href={url} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-md border border-(--blue)/25 bg-white px-2.5 text-[10.5px] font-bold text-(--blue) hover:opacity-80">

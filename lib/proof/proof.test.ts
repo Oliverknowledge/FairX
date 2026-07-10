@@ -25,6 +25,15 @@ function proofFor(side: "YES" | "NO"): OnChainProof {
     verdictCode: yes ? 2 : 1,
     statusCode: yes ? 4 : 3,
     sourceEventHash: hashNormalizedEvent({ source: "demo", fixtureId: "ENG-FRA-2026-QF", seq: 2, ts: 1, eventType: "GOAL" }),
+    orderSourceEventHash: hashNormalizedEvent({ source: "demo", fixtureId: "ENG-FRA-2026-QF", seq: 2, ts: 1, eventType: "GOAL" }),
+    marketConfigPda: "Config111111111111111111111111111111111111",
+    marketType: "MATCH_WINNER",
+    fixtureIdHash: "1".repeat(64),
+    marketTitleHash: "2".repeat(64),
+    materialityConfigHash: "3".repeat(64),
+    settlementConfigHash: "4".repeat(64),
+    orderMaterialityConfigHash: "3".repeat(64),
+    oracleAuthority: "Oracle111111111111111111111111111111111111",
     settlementDestination: yes ? "REFUNDED_TO_TRADER" : "FINALIZED_TO_VAULT",
     vaultPda: "Vau1t11111111111111111111111111111111111111",
   };
@@ -55,6 +64,7 @@ describe("on-chain receipt includes event hash and vault destination", () => {
     expect(receipt.verdict).toBe("VOIDED_REFUNDED");
     expect(receipt.settlementDestination).toBe("REFUNDED_TO_TRADER");
     expect(receipt.onChain?.sourceEventHash).toBe(proof.sourceEventHash);
+    expect(receipt.marketConfigProof?.materialityConfigHash).toBe(proof.materialityConfigHash);
     expect(verifyReceipt(receipt, 0).valid).toBe(true);
     // Tampering with the on-chain event hash changes the sealed receipt hash.
     const tampered = { ...receipt, onChain: { ...receipt.onChain!, sourceEventHash: "0".repeat(64) } };

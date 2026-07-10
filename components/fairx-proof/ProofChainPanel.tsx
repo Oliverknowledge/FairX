@@ -9,6 +9,7 @@ import type { LineGuardReceipt } from "@/lib/receipts/types";
 export function ProofChainPanel({ receipt }: { receipt: LineGuardReceipt }) {
   const hasEvent = Boolean(receipt.rawEventHash || receipt.normalizedEventHash);
   const onChain = receipt.onChain;
+  const config = receipt.marketConfigProof;
 
   return (
     <section className="rounded-xl border border-(--border) bg-white p-3.5">
@@ -58,13 +59,26 @@ export function ProofChainPanel({ receipt }: { receipt: LineGuardReceipt }) {
           {onChain ? (
             <div className="space-y-1">
               <HashLine label="market PDA" value={onChain.marketPda} />
+              {config ? (
+                <div className="mb-2 rounded-md border border-(--green)/20 bg-(--green-bg) p-2">
+                  <p className="text-[9px] font-bold text-(--green)">Market config committed on-chain</p>
+                  <HashLine label="title hash" value={config.marketTitleHash} />
+                  <HashLine label="materiality hash" value={config.materialityConfigHash} />
+                  <HashLine label="settlement hash" value={config.settlementConfigHash} />
+                  <p className={`mt-1 text-[9px] font-bold ${onChain.orderMaterialityConfigHash === config.materialityConfigHash ? "text-(--green)" : "text-(--red)"}`}>
+                    {onChain.orderMaterialityConfigHash === config.materialityConfigHash ? "✓ Order evaluated against committed market config" : "⚠ Order config snapshot does not match receipt"}
+                  </p>
+                </div>
+              ) : (
+                <p className="mb-2 text-[9.5px] text-(--ink-3)">No on-chain market config attached</p>
+              )}
               <HashLine label="order PDA" value={onChain.orderEscrowPda} />
               {onChain.sourceEventHash && (
                 <>
                   <HashLine label="on-chain event hash" value={onChain.sourceEventHash} />
-                  <p className={`text-[9px] font-bold ${onChain.sourceEventHash === receipt.normalizedEventHash ? "text-(--green)" : "text-(--amber)"}`}>
-                    {onChain.sourceEventHash === receipt.normalizedEventHash
-                      ? "✓ Event hash attached to on-chain guard verdict matches the receipt"
+                  <p className={`text-[9px] font-bold ${onChain.sourceEventHash === receipt.normalizedEventHash && onChain.orderSourceEventHash === receipt.normalizedEventHash ? "text-(--green)" : "text-(--amber)"}`}>
+                    {onChain.sourceEventHash === receipt.normalizedEventHash && onChain.orderSourceEventHash === receipt.normalizedEventHash
+                      ? "✓ Order evaluated against source event hash"
                       : "⚠ On-chain event hash differs from the receipt"}
                   </p>
                 </>
@@ -91,7 +105,7 @@ export function ProofChainPanel({ receipt }: { receipt: LineGuardReceipt }) {
             </div>
           ) : (
             <p className="text-[9.5px] leading-relaxed text-(--ink-3)">
-              This is a local-simulation receipt. The event and verdict are hash-sealed, but no devnet transaction is attached.
+              No on-chain market config attached. This is a local-simulation receipt; the event and verdict are hash-sealed, but no devnet transaction is attached.
             </p>
           )}
         </ChainStep>
@@ -99,7 +113,7 @@ export function ProofChainPanel({ receipt }: { receipt: LineGuardReceipt }) {
 
       <p className="mt-3 border-t border-(--border) pt-2.5 text-[9.5px] leading-relaxed text-(--ink-3)">
         The normalized event hash is a deterministic sha256 anyone can recompute. For devnet receipts it is also{" "}
-        <strong className="text-(--ink-2)">bound into on-chain market state and emitted in the guard verdict</strong>; the receipt reproduces it.
+        <strong className="text-(--ink-2)">committed by the oracle authority and snapshotted into the evaluated order</strong>; the receipt reproduces it.
         Changing any field changes the receipt hash and fails verification.
       </p>
     </section>

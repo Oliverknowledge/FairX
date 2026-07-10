@@ -227,6 +227,13 @@ export function createFairXMarket(input: CreateFairXMarketInput, options: Create
     onChain: {
       initialized: value.onChain?.initialized === true,
       marketPda: value.onChain?.marketPda,
+      marketConfigPda: value.onChain?.marketConfigPda,
+      marketType: value.onChain?.marketType,
+      fixtureIdHash: value.onChain?.fixtureIdHash,
+      marketTitleHash: value.onChain?.marketTitleHash,
+      materialityConfigHash: value.onChain?.materialityConfigHash,
+      settlementConfigHash: value.onChain?.settlementConfigHash,
+      oracleAuthority: value.onChain?.oracleAuthority,
       txSignatures: value.onChain?.txSignatures ? [...value.onChain.txSignatures] : undefined,
       cluster: value.onChain?.cluster,
       programId: value.onChain?.programId,

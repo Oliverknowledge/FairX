@@ -36,6 +36,24 @@ function verdictFromCode(code: number): string {
   return code === 2 ? "VOIDED_REFUNDED" : code === 1 ? "STALE_ALLOWED_NO_EDGE" : "ALLOWED";
 }
 
+function marketConfigProof(proof: OnChainProof): LineGuardReceipt["marketConfigProof"] {
+  if (
+    !proof.marketType ||
+    !proof.fixtureIdHash ||
+    !proof.marketTitleHash ||
+    !proof.materialityConfigHash ||
+    !proof.settlementConfigHash
+  ) return undefined;
+  return {
+    marketType: proof.marketType,
+    fixtureIdHash: proof.fixtureIdHash,
+    marketTitleHash: proof.marketTitleHash,
+    materialityConfigHash: proof.materialityConfigHash,
+    settlementConfigHash: proof.settlementConfigHash,
+    onChainMarketPda: proof.marketPda,
+  };
+}
+
 /**
  * Build a tamper-evident receipt for a *fresh* devnet settlement, attaching the
  * real transaction signatures + on-chain register values returned by the guard.
@@ -81,6 +99,7 @@ export function buildFreshDevnetReceipt(side: OnChainSide, proof: OnChainProof, 
     proofStatus: "onchain_verified",
     createdAt,
     onChain: proof,
+    marketConfigProof: marketConfigProof(proof),
   });
 }
 
@@ -138,5 +157,6 @@ export function buildOnChainOrderReceipt(params: {
     proofStatus: "onchain_verified",
     createdAt: params.createdAt ?? Date.now(),
     onChain: proof,
+    marketConfigProof: marketConfigProof(proof),
   });
 }

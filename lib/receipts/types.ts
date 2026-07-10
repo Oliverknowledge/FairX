@@ -30,11 +30,13 @@ export interface LineGuardReceipt {
   rawEventHash?: string;
   /** sha256 of the normalized event's provenance fields (receipt-level event binding). */
   normalizedEventHash?: string;
-  /** Where the stake ended up. REFUNDED_TO_TRADER is enforced on-chain; FINALIZED_TO_VAULT is a documented next step. */
+  /** Where the stake ended up. Refund and vault finalization are both enforced by the on-chain guard. */
   settlementDestination?: SettlementDestination;
   proofStatus: string;
   createdAt: number;
   onChain?: OnChainProof;
+  /** On-chain commitment to the market definition and fairness rules. */
+  marketConfigProof?: MarketConfigProof;
   /** sha256 over the canonical JSON of every field above (receiptHash excluded). */
   receiptHash: string;
 }
@@ -42,10 +44,19 @@ export interface LineGuardReceipt {
 /**
  * Honest settlement-destination classification.
  * - REFUNDED_TO_TRADER: the on-chain program actually returns the escrowed stake to the trader.
- * - FINALIZED_TO_VAULT: intended protocol-vault destination for allowed/filled orders (not yet on-chain).
- * - RETAINED_IN_ESCROW: current on-chain behaviour for filled orders — lamports stay in the order PDA.
+ * - FINALIZED_TO_VAULT: the on-chain program moved an allowed/filled stake into ProtocolVault.
+ * - RETAINED_IN_ESCROW: retained for parsing older receipt formats only.
  */
 export type SettlementDestination = "REFUNDED_TO_TRADER" | "FINALIZED_TO_VAULT" | "RETAINED_IN_ESCROW";
+
+export interface MarketConfigProof {
+  marketType: string;
+  fixtureIdHash: string;
+  marketTitleHash: string;
+  materialityConfigHash: string;
+  settlementConfigHash: string;
+  onChainMarketPda: string;
+}
 
 export interface ReceiptVerification {
   valid: boolean;
@@ -58,6 +69,7 @@ export interface OnChainProof {
   cluster: "devnet" | "localnet";
   programId: string;
   marketPda: string;
+  marketConfigPda?: string;
   orderEscrowPda: string;
   txSignatures: string[];
   explorerUrls: string[];
@@ -71,6 +83,16 @@ export interface OnChainProof {
   statusCode: number;
   /** sha256 (hex) of the normalized source event, as bound into on-chain market state. */
   sourceEventHash?: string;
+  /** Event hash snapshotted into OrderEscrow when the verdict was evaluated. */
+  orderSourceEventHash?: string;
+  /** Materiality commitment snapshotted into OrderEscrow at evaluation. */
+  orderMaterialityConfigHash?: string;
+  marketType?: string;
+  fixtureIdHash?: string;
+  marketTitleHash?: string;
+  materialityConfigHash?: string;
+  settlementConfigHash?: string;
+  oracleAuthority?: string;
   /** On-chain settlement destination: refund to trader, or finalize into the ProtocolVault. */
   settlementDestination?: import("@/lib/receipts/types").SettlementDestination;
   /** ProtocolVault PDA that received a finalized (filled) stake. */

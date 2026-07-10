@@ -36,6 +36,13 @@ describe("lineguard on-chain settlement guard", () => {
     )[0];
   }
 
+  function pdaConfig(market: anchor.web3.PublicKey): anchor.web3.PublicKey {
+    return anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("config"), market.toBuffer()],
+      program.programId
+    )[0];
+  }
+
   function enumName(value: unknown): string {
     return Object.keys(value as Record<string, unknown>)[0];
   }
@@ -52,19 +59,25 @@ describe("lineguard on-chain settlement guard", () => {
   ) {
     const marketId = id32(label);
     const market = pdaMarket(marketId);
+    const marketConfig = pdaConfig(market);
     await program.methods
-      .initializeMarket(
+      .initializeMarketConfig(
         Array.from(marketId),
         new anchor.BN(opts.materialSeq ?? 1),
         new anchor.BN(opts.pricedAtSeq ?? 1),
         new anchor.BN(opts.displayed ?? DISPLAYED_40),
         new anchor.BN(opts.fair ?? DISPLAYED_40),
-        new anchor.BN(opts.tolerance ?? TOLERANCE_2C)
+        new anchor.BN(opts.tolerance ?? TOLERANCE_2C),
+        0,
+        Array.from(Buffer.alloc(32, 1)),
+        Array.from(Buffer.alloc(32, 2)),
+        Array.from(Buffer.alloc(32, 3)),
+        Array.from(Buffer.alloc(32, 4))
       )
-      .accountsPartial({ authority: trader, market })
+      .accountsPartial({ authority: trader, market, marketConfig })
       .rpc();
 
-    return { marketId, market };
+    return { marketId, market, marketConfig };
   }
 
   async function placeOrder(label: string, market: anchor.web3.PublicKey, side: 0 | 1) {
@@ -91,9 +104,10 @@ describe("lineguard on-chain settlement guard", () => {
     }
   });
 
-  it("initializes a market in sync", async () => {
-    const { market } = await initializeMarket("init-in-sync");
+  it("initialize market stores config hashes", async () => {
+    const { market, marketConfig } = await initializeMarket("init-in-sync");
     const account = await program.account.marketState.fetch(market);
+    const config = await program.account.marketConfig.fetch(marketConfig);
 
     expect(account.materialSeq.toNumber()).to.equal(1);
     expect(account.pricedAtSeq.toNumber()).to.equal(1);
@@ -101,10 +115,47 @@ describe("lineguard on-chain settlement guard", () => {
     expect(account.fairPriceMicros.toNumber()).to.equal(DISPLAYED_40);
     expect(account.toleranceMicros.toNumber()).to.equal(TOLERANCE_2C);
     expect(enumName(account.status)).to.equal("trading");
+    expect(config.marketType).to.equal(0);
+    expect(Buffer.from(config.fixtureIdHash).equals(Buffer.alloc(32, 1))).to.equal(true);
+    expect(Buffer.from(config.marketTitleHash).equals(Buffer.alloc(32, 2))).to.equal(true);
+    expect(Buffer.from(config.materialityConfigHash).equals(Buffer.alloc(32, 3))).to.equal(true);
+    expect(Buffer.from(config.settlementConfigHash).equals(Buffer.alloc(32, 4))).to.equal(true);
+    expect(config.authority.equals(trader)).to.equal(true);
+    expect(config.createdAtSlot.toNumber()).to.be.greaterThan(0);
+  });
+
+  it("event hash cannot be zero", async () => {
+    const { market } = await initializeMarket("zero-event-hash");
+    try {
+      await program.methods
+        .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), Array.from(Buffer.alloc(32)))
+        .accountsPartial({ authority: trader, market })
+        .rpc();
+      expect.fail("zero event hash should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Source event hash must be nonzero|ZeroEventHash/);
+    }
+  });
+
+  it("unauthorized ingest fails", async () => {
+    const { market } = await initializeMarket("unauthorized-ingest");
+    const unauthorized = anchor.web3.Keypair.generate();
+    const airdrop = await provider.connection.requestAirdrop(unauthorized.publicKey, 10_000_000);
+    await provider.connection.confirmTransaction(airdrop, "confirmed");
+    try {
+      await program.methods
+        .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH)
+        .accountsPartial({ authority: unauthorized.publicKey, market })
+        .signers([unauthorized])
+        .rpc();
+      expect.fail("unauthorized ingest should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Only the configured market authority|InvalidAuthority/);
+    }
   });
 
   it("refunds a stale YES attack", async () => {
-    const { market } = await initializeMarket("yes-refund");
+    const { market, marketConfig } = await initializeMarket("yes-refund");
 
     await program.methods
       .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH)
@@ -127,13 +178,16 @@ describe("lineguard on-chain settlement guard", () => {
     expect(enumName(placed.status)).to.equal("escrowed");
     expect(balanceAfterPlace).to.be.lessThan(balanceBeforePlace - STAKE_LAMPORTS);
 
-    await program.methods.evaluateOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
+    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
 
     const evaluated = await program.account.orderEscrow.fetch(order);
     expect(evaluated.fairSidePriceMicros.toNumber()).to.equal(FAIR_63);
     expect(evaluated.edgeMicros.toNumber()).to.equal(230_000);
     expect(enumName(evaluated.verdict)).to.equal("voidedRefunded");
     expect(enumName(evaluated.status)).to.equal("voidedRefunded");
+    expect(enumName(evaluated.settlementDestination)).to.equal("trader");
+    expect(Buffer.from(evaluated.sourceEventHash).equals(Buffer.alloc(32, 7))).to.equal(true);
+    expect(Buffer.from(evaluated.materialityConfigHash).equals(Buffer.alloc(32, 3))).to.equal(true);
 
     const balanceAfterEvaluate = await provider.connection.getBalance(trader);
     const orderLamports = await provider.connection.getBalance(order);
@@ -142,7 +196,7 @@ describe("lineguard on-chain settlement guard", () => {
   });
 
   it("fills a stale NO losing-side order", async () => {
-    const { market } = await initializeMarket("no-fill");
+    const { market, marketConfig } = await initializeMarket("no-fill");
 
     await program.methods
       .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH)
@@ -150,7 +204,7 @@ describe("lineguard on-chain settlement guard", () => {
       .rpc();
 
     const { order } = await placeOrder("no-fill-order", market, 1);
-    await program.methods.evaluateOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
+    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
 
     const evaluated = await program.account.orderEscrow.fetch(order);
     expect(evaluated.observedPriceMicros.toNumber()).to.equal(MICROS_ONE - DISPLAYED_40);
@@ -158,6 +212,9 @@ describe("lineguard on-chain settlement guard", () => {
     expect(evaluated.edgeMicros.toNumber()).to.equal(-230_000);
     expect(enumName(evaluated.verdict)).to.equal("staleAllowedNoEdge");
     expect(enumName(evaluated.status)).to.equal("filled");
+    expect(enumName(evaluated.settlementDestination)).to.equal("vault");
+    expect(Buffer.from(evaluated.sourceEventHash).equals(Buffer.alloc(32, 7))).to.equal(true);
+    expect(Buffer.from(evaluated.materialityConfigHash).equals(Buffer.alloc(32, 3))).to.equal(true);
 
     // A filled order finalizes its stake into the ProtocolVault, not the order PDA.
     const orderLamports = await provider.connection.getBalance(order);
@@ -171,10 +228,10 @@ describe("lineguard on-chain settlement guard", () => {
   });
 
   it("allows an in-sync order", async () => {
-    const { market } = await initializeMarket("sync-allow");
+    const { market, marketConfig } = await initializeMarket("sync-allow");
     const { order } = await placeOrder("sync-allow-order", market, 0);
 
-    await program.methods.evaluateOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
+    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
 
     const evaluated = await program.account.orderEscrow.fetch(order);
     expect(evaluated.fairSidePriceMicros.toNumber()).to.equal(DISPLAYED_40);
@@ -184,7 +241,7 @@ describe("lineguard on-chain settlement guard", () => {
   });
 
   it("allows stale edge below tolerance", async () => {
-    const { market } = await initializeMarket("below-tolerance", {
+    const { market, marketConfig } = await initializeMarket("below-tolerance", {
       materialSeq: 2,
       pricedAtSeq: 1,
       displayed: DISPLAYED_40,
@@ -193,7 +250,7 @@ describe("lineguard on-chain settlement guard", () => {
     });
     const { order } = await placeOrder("below-tolerance-order", market, 0);
 
-    await program.methods.evaluateOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
+    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
 
     const evaluated = await program.account.orderEscrow.fetch(order);
     expect(evaluated.observedPriceMicros.toNumber()).to.equal(DISPLAYED_40);

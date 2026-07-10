@@ -31,6 +31,10 @@ export function deriveOrderPda(programId: string, market: PublicKey, orderId: Ui
   return PublicKey.findProgramAddressSync([new TextEncoder().encode("order"), market.toBytes(), orderId], new PublicKey(programId))[0];
 }
 
+export function deriveMarketConfigPda(programId: string, market: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([new TextEncoder().encode("config"), market.toBytes()], new PublicKey(programId))[0];
+}
+
 export function deriveDefaultPdas(programId: string, side: OnChainSide = "YES") {
   return deriveLineGuardPdas(programId, LINEGUARD_MARKET_LABEL, orderLabelForSide(side));
 }
@@ -39,6 +43,7 @@ export function deriveLineGuardPdas(programId: string, marketLabel: string, orde
   const marketId = bytes32(marketLabel);
   const orderId = bytes32(orderLabel);
   const marketPda = deriveMarketPda(programId, marketId);
+  const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
   const orderEscrowPda = deriveOrderPda(programId, marketPda, orderId);
-  return { marketLabel, orderLabel, marketId, orderId, marketPda, orderEscrowPda };
+  return { marketLabel, orderLabel, marketId, orderId, marketPda, marketConfigPda, orderEscrowPda };
 }

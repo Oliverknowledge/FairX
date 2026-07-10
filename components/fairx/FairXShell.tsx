@@ -57,7 +57,7 @@ export function DevnetBadge({ className = "" }: { className?: string }) {
 
 /** Shared exchange frame. It intentionally keeps navigation and compliance copy present on every FairX surface. */
 export function FairXShell({ children, className = "", compact = false }: FairXShellProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
 
   return (
     <div className="min-h-screen bg-(--surface)">
