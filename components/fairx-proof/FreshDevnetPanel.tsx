@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -24,20 +24,11 @@ import { buildProofSummary } from "@/lib/proof/proofSummary";
 import { encodeReceiptForUrl } from "@/lib/receipts/create";
 import type { LineGuardReceipt } from "@/lib/receipts/types";
 import type { OnChainSide } from "@/lib/solana/pdas";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
+import type { FairXRuntimeStatus } from "@/lib/status/types";
+import { proofData } from "@/lib/proof/staticProofData";
 
 const PROGRAM_ID = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe";
-
-type SignerInfo = {
-  configured: boolean;
-  cluster?: string;
-  programId: string;
-  programExplorerUrl?: string;
-  signerPublicKey?: string;
-  signerExplorerUrl?: string;
-  balanceLamports?: number;
-  balanceSol?: number;
-  reason?: string;
-};
 
 type RunState = {
   side: OnChainSide;
@@ -63,8 +54,7 @@ function signedMicros(value: number): string {
 }
 
 export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
-  const [signer, setSigner] = useState<SignerInfo | null>(null);
-  const [loadingSigner, setLoadingSigner] = useState(true);
+  const { status: runtime, loading: loadingRuntime, refresh: refreshRuntime } = useRuntimeStatus();
   const [running, setRunning] = useState<OnChainSide | null>(null);
   const [runs, setRuns] = useState<RunState[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -86,22 +76,6 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
     for (const url of urls.slice(0, 8)) window.open(url, "_blank", "noopener");
   };
 
-  const loadSigner = useCallback(async () => {
-    setLoadingSigner(true);
-    try {
-      const res = await fetch("/api/solana/lineguard/signer", { cache: "no-store" });
-      setSigner((await res.json()) as SignerInfo);
-    } catch {
-      setSigner({ configured: false, programId: "", reason: "Could not reach the on-chain status route." });
-    } finally {
-      setLoadingSigner(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadSigner();
-  }, [loadSigner]);
-
   const run = async (side: OnChainSide) => {
     if (running) return;
     setRunning(side);
@@ -114,7 +88,7 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
       }
       const receipt = buildFreshDevnetReceipt(side, response.proof);
       setRuns((current) => [{ side, response, receipt, at: Date.now() }, ...current].slice(0, 4));
-      void loadSigner();
+      void refreshRuntime();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fresh devnet execution failed.");
     } finally {
@@ -122,7 +96,7 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
-  const configured = signer?.configured === true;
+  const configured = runtime?.freshProofAvailable === true;
 
   return (
     <section className="card overflow-hidden">
@@ -132,7 +106,7 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
             <Cpu className="h-4 w-4" />
           </span>
           <div>
-            <p className="mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-[#8fb0e6]">Live devnet execution</p>
+            <p className="mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-[#8fb0e6]">Fresh devnet execution</p>
             <h2 className="mt-0.5 text-[15px] font-bold leading-tight">Generate fresh on-chain proof</h2>
             <p className="mt-1 max-w-lg text-[10.5px] leading-relaxed text-[#a9bad6]">
               Each run sends four Solana devnet transactions through the deployed LineGuard program: it commits market config, binds an authority-controlled
@@ -140,16 +114,17 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
             </p>
           </div>
         </div>
-        <SignerBadge signer={signer} loading={loadingSigner} />
+        <SignerBadge runtime={runtime} loading={loadingRuntime} />
       </div>
 
       <div className="p-4">
-        {!configured && !loadingSigner && (
+        {!configured && !loadingRuntime && (
           <div className="mb-3 flex items-start gap-2 rounded-lg border border-[#f1d59b] bg-(--amber-bg) px-3 py-2.5 text-[11px] leading-relaxed text-[#9b650d]">
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
-              <strong>Devnet operator not configured.</strong> {signer?.reason ?? "Set LINEGUARD_OPERATOR_KEYPAIR (server-side) to enable live execution."} The
-              recorded canonical proof and local simulation stay fully available.
+              <strong>Fresh execution unavailable.</strong> {runtime?.reason ?? "The production-safe runtime check did not pass."} The canonical verified
+              YES refund and NO ProtocolVault evidence remain available below.
+              <Link href={proofData.receipt.verifierHref} className="ml-1 font-bold underline">Open canonical receipt</Link>.
             </p>
           </div>
         )}
@@ -235,7 +210,7 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function SignerBadge({ signer, loading }: { signer: SignerInfo | null; loading: boolean }) {
+function SignerBadge({ runtime, loading }: { runtime: FairXRuntimeStatus | null; loading: boolean }) {
   if (loading) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[9.5px] font-semibold text-[#a9bad6]">
@@ -243,10 +218,10 @@ function SignerBadge({ signer, loading }: { signer: SignerInfo | null; loading: 
       </span>
     );
   }
-  if (!signer?.configured) {
+  if (!runtime?.freshProofAvailable) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-[#7a5a1e] bg-[#3a2c10] px-2.5 py-1 text-[9.5px] font-semibold text-[#f0cd8a]">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#e0a93a]" /> Operator not configured
+        <span className="h-1.5 w-1.5 rounded-full bg-[#e0a93a]" /> Canonical-only
       </span>
     );
   }
@@ -256,14 +231,14 @@ function SignerBadge({ signer, loading }: { signer: SignerInfo | null; loading: 
         <Wallet className="h-3 w-3" /> Devnet operator
       </span>
       <a
-        href={signer.signerExplorerUrl}
+        href={runtime.operator.publicKey ? `https://explorer.solana.com/address/${runtime.operator.publicKey}?cluster=devnet` : undefined}
         target="_blank"
         rel="noreferrer"
         className="mono mt-0.5 block text-[10px] font-bold text-white hover:underline"
       >
-        {short(signer.signerPublicKey, 5, 5)}
+        {short(runtime.operator.publicKey, 5, 5)}
       </a>
-      <span className="num text-[9.5px] text-[#a9bad6]">{signer.balanceSol?.toFixed(3) ?? "—"} SOL</span>
+      <span className="num text-[9.5px] text-[#a9bad6]">{runtime.operator.balanceSol?.toFixed(3) ?? "—"} SOL</span>
     </div>
   );
 }

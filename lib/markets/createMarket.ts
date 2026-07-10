@@ -234,6 +234,8 @@ export function createFairXMarket(input: CreateFairXMarketInput, options: Create
       materialityConfigHash: value.onChain?.materialityConfigHash,
       settlementConfigHash: value.onChain?.settlementConfigHash,
       oracleAuthority: value.onChain?.oracleAuthority,
+      settled: value.onChain?.settled,
+      lastOrderSignature: value.onChain?.lastOrderSignature,
       txSignatures: value.onChain?.txSignatures ? [...value.onChain.txSignatures] : undefined,
       cluster: value.onChain?.cluster,
       programId: value.onChain?.programId,

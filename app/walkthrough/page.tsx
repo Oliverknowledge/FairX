@@ -5,10 +5,11 @@ import { Badge } from "@/components/lineguard/ui";
 import { DemoSequence } from "@/components/fairx-proof/DemoSequence";
 import { FreshDevnetPanel } from "@/components/fairx-proof/FreshDevnetPanel";
 import { FairXShell } from "@/components/fairx/FairXShell";
+import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 
 export const metadata: Metadata = {
-  title: "Proof Walkthrough | FairX",
-  description: "A guided walkthrough of LineGuard's canonical Solana devnet proof cases, with fresh devnet execution.",
+  title: "Proof Walkthrough",
+  description: "A 60-second walkthrough of TxLINE event evidence, stale-order escrow, selective refunds, ProtocolVault finalization, and receipt verification.",
 };
 
 export default function WalkthroughPage() {
@@ -26,9 +27,9 @@ export default function WalkthroughPage() {
             </span>
             <div>
               <p className="mono text-[10px] font-semibold uppercase tracking-[0.16em] text-(--ink-3)">FairX powered by LineGuard</p>
-              <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.035em] text-(--ink)">The live proof flow.</h1>
+              <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.035em] text-(--ink)">Watch selective settlement in 60 seconds.</h1>
               <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-(--ink-2)">
-                Follow a single stale-price window from event ingestion to two different settlement decisions, then generate fresh devnet execution on demand.
+                One event, one stale window, two opposite orders. LineGuard refunds only the order exploiting the lag and finalizes the safe side.
               </p>
             </div>
           </div>
@@ -41,11 +42,13 @@ export default function WalkthroughPage() {
         </div>
       </header>
 
+      <div className="mb-4"><RuntimeStatusStrip detailed /></div>
+
       <DemoSequence />
 
       <div className="mt-5">
         <div className="mb-2 flex items-center gap-2">
-          <span className="section-label">Beyond the recording</span>
+          <span className="section-label">Fresh devnet execution when runtime-ready</span>
           <span className="h-px flex-1 bg-(--border)" />
         </div>
         <FreshDevnetPanel />
@@ -57,8 +60,8 @@ export default function WalkthroughPage() {
           <p className="section-label">TxLINE provenance — how an event enters the proof chain</p>
         </div>
         <p className="mt-2 max-w-3xl text-[11.5px] leading-relaxed text-(--ink-2)">
-          Every material event flows through the same pipeline before the guard sees it. Live TxLINE is used when credentials are configured;
-          otherwise a real captured payload or a manually imported payload is used — always labelled honestly, never presented as live.
+          Every material event flows through the same pipeline before the guard sees it. Live TxLINE is shown only after credentials and stream connectivity succeed;
+          captured/manual payloads and this guided scenario keep their own provenance labels.
         </p>
         <div className="mt-3 overflow-x-auto">
           <div className="flex min-w-[640px] items-center gap-2 text-[10px]">

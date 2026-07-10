@@ -20,13 +20,7 @@ function marketKindLabel(market: FairXMarket) {
   }
 }
 
-function liquidityLabel(liquidity: FairXMarket["liquidity"]) {
-  if (!liquidity) return "Sandbox escrow";
-  if (typeof liquidity === "number") return `${liquidity.toLocaleString()} sandbox USDC`;
-  return String(liquidity);
-}
-
-export function MarketCard({ market }: { market: FairXMarket }) {
+export function MarketCard({ market, liveConnected = false }: { market: FairXMarket; liveConnected?: boolean }) {
   const guardLabel = guardLabelForStatus(market.status);
 
   return (
@@ -63,9 +57,9 @@ export function MarketCard({ market }: { market: FairXMarket }) {
           </p>
         </div>
         <div>
-          <p className="text-(--ink-3)">Escrow</p>
-          <p className="mt-0.5 truncate font-semibold text-(--ink)" title={liquidityLabel(market.escrow ?? market.liquidity)}>
-            {liquidityLabel(market.escrow ?? market.liquidity)}
+          <p className="text-(--ink-3)">Execution</p>
+          <p className="mt-0.5 truncate font-semibold text-(--ink)">
+            {market.onChain?.settled ? "Devnet settled" : market.onChain?.initialized ? "Devnet initialized" : "Local simulation"}
           </p>
         </div>
       </div>
@@ -79,7 +73,7 @@ export function MarketCard({ market }: { market: FairXMarket }) {
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
           <span className="truncate">LineGuard · {guardLabel}</span>
         </span>
-        <SourceBadge source={market.source} />
+        <SourceBadge source={market.source} liveConnected={liveConnected} />
       </div>
 
       <Link

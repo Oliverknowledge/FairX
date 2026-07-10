@@ -1,17 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const navigation = [
+  { href: "/walkthrough", label: "Proof Walkthrough" },
+  { href: "/proof", label: "Proof" },
   { href: "/markets", label: "Markets" },
   { href: "/create", label: "Create Market" },
-  { href: "/proof", label: "Proof" },
   { href: "/attack-lab", label: "Attack Lab" },
-  { href: "/operator", label: "Operator" },
   { href: "/integrate", label: "Integrate" },
+] as const;
+
+const developerNavigation = [
+  { href: "/terminal", label: "Technical terminal" },
+  { href: "/operator", label: "Operator status" },
 ] as const;
 
 type FairXShellProps = {
@@ -67,7 +72,7 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
             <FairXBrand />
           </Link>
 
-          <nav className="hidden min-w-0 items-center gap-1 md:flex" aria-label="Primary navigation">
+          <nav className="hidden min-w-0 items-center gap-0.5 lg:flex" aria-label="Primary navigation">
             {navigation.map((item) => {
               const active = isActive(pathname, item.href);
               return (
@@ -84,18 +89,27 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
             })}
           </nav>
 
+          <details className="group relative hidden lg:block">
+            <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-(--ink-2) hover:bg-[#f6f7f9] hover:text-(--ink)">
+              Developer <ChevronDown className="h-3 w-3 transition group-open:rotate-180" />
+            </summary>
+            <div className="absolute left-0 top-9 z-30 w-48 rounded-lg border border-(--border) bg-white p-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.12)]">
+              {developerNavigation.map((item) => <Link key={item.href} href={item.href} className="block rounded-md px-2.5 py-2 text-[10.5px] font-semibold text-(--ink-2) hover:bg-[#f6f7f9] hover:text-(--blue)">{item.label}</Link>)}
+            </div>
+          </details>
+
           <div className="ml-auto flex items-center gap-2">
             <DevnetBadge className="hidden sm:inline-flex" />
             <Link
               href="/walkthrough"
               className="inline-flex h-8 items-center rounded-md bg-(--ink) px-3 text-[10.5px] font-semibold text-white transition-colors hover:bg-[#273244]"
             >
-              Proof walkthrough
+              Run the proof walkthrough
             </Link>
           </div>
         </div>
 
-        <div className="border-t border-(--border) px-4 py-1.5 md:hidden">
+        <div className="border-t border-(--border) px-4 py-1.5 lg:hidden">
           <nav className="mx-auto flex max-w-[1380px] items-center gap-1 overflow-x-auto" aria-label="Primary navigation">
             {navigation.map((item) => {
               const active = isActive(pathname, item.href);
@@ -111,15 +125,16 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
                 </Link>
               );
             })}
-            <DevnetBadge className="ml-auto shrink-0" />
+            {developerNavigation.map((item) => <Link key={item.href} href={item.href} className="shrink-0 rounded-md px-2 py-1 text-[10.5px] font-semibold text-(--ink-3)">{item.label}</Link>)}
           </nav>
         </div>
       </header>
 
       <main className={`mx-auto max-w-[1380px] px-4 sm:px-6 ${compact ? "py-7 sm:py-10" : "py-6 sm:py-8"} ${className}`}>{children}</main>
 
-      <footer className="mx-auto max-w-[1380px] px-4 pb-6 pt-3 text-[10px] leading-relaxed text-(--ink-3) sm:px-6">
-        FairX is a devnet prototype for prediction-market integrity. It is not a real-money betting product.
+      <footer className="mx-auto flex max-w-[1380px] flex-col gap-2 px-4 pb-6 pt-3 text-[10px] leading-relaxed text-(--ink-3) sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <span>FairX is a devnet-backed prototype. Devnet and sandbox funds only; no real-money settlement.</span>
+        <span className="mono break-all text-[9px]">build {(process.env.NEXT_PUBLIC_COMMIT_SHA ?? "local").slice(0, 8)} · {process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "unconfigured"} · program 6k8uu3N8…HWdSe</span>
       </footer>
     </div>
   );

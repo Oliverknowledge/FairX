@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // FairPlay Contracts — hackathon vertical slice. No special config needed;
-  // the TxLINE SSE mock lives in app/api/txline/stream and streams on demand.
+  env: {
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
+    NEXT_PUBLIC_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? "local",
+  },
 };
 
 export default nextConfig;

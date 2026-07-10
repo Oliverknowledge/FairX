@@ -1,21 +1,44 @@
+"use client";
+
 import Link from "next/link";
-import { Activity, ArrowUpRight, CircleAlert, DatabaseZap, FileCheck2, ShieldCheck, WalletCards } from "lucide-react";
+import { Activity, ArrowUpRight, CircleAlert, DatabaseZap, FileCheck2, Radio, ShieldCheck, WalletCards } from "lucide-react";
 import { Badge, cn } from "@/components/lineguard/ui";
 import { proofData, type SettlementProofCase } from "@/lib/proof/staticProofData";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 
 const yesCase = proofData.cases.find((proof) => proof.id === "yes")!;
 const noCase = proofData.cases.find((proof) => proof.id === "no")!;
 
 export function OperatorDashboard() {
+  const { status, loading, error, refresh } = useRuntimeStatus();
+  const operatorBalance = status?.operator.balanceSol;
+  const vaultBalance = status?.vault.balanceLamports;
   return (
     <div className="space-y-4">
+      {(status?.operator.lowBalance || error) && (
+        <section className="flex items-start justify-between gap-3 rounded-xl border border-[#f1d59b] bg-(--amber-bg) p-3 text-[10.5px] leading-relaxed text-(--amber)">
+          <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />{error ?? `Operator balance is below the safe proof-run threshold. Fresh execution is disabled; canonical proof remains available.`}</p>
+          <button onClick={() => void refresh()} className="shrink-0 font-bold underline">Recheck</button>
+        </section>
+      )}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Metric icon={<DatabaseZap className="h-4 w-4" />} label="Feed status" value="Replay evidence" detail="No live TxLINE health check on this page" tone="amber" />
-        <Metric icon={<Activity className="h-4 w-4" />} label="Stale windows" value="2" detail="Two fixed canonical proof cases" tone="amber" />
-        <Metric icon={<ShieldCheck className="h-4 w-4" />} label="Orders refunded" value="1" detail="YES positive-edge order" tone="red" />
-        <Metric icon={<ShieldCheck className="h-4 w-4" />} label="Orders filled" value="1" detail="NO stale, no-edge order" tone="blue" />
-        <Metric icon={<WalletCards className="h-4 w-4" />} label="Protected volume" value="Not aggregated" detail="Canonical receipt records a $500 sandbox stake" tone="neutral" />
-        <Metric icon={<FileCheck2 className="h-4 w-4" />} label="Program status" value="Devnet deployed" detail="Recorded explorer links below" tone="green" />
+        <Metric icon={<DatabaseZap className="h-4 w-4" />} label="Program" value={loading ? "Checking…" : status?.solana.programExecutable ? "Executable" : "Unavailable"} detail={status ? `${status.solana.schemaLabel} · slot ${status.solana.deployedSlot ?? "—"}` : "Runtime status not loaded"} tone={status?.solana.programExecutable ? "green" : "amber"} />
+        <Metric icon={<WalletCards className="h-4 w-4" />} label="Operator" value={operatorBalance === undefined ? "Unavailable" : `${operatorBalance.toFixed(3)} SOL`} detail={status?.operator.publicKey ? shorten(status.operator.publicKey) : "No server signer configured"} tone={status?.operator.configured && !status.operator.lowBalance ? "green" : "amber"} />
+        <Metric icon={<ShieldCheck className="h-4 w-4" />} label="ProtocolVault" value={vaultBalance === undefined ? "Unavailable" : `${(vaultBalance / 1_000_000_000).toFixed(4)} SOL`} detail={`${status?.vault.fillCount ?? proofData.vault.fillCount} verified finalization${(status?.vault.fillCount ?? 1) === 1 ? "" : "s"} · devnet funds`} tone={status?.vault.exists ? "blue" : "amber"} />
+        <Metric icon={<Radio className="h-4 w-4" />} label="TxLINE" value={status?.txline.connected ? "Live connected" : status?.txline.configured ? "Configured, unreachable" : "Not configured"} detail="Never inferred from a seeded market" tone={status?.txline.connected ? "green" : "amber"} />
+        <Metric icon={<Activity className="h-4 w-4" />} label="Fresh proof" value={status?.freshProofAvailable ? "Available" : "Canonical only"} detail={status?.reason ?? "Runtime gated"} tone={status?.freshProofAvailable ? "green" : "amber"} />
+        <Metric icon={<FileCheck2 className="h-4 w-4" />} label="Canonical proof" value="Verified" detail="Current event-hash + ProtocolVault YES/NO evidence" tone="green" />
+      </section>
+
+      <section className="card p-4 text-[10.5px]">
+        <p className="section-label">Operational identity</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Info label="Operator public key" value={status?.operator.publicKey ?? "Unavailable"} />
+          <Info label="Program ID" value={status?.solana.programId ?? proofData.program.id} />
+          <Info label="ProtocolVault PDA" value={status?.vault.pda ?? proofData.vault.pda} />
+          <Info label="Oracle model" value="Operator authority controlled" />
+        </div>
+        <p className="mt-3 text-(--ink-3)">No private key or TxLINE credential value is returned by the status endpoint.</p>
       </section>
 
       <section className="card overflow-hidden">
@@ -24,7 +47,7 @@ export function OperatorDashboard() {
             <p className="section-label">Integrity monitoring</p>
             <h2 className="mt-1 text-[17px] font-extrabold text-(--ink)">Canonical guarded-order outcomes</h2>
             <p className="mt-1 max-w-3xl text-[11.5px] leading-relaxed text-(--ink-2)">
-              This operator view summarizes the two recorded devnet proof paths. It is a static evidence view, not a live operations console.
+              This table summarizes the two current canonical devnet proof paths. Runtime readiness, signer balance, vault state, and feed connectivity above are checked by the server.
             </p>
           </div>
           <Badge tone="blue">fixed evidence</Badge>
@@ -170,7 +193,7 @@ function OrderRow({ proof }: { proof: SettlementProofCase }) {
       </td>
       <td className="px-4 py-3 align-top">
         <Badge tone={verdictTone}>{proof.verdict}</Badge>
-        <p className="mt-1 text-[10.5px] text-(--ink-3)">{yes ? "refunded on-chain" : "filled on-chain"}</p>
+        <p className="mt-1 text-[10.5px] text-(--ink-3)">{yes ? "refunded to trader" : "finalized to ProtocolVault"}</p>
       </td>
       <td className="px-4 py-3 align-top">
         <a href={proofTx.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-bold text-(--blue) hover:underline">
@@ -205,4 +228,8 @@ function RecordedTx({ label, href, signature, tone }: { label: string; href: str
 
 function shorten(value: string): string {
   return value.length > 28 ? `${value.slice(0, 12)}…${value.slice(-10)}` : value;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-md border border-(--border) bg-[#fafbfc] p-2.5"><p className="font-semibold text-(--ink-3)">{label}</p><p className="mono mt-1 break-all text-(--ink)">{value}</p></div>;
 }

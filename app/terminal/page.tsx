@@ -2,6 +2,8 @@
 
 import { ShieldCheck } from "lucide-react";
 import { useReducer } from "react";
+import { FairXShell } from "@/components/fairx/FairXShell";
+import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 import { CapturedPayloadPanel } from "@/components/lineguard/CapturedPayloadPanel";
 import { EscrowPanel } from "@/components/lineguard/EscrowPanel";
 import { EventTimeline } from "@/components/lineguard/EventTimeline";
@@ -35,22 +37,25 @@ export default function TerminalPage() {
   const source = activeDataSource(state);
 
   return (
-    <main className="mx-auto min-h-screen max-w-[1400px] px-4 py-4">
+    <FairXShell>
+    <div className="mx-auto max-w-[1400px]">
       <TxLineProvider state={state} dispatch={dispatch} />
 
-      <header className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <RuntimeStatusStrip detailed />
+
+      <header className="my-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--green-bg)">
           <ShieldCheck className="h-5 w-5 text-(--green)" />
         </span>
         <div className="min-w-0">
           <h1 className="text-[16px] font-bold leading-tight tracking-tight text-(--ink)">
-            LineGuard <span className="font-medium text-(--ink-3)">— Stale-Price Protection for Live Sports Markets</span>
+            LineGuard <span className="font-medium text-(--ink-3)">— developer feed and guard terminal</span>
           </h1>
           <p className="text-[11px] text-(--ink-2)">
             Every prediction market can prove who won. LineGuard proves whether the trade that got you there was fair.
           </p>
           <p className="mt-0.5 text-[9.5px] text-(--ink-3)">
-            Same reducer path: live SSE → normalized event → materiality engine → stale-window guard.
+            Sandbox by default. Live mode only appears after server credentials and an active stream are detected.
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -123,6 +128,7 @@ export default function TerminalPage() {
         We don&apos;t just use TxLINE to settle who won — we use it to prove whether each trade was fair at the moment it was placed. The guard
         decision is a single pure function (<span className="mono">lib/lineguard/evaluate.ts</span>). Not a real-money product.
       </footer>
-    </main>
+    </div>
+    </FairXShell>
   );
 }

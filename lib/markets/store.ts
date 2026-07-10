@@ -149,6 +149,15 @@ function sanitizeMarket(value: FairXMarket): FairXMarket {
       ? {
           initialized: raw.onChain.initialized === true,
           marketPda: typeof raw.onChain.marketPda === "string" ? raw.onChain.marketPda : undefined,
+          marketConfigPda: typeof raw.onChain.marketConfigPda === "string" ? raw.onChain.marketConfigPda : undefined,
+          marketType: isFairXMarketType(raw.onChain.marketType) ? raw.onChain.marketType : undefined,
+          fixtureIdHash: typeof raw.onChain.fixtureIdHash === "string" ? raw.onChain.fixtureIdHash : undefined,
+          marketTitleHash: typeof raw.onChain.marketTitleHash === "string" ? raw.onChain.marketTitleHash : undefined,
+          materialityConfigHash: typeof raw.onChain.materialityConfigHash === "string" ? raw.onChain.materialityConfigHash : undefined,
+          settlementConfigHash: typeof raw.onChain.settlementConfigHash === "string" ? raw.onChain.settlementConfigHash : undefined,
+          oracleAuthority: typeof raw.onChain.oracleAuthority === "string" ? raw.onChain.oracleAuthority : undefined,
+          settled: raw.onChain.settled === true,
+          lastOrderSignature: typeof raw.onChain.lastOrderSignature === "string" ? raw.onChain.lastOrderSignature : undefined,
           txSignatures: Array.isArray(raw.onChain.txSignatures)
             ? raw.onChain.txSignatures.filter((signature): signature is string => typeof signature === "string")
             : undefined,

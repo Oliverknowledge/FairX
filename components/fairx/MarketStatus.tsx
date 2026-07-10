@@ -51,16 +51,16 @@ export function MarketStatus({ status, compact = false }: { status: StatusLike; 
   );
 }
 
-export function SourceBadge({ source }: { source: FairXMarket["source"] }) {
+export function SourceBadge({ source, liveConnected = false }: { source: FairXMarket["source"]; liveConnected?: boolean }) {
   const labels = {
-    live: "TxLINE live",
-    captured: "Captured replay",
+    live: liveConnected ? "Live TxLINE" : "Live TxLINE unavailable",
+    captured: "Captured TxLINE event",
     demo: "Guided scenario",
   } as const;
 
   return (
     <span className="inline-flex items-center gap-1.5 text-[9.5px] font-medium text-(--ink-3)">
-      <span className={`h-1.5 w-1.5 rounded-full ${source === "live" ? "bg-(--green)" : source === "captured" ? "bg-(--blue)" : "bg-(--amber)"}`} />
+      <span className={`h-1.5 w-1.5 rounded-full ${source === "live" && liveConnected ? "bg-(--green)" : source === "captured" ? "bg-(--blue)" : "bg-(--amber)"}`} />
       {labels[source]}
     </span>
   );

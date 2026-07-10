@@ -8,6 +8,7 @@ import { cloneFairXMarket } from "@/lib/markets/fairx";
 import { buildOnChainOrderReceipt } from "@/lib/proof/onchainReceipt";
 import { encodeReceiptForUrl } from "@/lib/receipts/create";
 import type { LineGuardReceipt, OnChainProof } from "@/lib/receipts/types";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 
 type InitResponse = {
   ok: boolean;
@@ -49,12 +50,14 @@ type PlacedOrder = { side: "YES" | "NO"; response: OrderResponse; receipt: LineG
 const PROGRAM_ID = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe";
 
 export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: FairXMarket; onMarketUpdate?: (market: FairXMarket) => void }) {
+  const { status: runtime } = useRuntimeStatus();
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<"YES" | "NO" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<PlacedOrder[]>([]);
   const initialized = market.onChain?.initialized === true && market.onChain.cluster === "devnet" && Boolean(market.onChain.marketConfigPda);
   const mode: CustomMode = orders.length > 0 ? "devnet_settled" : initialized ? "devnet_initialized" : "local_simulation";
+  const devnetReady = runtime?.freshProofAvailable === true;
 
   const initialize = async () => {
     if (busy) return;
@@ -139,6 +142,18 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
         proof: data.proof,
       });
       setOrders((current) => [{ side, response: data, receipt }, ...current].slice(0, 3));
+      const next = cloneFairXMarket(market);
+      next.onChain = {
+        ...next.onChain,
+        initialized: true,
+        settled: true,
+        marketPda: data.marketPda ?? next.onChain?.marketPda,
+        lastOrderSignature: data.signatures.at(-1),
+        txSignatures: [...new Set([...(next.onChain?.txSignatures ?? []), ...data.signatures])],
+        cluster: "devnet",
+        programId: data.programId || PROGRAM_ID,
+      };
+      onMarketUpdate?.(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Devnet order failed.");
     } finally {
@@ -165,12 +180,13 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
           <button
             type="button"
             onClick={initialize}
-            disabled={busy}
+            disabled={busy || !devnetReady}
             className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-(--ink) px-3 text-[11px] font-bold text-white transition-colors hover:bg-[#273244] disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
             {busy ? "Initializing on devnet…" : "Initialize on devnet"}
           </button>
+          {!devnetReady && <p className="rounded-md border border-[#f1d59b] bg-(--amber-bg) p-2 text-[9.5px] leading-relaxed text-(--amber)">{runtime?.reason ?? "Checking devnet readiness…"} Canonical evidence remains available on the Proof page.</p>}
           <p className="text-[9px] leading-relaxed text-(--ink-3)">Modes: <span className="mono">local_simulation</span> → <span className="mono">devnet_initialized</span> → <span className="mono">devnet_settled</span>.</p>
         </div>
       ) : (
@@ -200,20 +216,20 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
             <button
               type="button"
               onClick={() => placeOrder("YES")}
-              disabled={placing !== null}
+              disabled={placing !== null || !devnetReady}
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#f0c5c5] bg-(--red-bg) px-2 text-[10.5px] font-bold text-(--red) hover:border-[#e29a9a] disabled:opacity-50"
             >
               {placing === "YES" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-              Place YES on devnet
+              Submit guarded YES on devnet
             </button>
             <button
               type="button"
               onClick={() => placeOrder("NO")}
-              disabled={placing !== null}
+              disabled={placing !== null || !devnetReady}
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#bfe0f4] bg-(--blue-bg) px-2 text-[10.5px] font-bold text-(--blue) hover:border-[#94c2e8] disabled:opacity-50"
             >
               {placing === "NO" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-              Place NO on devnet
+              Submit guarded NO on devnet
             </button>
           </div>
           {placing && <p className="flex items-center gap-1.5 text-[10px] text-(--ink-2)"><Loader2 className="h-3 w-3 animate-spin" /> Sending devnet order… a few seconds.</p>}

@@ -14,6 +14,7 @@ import {
 } from "@/lib/solana/lineguardProgram";
 import { microsToCents, signedMicrosToCents } from "@/lib/solana/priceMicros";
 import type { OnChainSide } from "@/lib/solana/pdas";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 
 export function OnChainPanel({
   state,
@@ -22,6 +23,7 @@ export function OnChainPanel({
   state: TerminalState;
   dispatch: React.Dispatch<Action>;
 }) {
+  const { status: runtime } = useRuntimeStatus();
   const [selectedSide, setSelectedSide] = useState<OnChainSide>(state.botSide === "NO" ? "NO" : "YES");
   const [chain, setChain] = useState<OnChainApiState>(DEFAULT_ONCHAIN_STATE);
   const [busy, setBusy] = useState<string | null>(null);
@@ -78,15 +80,15 @@ export function OnChainPanel({
 
   const active = chain.configured;
   const hasTx = Boolean(chain.signatures?.length || chain.latestSignature);
-  const headline = active
+  const headline = runtime?.freshProofAvailable === false && runtime.solana.programExecutable
+    ? "Canonical devnet proof · fresh execution gated"
+    : active
     ? chain.mode === "devnet" && hasTx
       ? "Devnet settlement guard executed"
       : "On-chain active"
-    : chain.localTestsAvailable
-      ? "Devnet not configured"
-      : "On-chain not configured";
+    : "Fresh terminal execution unavailable";
   const statusTone = active ? "green" : "amber";
-  const actionsDisabled = !active || busy !== null;
+  const actionsDisabled = !active || runtime?.freshProofAvailable !== true || busy !== null;
 
   return (
     <Card className="border-(--blue)/20">
@@ -114,11 +116,11 @@ export function OnChainPanel({
         verdict proof. The UI, TxLINE ingestion, replay, and charts remain off-chain.
       </p>
 
-      {!active && (
+      {(!active || runtime?.freshProofAvailable === false) && (
         <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-(--amber)/25 bg-(--amber-bg) px-3 py-2 text-[11px] leading-snug text-(--amber)">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            {chain.reason ?? "Devnet not configured."} Anchor program tested locally; no devnet tx attached.
+            {runtime?.reason ?? chain.reason ?? "Fresh terminal execution is not available in this environment."} Current canonical devnet transactions remain available on the Proof page.
           </span>
         </div>
       )}

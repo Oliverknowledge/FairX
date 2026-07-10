@@ -6,7 +6,7 @@ import { AttackLab } from "@/components/fairx-proof/AttackLab";
 import { FairXShell } from "@/components/fairx/FairXShell";
 
 export const metadata: Metadata = {
-  title: "Attack Lab | FairX",
+  title: "Attack Lab",
   description: "Stress-test LineGuard against a wave of stale-price latency bots — local simulation using the same guard function.",
 };
 

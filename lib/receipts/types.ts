@@ -13,6 +13,8 @@ export interface LineGuardReceipt {
   actor: "bot" | "user";
   side: string;
   stake: number;
+  /** Display unit only. On-chain receipts use devnet SOL; local previews use sandbox units. */
+  stakeUnit?: "SOL" | "SANDBOX";
   observedPrice: number;
   fairSidePrice: number;
   fairYes: number;
@@ -26,6 +28,9 @@ export interface LineGuardReceipt {
   txlineEventSeq?: number;
   txlineEventType?: string;
   txlineTimestamp?: number;
+  /** Explicit provenance so the verifier never infers "live" from proof status. */
+  sourceMode?: "live" | "captured" | "historical" | "guided";
+  sourceEndpoint?: string;
   /** sha256 of the raw source payload that opened the stale window (receipt-level event binding). */
   rawEventHash?: string;
   /** sha256 of the normalized event's provenance fields (receipt-level event binding). */

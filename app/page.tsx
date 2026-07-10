@@ -1,134 +1,155 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, CheckCircle2, FileCheck2, ShieldAlert, ShieldCheck, Workflow } from "lucide-react";
-import { DevnetBadge, FairXShell } from "@/components/fairx/FairXShell";
-import { ProofStat } from "@/components/fairx/ProofStat";
+import { ArrowDown, ArrowRight, ArrowUpRight, CheckCircle2, CircleDollarSign, FileCheck2, Hash, Radio, ShieldCheck, Target, Vault, Workflow } from "lucide-react";
+import { FairXShell } from "@/components/fairx/FairXShell";
+import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
+import { TxLineProvenance } from "@/components/fairx/TxLineProvenance";
+import { proofData } from "@/lib/proof/staticProofData";
 
 export const metadata: Metadata = {
-  title: "FairX — Protected prediction markets",
-  description: "A devnet prototype for prediction markets protected by LineGuard settlement verification.",
+  title: "Fair settlement for live prediction markets",
+  description: "FairX uses LineGuard and TxLINE event evidence to refund stale-price exploits and finalize safe trades on Solana devnet.",
 };
+
+const yesCase = proofData.cases.find((proof) => proof.id === "yes")!;
+const noCase = proofData.cases.find((proof) => proof.id === "no")!;
 
 export default function HomePage() {
   return (
     <FairXShell compact>
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch">
-        <div className="card relative overflow-hidden p-5 sm:p-7">
-          <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-[#2563eb] via-[#60a5fa] to-[#dbeafe]" />
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 items-center rounded-full border border-[#d6e4fd] bg-[#f4f8ff] px-2.5 text-[9.5px] font-bold uppercase tracking-[0.11em] text-[#2563b5]">
-              FairX powered by LineGuard
-            </span>
-            <DevnetBadge className="sm:hidden" />
+      <div className="mx-auto max-w-[1180px]">
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_380px] lg:items-stretch">
+          <div className="rounded-2xl border border-(--border) bg-white p-5 sm:p-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-(--blue)/20 bg-(--blue-bg) px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-[0.12em] text-(--blue)">FairX · powered by LineGuard</span>
+              <span className="rounded-full border border-(--green)/20 bg-(--green-bg) px-2.5 py-1 text-[9.5px] font-bold text-(--green)">Solana devnet</span>
+            </div>
+            <h1 className="mt-6 max-w-4xl text-[38px] font-extrabold leading-[0.98] tracking-[-0.065em] text-(--ink) sm:text-[58px]">Fair settlement for live prediction markets.</h1>
+            <p className="mt-5 max-w-3xl text-[15px] font-medium leading-relaxed text-(--ink-2) sm:text-[17px]">When TxLINE sees a goal before the market reprices, LineGuard refunds only the orders exploiting the stale price.</p>
+            <p className="mt-3 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-3)">FairX is a devnet-backed prediction-market prototype powered by an on-chain settlement guard. It evaluates each trade independently—selective protection, not a market-wide freeze.</p>
+            <div className="mt-7 flex flex-wrap gap-2">
+              <Link href="/walkthrough" className="inline-flex h-11 items-center gap-2 rounded-lg bg-(--ink) px-4 text-[11.5px] font-bold text-white hover:bg-[#273244]">Run the proof walkthrough <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/proof" className="inline-flex h-11 items-center gap-2 rounded-lg border border-(--blue)/25 bg-(--blue-bg) px-4 text-[11.5px] font-bold text-(--blue) hover:border-(--blue)/45">Inspect devnet proof <FileCheck2 className="h-4 w-4" /></Link>
+            </div>
           </div>
-          <h1 className="mt-5 max-w-3xl text-[33px] font-bold leading-[0.98] tracking-[-0.06em] text-(--ink) sm:text-[46px]">
-            Every market can prove who won. <span className="text-(--blue)">FairX proves each trade was fair.</span>
-          </h1>
-          <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-(--ink-2)">
-            A protected prediction-market prototype where a material event can never let an unfair stale-price order quietly fill.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Link href="/walkthrough" className="inline-flex h-10 items-center gap-2 rounded-md bg-(--ink) px-3.5 text-[11px] font-semibold text-white transition-colors hover:bg-[#273244]">
-              Proof walkthrough
-              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </Link>
-            <Link
-              href="/markets"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-[#bdd2f7] bg-[#f8fbff] px-3.5 text-[11px] font-semibold text-(--blue) transition-colors hover:bg-[#eff5ff]"
-            >
-              Explore markets
-              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </Link>
-            <Link
-              href="/proof"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-(--border) bg-white px-3.5 text-[11px] font-semibold text-(--ink-2) transition-colors hover:border-[#cbd5e1] hover:text-(--ink)"
-            >
-              View proof
-              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </Link>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
-            <Link href="/terminal" className="font-semibold text-(--ink-2) hover:text-(--blue) hover:underline">
-              Open technical LineGuard terminal
-            </Link>
-            <span className="hidden h-3 w-px bg-(--border) sm:block" />
-            <span className="text-(--ink-3)">Canonical devnet proof cases remain available.</span>
-          </div>
-        </div>
 
-        <aside className="card overflow-hidden bg-[#101827] p-5 text-white sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#9db9ea]">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Settlement guard
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2f6ace]/40 bg-[#16458d]/30 px-2 py-1 text-[9.5px] font-semibold text-[#c7dcff]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#69a0ff]" />
-              DEVNET
-            </span>
+          <aside className="rounded-2xl border border-[#283448] bg-[#0b1220] p-5 text-white sm:p-6">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8fa7cc]">What is genuinely on-chain</p>
+            <ul className="mt-4 space-y-3">
+              {[
+                "Solana devnet program deployed",
+                "market freshness and event hash",
+                "orders escrowed in PDAs",
+                "selective refund / finalize verdicts",
+                "ProtocolVault finalization",
+              ].map((item) => <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-[#d5deeb]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#65d6aa]" />{item}</li>)}
+            </ul>
+            <div className="mt-6 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-[#9fb0c9]">Devnet and sandbox funds only. No real-money settlement. The UI and TxLINE transport remain off-chain.</div>
+          </aside>
+        </section>
+
+        <div className="mt-3"><RuntimeStatusStrip detailed /></div>
+
+        <section className="mt-10" aria-labelledby="selective-question">
+          <div className="max-w-3xl">
+            <p className="section-label">The problem in one view</p>
+            <h2 id="selective-question" className="mt-2 text-[27px] font-extrabold tracking-[-0.045em] text-(--ink) sm:text-[36px]">Should every stale trade be cancelled?</h2>
+            <p className="mt-2 text-[16px] font-bold text-(--blue)">No. Only the trade exploiting the stale information.</p>
           </div>
-          <h2 className="mt-5 text-[20px] font-bold leading-tight tracking-[-0.035em]">A clear verdict before funds move.</h2>
-          <p className="mt-2 text-[11px] leading-relaxed text-[#aebbd0]">
-            The market stays visible. LineGuard only intervenes when its source sequence proves the quoted price is no longer fair.
-          </p>
-          <ol className="mt-5 space-y-0 border-l border-white/15 pl-4">
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="rounded-xl border border-(--border) bg-white p-4">
+              {[
+                ["Goal occurs", "The match changes."],
+                ["TxLINE publishes event", "materialSeq advances."],
+                ["Old price still displayed", "pricedAtSeq stays behind."],
+                ["Bot submits favourable order", "The stale edge is frozen."],
+              ].map(([title, detail], index) => <div key={title} className="relative pb-5 last:pb-0"><div className="flex gap-3"><span className="num flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-(--blue-bg) text-[10px] font-bold text-(--blue)">{index + 1}</span><div><p className="text-[11.5px] font-bold text-(--ink)">{title}</p><p className="mt-0.5 text-[9.5px] text-(--ink-3)">{detail}</p></div></div>{index < 3 && <ArrowDown className="absolute bottom-1.5 left-2 h-3 w-3 text-(--ink-3)" />}</div>)}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <VerdictCard side="YES attack" observed="40¢" fair="63¢" edge="+23¢" verdict="VOIDED_REFUNDED" destination="Refunded to trader" tone="red" />
+              <VerdictCard side="NO trade" observed="60¢" fair="37¢" edge="−23¢" verdict="STALE_ALLOWED_NO_EDGE" destination="Finalized to ProtocolVault" tone="blue" />
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-10 rounded-2xl border border-(--border) bg-white p-4 sm:p-6">
+          <div className="flex items-center gap-2"><Workflow className="h-4 w-4 text-(--blue)" /><p className="section-label">How LineGuard works</p></div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ["01", "Observed price frozen", "Order captures the quote it saw."],
-              ["02", "Materiality checked", "TxLINE sequence tests freshness."],
-              ["03", "Receipt + verdict", "Fill or refund is evidence-backed."],
-            ].map(([step, title, description]) => (
-              <li key={step} className="relative pb-4 last:pb-0">
-                <span className="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#101827] bg-[#5d94ef]" />
-                <p className="text-[9px] font-bold tracking-[0.12em] text-[#7fa8ed]">{step}</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-white">{title}</p>
-                <p className="mt-0.5 text-[10px] leading-snug text-[#aebbd0]">{description}</p>
-              </li>
-            ))}
-          </ol>
-        </aside>
-      </section>
-
-      <section className="mt-4 grid gap-3 md:grid-cols-3" aria-label="Verified proof outcomes">
-        <ProofStat
-          icon={BadgeCheck}
-          eyebrow="On-chain program"
-          title="Program deployed on devnet"
-          detail="Anchor program is configured for the canonical LineGuard proof flow."
-          tone="blue"
-        />
-        <ProofStat
-          icon={ShieldAlert}
-          eyebrow="Canonical YES case"
-          title="YES stale attack refunded"
-          detail="A stale-edge attempt reaches the guard and is voided with proof."
-          tone="red"
-        />
-        <ProofStat
-          icon={CheckCircle2}
-          eyebrow="Canonical NO case"
-          title="NO stale trade filled"
-          detail="A no-edge order remains eligible and settles through the same guard."
-          tone="green"
-        />
-      </section>
-
-      <section className="card mt-4 flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#d8e5fa] bg-[#f6f9ff] text-(--blue)">
-            <Workflow className="h-4 w-4" strokeWidth={2.1} />
-          </span>
-          <div>
-            <p className="text-[11px] font-bold text-(--ink)">Start with the proof, not the pitch.</p>
-            <p className="mt-0.5 text-[10.5px] leading-relaxed text-(--ink-2)">
-              Inspect the devnet transactions, receipt verification, and captured TxLINE provenance behind the LineGuard guard engine.
-            </p>
+              ["01", "TxLINE event arrives", "A material match event reaches the ingestion layer."],
+              ["02", "Event hash committed", "The authority commits normalized evidence on-chain."],
+              ["03", "Market becomes stale", "materialSeq moves ahead of pricedAtSeq."],
+              ["04", "Order enters escrow", "The observed side price and stake are frozen."],
+              ["05", "LineGuard calculates edge", "Fair side price minus observed price is evaluated."],
+              ["06", "Refund or finalize", "Exploitative orders refund; safe orders reach ProtocolVault."],
+            ].map(([n, title, body]) => <article key={n} className="rounded-xl border border-(--border) bg-[#fafbfc] p-3.5"><span className="mono text-[9px] font-bold text-(--blue)">{n}</span><h3 className="mt-2 text-[11.5px] font-bold text-(--ink)">{title}</h3><p className="mt-1 text-[9.5px] leading-relaxed text-(--ink-3)">{body}</p></article>)}
           </div>
-        </div>
-        <Link href="/proof" className="inline-flex shrink-0 items-center gap-1.5 text-[10.5px] font-semibold text-(--blue) hover:underline">
-          <FileCheck2 className="h-3.5 w-3.5" />
-          Open proof hub
-        </Link>
-      </section>
+        </section>
+
+        <section className="mt-10 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_400px]">
+          <div>
+            <p className="section-label">Verifiable evidence</p>
+            <h2 className="mt-2 text-[27px] font-extrabold tracking-[-0.045em] text-(--ink)">Canonical devnet proof, not a simulated claim.</h2>
+            <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">These artifacts were re-checked against current devnet accounts. Fresh execution is exposed only when runtime status confirms the deployed schema and operator are ready.</p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Evidence label="Program ID" value={proofData.program.id} href={proofData.program.explorerUrl} />
+              <Evidence label="Current recorded upgrade" value={`slot ${proofData.program.deployedSlot}`} href={proofData.program.deploymentTxUrl} />
+              <Evidence label="Source event hash" value={yesCase.sourceEventHash} href={yesCase.txs[1].explorerUrl} />
+              <Evidence label="YES verdict" value={`${yesCase.verdict} · trader`} href={yesCase.txs.at(-1)!.explorerUrl} />
+              <Evidence label="NO verdict" value={`${noCase.verdict} · vault`} href={noCase.txs.at(-1)!.explorerUrl} />
+              <Evidence label="ProtocolVault" value={proofData.vault.pda} href={proofData.vault.explorerUrl} />
+            </div>
+          </div>
+          <div className="self-start">
+            <TxLineProvenance
+              mode="guided"
+              endpoint="No network — guided TxLINE-shaped payload"
+              fixtureId="ENG-FRA-2026-QF"
+              eventType="GOAL"
+              sequence={2}
+              receivedAt={1_783_615_318_241}
+              rawEventHash={proofData.receipt.receipt.rawEventHash}
+              normalizedEventHash={yesCase.sourceEventHash}
+              proofState="Normalized hash committed on Solana devnet"
+            />
+          </div>
+        </section>
+
+        <section className="mt-10 grid gap-3 md:grid-cols-2">
+          <article className="rounded-2xl border border-(--border) bg-white p-5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-(--blue-bg) text-(--blue)"><Radio className="h-4 w-4" /></div>
+            <h2 className="mt-4 text-[20px] font-extrabold tracking-[-0.035em] text-(--ink)">Why TxLINE matters</h2>
+            <p className="mt-2 text-[11.5px] leading-relaxed text-(--ink-2)">LineGuard needs an authoritative, low-latency signal that a material event occurred. TxLINE supplies the match event and odds data that opens, updates, and resolves protected market state.</p>
+            <p className="mt-3 rounded-lg border border-(--amber)/25 bg-(--amber-bg) p-2.5 text-[10px] text-(--amber)">This build does not claim a live connection unless the server has credentials and the upstream health check succeeds.</p>
+          </article>
+          <article className="rounded-2xl border border-(--border) bg-white p-5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-(--green-bg) text-(--green)"><Target className="h-4 w-4" /></div>
+            <h2 className="mt-4 text-[20px] font-extrabold tracking-[-0.035em] text-(--ink)">FairX demonstrates LineGuard.</h2>
+            <p className="mt-2 text-[11.5px] leading-relaxed text-(--ink-2)">Prediction markets can integrate the same settlement guard while keeping their own pricing, matching, and product experience.</p>
+            <Link href="/integrate" className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-bold text-(--blue) hover:underline">Inspect the integration flow <ArrowUpRight className="h-3.5 w-3.5" /></Link>
+          </article>
+        </section>
+
+        <section className="mt-10 rounded-2xl border border-(--ink) bg-(--ink) p-5 text-white sm:flex sm:items-center sm:justify-between sm:p-7">
+          <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#98a9c2]">The decisive proof</p><h2 className="mt-2 text-[26px] font-extrabold tracking-[-0.04em]">Watch an unfair trade get refunded on-chain.</h2></div>
+          <Link href="/walkthrough" className="mt-4 inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-white px-4 text-[11.5px] font-bold text-(--ink) sm:mt-0">Start proof walkthrough <ArrowRight className="h-4 w-4" /></Link>
+        </section>
+      </div>
     </FairXShell>
   );
+}
+
+function VerdictCard({ side, observed, fair, edge, verdict, destination, tone }: { side: string; observed: string; fair: string; edge: string; verdict: string; destination: string; tone: "red" | "blue" }) {
+  const red = tone === "red";
+  return <article className={`rounded-xl border p-4 sm:p-5 ${red ? "border-(--red)/30 bg-(--red-bg)" : "border-(--blue)/25 bg-(--blue-bg)"}`}><div className="flex items-center justify-between"><p className={`text-[11px] font-extrabold uppercase tracking-[0.1em] ${red ? "text-(--red)" : "text-(--blue)"}`}>{side}</p>{red ? <ShieldCheck className="h-4 w-4 text-(--red)" /> : <Vault className="h-4 w-4 text-(--blue)" />}</div><dl className="mt-5 space-y-2.5 text-[11px]"><Value label="Displayed" value={observed} /><Value label="Fair side" value={fair} /><Value label="Stale edge" value={edge} strong tone={red ? "red" : "blue"} /></dl><div className="mt-5 border-t border-current/10 pt-4"><p className={`mono break-all text-[10px] font-bold ${red ? "text-(--red)" : "text-(--blue)"}`}>{verdict}</p><p className="mt-1 text-[10.5px] font-semibold text-(--ink-2)">{destination}</p></div></article>;
+}
+
+function Value({ label, value, strong = false, tone }: { label: string; value: string; strong?: boolean; tone?: "red" | "blue" }) {
+  return <div className="flex items-center justify-between gap-3"><dt className="text-(--ink-2)">{label}</dt><dd className={`num ${strong ? "text-[18px] font-extrabold" : "font-bold text-(--ink)"} ${tone === "red" ? "text-(--red)" : tone === "blue" ? "text-(--blue)" : ""}`}>{value}</dd></div>;
+}
+
+function Evidence({ label, value, href }: { label: string; value: string; href: string }) {
+  return <a href={href} target="_blank" rel="noreferrer" className="group min-w-0 rounded-xl border border-(--border) bg-white p-3 hover:border-(--blue)/35"><p className="text-[9.5px] font-bold text-(--ink-3)">{label}</p><p className="mono mt-1 truncate text-[10px] font-bold text-(--ink)">{value}</p><p className="mt-2 inline-flex items-center gap-1 text-[9.5px] font-bold text-(--blue)">Open evidence <ArrowUpRight className="h-3 w-3" /></p></a>;
 }

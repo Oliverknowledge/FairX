@@ -6,6 +6,7 @@ import type { FairXMarket } from "@/lib/markets/catalog";
 import { isCreatorMarket } from "@/lib/markets/catalog";
 import { useFairXMarkets } from "@/lib/markets/store";
 import { MarketCard } from "./MarketCard";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 
 type DiscoveryFilter = "ALL" | "LIVE" | "STALE" | "PROTECTED" | "SETTLED" | "CREATOR";
 
@@ -18,10 +19,10 @@ const filters: Array<{ id: DiscoveryFilter; label: string }> = [
   { id: "CREATOR", label: "Creator markets" },
 ];
 
-function matchesFilter(market: FairXMarket, filter: DiscoveryFilter) {
+function matchesFilter(market: FairXMarket, filter: DiscoveryFilter, liveConnected: boolean) {
   switch (filter) {
     case "LIVE":
-      return market.source === "live";
+      return liveConnected && market.source === "live";
     case "STALE":
       return market.status === "STALE";
     case "PROTECTED":
@@ -87,22 +88,24 @@ function SummaryCard({
 
 export function MarketsDiscovery() {
   const { markets, hydrated } = useFairXMarkets();
+  const { status } = useRuntimeStatus();
+  const liveConnected = status?.txline.connected === true;
   const [activeFilter, setActiveFilter] = useState<DiscoveryFilter>("ALL");
-  const filteredMarkets = useMemo(() => markets.filter((market) => matchesFilter(market, activeFilter)), [activeFilter, markets]);
+  const filteredMarkets = useMemo(() => markets.filter((market) => matchesFilter(market, activeFilter, liveConnected)), [activeFilter, liveConnected, markets]);
   const summary = useMemo(
     () => ({
-      live: markets.filter((market) => market.source === "live").length,
+      live: liveConnected ? markets.filter((market) => market.source === "live").length : 0,
       protected: markets.filter((market) => market.status === "TRADING").length,
       stale: markets.filter((market) => market.status === "STALE" || market.status === "REPRICING").length,
       creator: markets.filter((market) => isCreatorMarket(market)).length,
     }),
-    [markets]
+    [liveConnected, markets]
   );
 
   return (
     <section>
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Live feed" value={summary.live} detail="TxLINE-connected" icon={Activity} tone="blue" onClick={() => setActiveFilter("LIVE")} />
+        <SummaryCard label="Live TxLINE" value={summary.live} detail={liveConnected ? "connected markets" : "not connected"} icon={Activity} tone="blue" onClick={() => setActiveFilter("LIVE")} />
         <SummaryCard
           label="Protected"
           value={summary.protected}
@@ -161,7 +164,7 @@ export function MarketsDiscovery() {
       </div>
 
       {filteredMarkets.length ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filteredMarkets.map((market) => <MarketCard key={market.id} market={market} />)}</div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filteredMarkets.map((market) => <MarketCard key={market.id} market={market} liveConnected={liveConnected} />)}</div>
       ) : (
         <div className="card mt-4 flex min-h-[220px] flex-col items-center justify-center px-5 text-center">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-(--border) bg-[#fafbfc] text-(--ink-3)">

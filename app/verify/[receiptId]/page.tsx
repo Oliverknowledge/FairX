@@ -7,6 +7,7 @@ import { ArrowLeft, BadgeCheck, ChevronDown, FileQuestion, FileWarning, ShieldCh
 import { Badge, cn } from "@/components/lineguard/ui";
 import { ProofChainPanel } from "@/components/fairx-proof/ProofChainPanel";
 import { FairXShell } from "@/components/fairx/FairXShell";
+import { TxLineProvenance } from "@/components/fairx/TxLineProvenance";
 import { decodeReceiptFromUrl } from "@/lib/receipts/create";
 import type { LineGuardReceipt, OnChainProof, ReceiptVerification } from "@/lib/receipts/types";
 import { explainReceipt, verifyReceipt } from "@/lib/receipts/verify";
@@ -61,8 +62,8 @@ export default function VerifyPage() {
   const eventHashMatches = Boolean(
     load.receipt?.normalizedEventHash
       && load.receipt.onChain?.sourceEventHash === load.receipt.normalizedEventHash
-      && load.receipt.onChain?.orderSourceEventHash === load.receipt.normalizedEventHash
   );
+  const orderEventHashMatches = Boolean(load.receipt?.normalizedEventHash && load.receipt.onChain?.orderSourceEventHash === load.receipt.normalizedEventHash);
   const verdict = !load.receipt
     ? "missing"
     : !verification?.valid
@@ -136,6 +137,21 @@ export default function VerifyPage() {
             <>
               <VerificationBanner status={verdict} source={load.source} />
 
+              <div className="mt-4">
+                <TxLineProvenance
+                  mode={load.receipt.sourceMode ?? "guided"}
+                  connected={load.receipt.sourceMode === "live"}
+                  endpoint={load.receipt.sourceEndpoint ?? "Provenance not recorded by this receipt version"}
+                  fixtureId={load.receipt.fixtureId}
+                  eventType={load.receipt.txlineEventType}
+                  sequence={load.receipt.txlineEventSeq}
+                  receivedAt={load.receipt.txlineTimestamp}
+                  rawEventHash={load.receipt.rawEventHash}
+                  normalizedEventHash={load.receipt.normalizedEventHash}
+                  proofState={load.receipt.proofStatus}
+                />
+              </div>
+
               {verdict === "verified" && !verdictMatchesProof && load.receipt.onChain && (
                 <div className="mt-3 flex items-start gap-2 rounded-xl border border-(--amber)/30 bg-(--amber-bg) px-3 py-2.5 text-[11px] leading-relaxed text-(--amber)">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -157,7 +173,7 @@ export default function VerifyPage() {
                     <Row label="Receipt ID" value={load.receipt.receiptId} mono />
                     <Row label="Market" value={load.receipt.marketTitle} />
                     <Row label="Fixture" value={load.receipt.fixtureId} mono />
-                    <Row label="Side / stake" value={`${load.receipt.side} · ${formatStake(load.receipt.stake)}`} />
+                    <Row label="Side / stake" value={`${load.receipt.side} · ${formatStake(load.receipt.stake, load.receipt.stakeUnit)}`} />
                     <Row label="materialSeq vs pricedAtSeq" value={`${load.receipt.materialSeq} vs ${load.receipt.pricedAtSeq}`} mono />
                     <Row label="Observed → fair" value={`${formatCents(load.receipt.observedPrice)} → ${formatCents(load.receipt.fairSidePrice)}`} />
                     <Row label="Edge / tolerance" value={`${signedCents(load.receipt.edge)} / ${formatCents(load.receipt.tolerance)}`} />
@@ -177,7 +193,8 @@ export default function VerifyPage() {
                     <ScopeCheck ok={marketConfigAttached} label={marketConfigAttached ? "Market config committed on-chain" : "No on-chain market config attached"} muted={!marketConfigAttached} />
                     {marketConfigAttached && <ScopeCheck ok={materialityHashMatches} label="Materiality rules hash matches receipt" />}
                     {marketConfigAttached && <ScopeCheck ok={settlementHashMatches} label="Settlement config hash matches receipt" />}
-                    {load.receipt.onChain?.sourceEventHash && <ScopeCheck ok={eventHashMatches} label="Order evaluated against source event hash" />}
+                    {load.receipt.onChain?.sourceEventHash && <ScopeCheck ok={eventHashMatches} label="Source event hash matches on-chain market" />}
+                    {load.receipt.onChain?.orderSourceEventHash && <ScopeCheck ok={orderEventHashMatches} label="Order evaluated against source event hash" />}
                   </div>
                   <p className="mt-4 border-t border-(--border) pt-3 text-[10.5px] leading-relaxed text-(--ink-3)">
                     Explorer links below are not fetched or independently confirmed here. Use the proof hub or Solana Explorer for transaction-level inspection.
@@ -269,14 +286,17 @@ function OnChainEvidence({ proof }: { proof?: OnChainProof }) {
         <Evidence label="On-chain registers" value={`${proof.materialSeq} vs ${proof.pricedAtSeq}`} />
         <Evidence label="Observed → fair" value={`${microsToCents(proof.observedPriceMicros)} → ${microsToCents(proof.fairSidePriceMicros)}`} />
         <Evidence label="On-chain edge" value={signedMicrosToCents(proof.edgeMicros)} />
+        {proof.sourceEventHash && <Evidence label="Market source event hash" value={proof.sourceEventHash} />}
+        {proof.orderSourceEventHash && <Evidence label="Order source event hash" value={proof.orderSourceEventHash} />}
         {proof.oracleAuthority && <Evidence label="Oracle authority" value={proof.oracleAuthority} />}
         {proof.marketConfigPda && <Evidence label="Market config PDA" value={proof.marketConfigPda} />}
       </div>
       {proof.materialityConfigHash ? (
         <div className="mt-3 rounded-lg border border-(--green)/25 bg-(--green-bg) p-2.5 text-[10.5px] leading-relaxed text-(--ink-2)">
-          <p className="font-bold text-(--green)">Order evaluated against committed market config</p>
+          <p className="font-bold text-(--green)">Market config committed on-chain</p>
           <p className="mt-1 mono break-all">materiality {proof.materialityConfigHash}</p>
           <p className="mt-1 mono break-all">settlement {proof.settlementConfigHash}</p>
+          {proof.orderMaterialityConfigHash === proof.materialityConfigHash && <p className="mt-2 font-bold text-(--green)">Order evaluated against committed market config</p>}
         </div>
       ) : (
         <p className="mt-3 rounded-lg border border-(--border) bg-white p-2.5 text-[10.5px] text-(--ink-3)">No on-chain market config attached</p>
@@ -465,8 +485,9 @@ function signedCents(value: number): string {
   return `${value > 0 ? "+" : ""}${formatCents(value)}`;
 }
 
-function formatStake(value: number): string {
-  return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatStake(value: number, unit?: LineGuardReceipt["stakeUnit"]): string {
+  if (unit === "SOL") return `◎ ${value.toLocaleString("en-US", { maximumFractionDigits: 6 })} devnet SOL`;
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} sandbox units`;
 }
 
 function microsToCents(value: number): string {

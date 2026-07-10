@@ -46,6 +46,8 @@ export interface FairXOnChainMarket {
   materialityConfigHash?: string;
   settlementConfigHash?: string;
   oracleAuthority?: string;
+  settled?: boolean;
+  lastOrderSignature?: string;
   txSignatures?: string[];
   cluster?: "devnet" | "localnet";
   programId?: string;

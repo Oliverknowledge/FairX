@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { ChevronDown, Radio, TriangleAlert, Wifi, WifiOff } from "lucide-react";
+import { TxLineProvenance, type ProvenanceMode } from "@/components/fairx/TxLineProvenance";
 import { Badge, Card, cn, Label, Stat } from "@/components/lineguard/ui";
 import { eventImpactsMarket } from "@/lib/markets/materiality";
+import { hashNormalizedTxLineEvent, hashRawEvent } from "@/lib/proof/eventHash";
 import type { StreamStatus } from "@/lib/txline/types";
 import type { Action } from "@/lib/terminal/actions";
 import { activeDataSource, DATA_SOURCE_LABEL, DATA_SOURCE_TONE, type Mode, type TerminalState } from "@/lib/terminal/state";
@@ -30,6 +32,8 @@ export function TxLinePanel({
   const lastEvent = txline.lastEvent;
   const material = lastEvent ? eventImpactsMarket(lastEvent, market) : false;
   const source = activeDataSource(state);
+  const provenanceMode: ProvenanceMode = source === "live" ? "live" : source === "captured" ? "captured" : "guided";
+  const liveConnected = source === "live" && txline.scores === "live";
 
   const network = mode === "demo" ? "sandbox" : health?.network ?? "devnet";
   const origin = mode === "demo" ? "scripted replay (no network)" : health?.apiOrigin ?? "—";
@@ -61,6 +65,23 @@ export function TxLinePanel({
           Stream connected, no material event yet — the feed is quiet. Try the captured/manual replay below.
         </div>
       )}
+
+      <div className="mt-2.5">
+        <TxLineProvenance
+          compact
+          mode={provenanceMode}
+          connected={liveConnected}
+          endpoint={source === "live" ? `internal SSE proxy → ${health?.apiOrigin ?? "TxLINE origin"}` : source === "captured" ? "Captured payload storage / manual replay" : "Guided scenario generator (no network)"}
+          fixtureId={lastEvent?.fixtureId ?? fixture}
+          eventType={lastEvent?.eventType}
+          sequence={lastEvent?.seq}
+          receivedAt={lastEvent?.ts}
+          rawEventHash={lastEvent ? hashRawEvent(lastEvent.raw) : undefined}
+          normalizedEventHash={lastEvent ? hashNormalizedTxLineEvent(lastEvent) : undefined}
+          proofState={lastEvent?.proofStatus ?? (source === "live" ? "Awaiting live event" : "No event ingested")}
+          trace={lastEvent?.trace}
+        />
+      </div>
 
       <div className="mt-2.5 hairline-rows">
         <Stat label="Connection mode" value={<ModePill mode={mode} />} />

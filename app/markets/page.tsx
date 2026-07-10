@@ -3,9 +3,10 @@ import { ArrowUpRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { FairXShell } from "@/components/fairx/FairXShell";
 import { MarketsDiscovery } from "@/components/fairx/MarketsDiscovery";
+import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 
 export const metadata: Metadata = {
-  title: "Markets | FairX",
+  title: "Markets",
   description: "Protected sandbox and devnet prediction markets powered by LineGuard.",
 };
 
@@ -17,7 +18,7 @@ export default function MarketsPage() {
           <p className="section-label">Protected market discovery</p>
           <h1 className="mt-2 text-[28px] font-bold leading-[1.02] tracking-[-0.055em] text-(--ink) sm:text-[34px]">Markets that expose their fairness state.</h1>
           <p className="mt-3 max-w-xl text-[12px] leading-relaxed text-(--ink-2)">
-            Browse sandbox and devnet markets. FairX shows the observed price, fair value, and LineGuard state before an order can settle.
+            Browse guided and user-created sandbox markets. Every card separates provenance, freshness, and execution mode—without fake volume or fake activity.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -35,6 +36,7 @@ export default function MarketsPage() {
         </div>
       </section>
 
+      <div className="mt-4"><RuntimeStatusStrip /></div>
       <div className="mt-5">
         <MarketsDiscovery />
       </div>

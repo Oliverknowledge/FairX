@@ -7,7 +7,7 @@ import { FairXShell } from "@/components/fairx/FairXShell";
 
 export const metadata: Metadata = {
   title: "FairX Operator",
-  description: "Static operator evidence for the LineGuard devnet settlement guard.",
+  description: "Runtime-safe operational status for the LineGuard devnet settlement guard.",
 };
 
 export default function OperatorPage() {
@@ -25,17 +25,17 @@ export default function OperatorPage() {
                 <RadioTower className="h-4.5 w-4.5 text-(--blue)" />
               </span>
               <div>
-                <p className="mono text-[10px] font-semibold uppercase tracking-[0.15em] text-(--ink-3)">Creator / operator view</p>
-                <h1 className="mt-1 text-[25px] font-extrabold tracking-[-0.03em] text-(--ink)">Integrity, not just outcomes.</h1>
+                <p className="mono text-[10px] font-semibold uppercase tracking-[0.15em] text-(--ink-3)">Developer / operator view</p>
+                <h1 className="mt-1 text-[25px] font-extrabold tracking-[-0.03em] text-(--ink)">Devnet operational truth.</h1>
                 <p className="mt-1.5 max-w-3xl text-[12.5px] leading-relaxed text-(--ink-2)">
-                  Inspect the freshness condition, settlement verdicts, materiality rules, and evidence links behind FairX’s protected-market primitive.
+                  Inspect server-checked program, operator, ProtocolVault, TxLINE, and proof readiness without exposing private configuration.
                 </p>
               </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge tone="amber">Devnet funds only</Badge>
-            <Badge tone="green" dot><ShieldCheck className="h-3 w-3" /> LineGuard</Badge>
+            <Badge tone="green" dot><ShieldCheck className="h-3 w-3" /> Oracle authority controlled</Badge>
           </div>
         </div>
       </header>

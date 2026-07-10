@@ -220,6 +220,9 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
   const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
   const marketPdaExplorerUrl = addressExplorerUrl(cfg.cluster, marketPda.toBase58());
   const connection = new Connection(cfg.rpcUrl, "confirmed");
+  if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
+    return { ...base, marketPda: marketPda.toBase58(), marketConfigPda: marketConfigPda.toBase58(), marketPdaExplorerUrl, reason: SCHEMA_PENDING_REASON };
+  }
   const commitment = configCommitment(input);
 
   try {
@@ -379,6 +382,9 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
   }
 
   const connection = new Connection(cfg.rpcUrl, "confirmed");
+  if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
+    return { ...base, reason: SCHEMA_PENDING_REASON };
+  }
   const seed = marketIdSeed(input.marketId);
   const marketPda = deriveMarketPda(programId, seed);
   const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
@@ -684,6 +690,24 @@ export async function evaluateOnChainOrder(side: OnChainSide) {
   }
 }
 
+/** Program-data length at/above which the deployed program includes the MarketConfig (v2) schema. */
+const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 238_717;
+const SCHEMA_PENDING_REASON =
+  "The deployed program is on the event-hash/vault version; the MarketConfig upgrade is pending. Canonical proof is available.";
+
+/** True only when the currently deployed program supports initialize_market_config / config-bound evaluation. */
+async function schemaSupportsMarketConfig(connection: Connection, programId: PublicKey): Promise<boolean> {
+  try {
+    const programAccount = await connection.getAccountInfo(programId, "confirmed");
+    if (!programAccount || programAccount.data.length !== 36 || Buffer.from(programAccount.data).readUInt32LE(0) !== 2) return false;
+    const dataAddress = new PublicKey(programAccount.data.subarray(4, 36));
+    const programData = await connection.getAccountInfo(dataAddress, "confirmed");
+    return Boolean(programData && programData.data.length >= CONFIG_SCHEMA_PROGRAM_DATA_MIN);
+  } catch {
+    return false;
+  }
+}
+
 export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActionResponse> {
   const cfg = getLineGuardServerConfig();
   if (!cfg.configured || !cfg.cluster || !cfg.rpcUrl || !cfg.payer) {
@@ -696,6 +720,9 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
   const labels = { marketLabel, orderLabel };
   const pdas = derivePdasFor(cfg.programId.toBase58(), side, labels);
   const connection = new Connection(cfg.rpcUrl, "confirmed");
+  if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
+    return { ...(await getOnChainState(side)), ok: false, reason: SCHEMA_PENDING_REASON };
+  }
   const signatures: string[] = [];
 
   signatures.push(

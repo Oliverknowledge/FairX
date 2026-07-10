@@ -1,210 +1,111 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Boxes, ExternalLink, GitBranch, Puzzle, ShieldCheck, Terminal } from "lucide-react";
-import { Badge } from "@/components/lineguard/ui";
+import { ArrowRight, CheckCircle2, ExternalLink, GitBranch, Radio, ShieldCheck, Timer, Wrench } from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
+import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 import { proofData } from "@/lib/proof/staticProofData";
 
 export const metadata: Metadata = {
-  title: "Integrate | FairX",
-  description: "How any prediction market plugs into LineGuard settlement-integrity protection.",
+  title: "Integrate LineGuard",
+  description: "The current LineGuard integration flow, deployed devnet capabilities, and honest production gaps.",
 };
 
-const PROGRAM_ID = proofData.program.id;
+const instructions = `// Current Anchor instruction names in programs/lineguard/src/lib.rs
+initialize_vault()
+initialize_market(market_id, material_seq, priced_at_seq,
+                  displayed_price_micros, fair_price_micros, tolerance_micros)
+initialize_market_config(market_type, fixture_id_hash, market_title_hash,
+                         materiality_config_hash, settlement_config_hash)
+attach_market_config()
+ingest_material_event(new_material_seq, new_fair_price_micros,
+                      source_event_hash)
+reprice_market(new_priced_at_seq, new_displayed_price_micros)
+place_order(order_id, side, stake)
+evaluate_order()
 
-const guardSnippet = `import { evaluateLineGuard } from "@fairx/lineguard";
+// evaluate_order emits GuardVerdict and transfers escrow to either:
+// REFUNDED_TO_TRADER | FINALIZED_TO_VAULT`;
 
-// Call the guard before your market settles any order.
-const verdict = evaluateLineGuard({
-  side,             // "YES" | "NO"
-  observedPrice,    // the quote the order actually saw
-  fairYes,          // fair value incl. un-repriced events
-  materialSeq,      // latest officiated event sequence
-  pricedAtSeq,      // sequence your quote repriced through
-  tolerance,        // e.g. 0.02 (2¢) edge noise floor
-});
+const liveNow = [
+  "Market freshness registers and displayed/fair price state",
+  "Non-zero source event hash commitment by an operator-controlled authority",
+  "OrderEscrow PDA creation and deterministic stale-edge calculation",
+  "Positive-edge stale-order refund to the trader",
+  "Safe/no-edge finalization to ProtocolVault",
+  "GuardVerdict event data and tamper-evident receipts",
+  "Custom-market initialization and guarded devnet order execution",
+];
 
-if (verdict.verdict === "VOIDED_REFUNDED") {
-  refundToTrader(order);        // stale + captured unfair edge
-} else {
-  fillOrder(order);            // in-sync, or stale with no edge
-}`;
+const planned = [
+  "Production oracle decentralization",
+  "Direct TxLINE validate_stat CPI",
+  "Complete counterparty matching or AMM/order book",
+  "Per-market vault accounting beyond the current aggregate vault",
+  "Mainnet deployment, independent security audit, and real-money operation",
+];
 
-const instructionSnippet = `# On-chain enforcement (Anchor, Solana devnet)
-initialize_market(market_id, seqs, prices, tolerance)   # market registers
-ingest_material_event(new_material_seq, new_fair_price)  # feed advances materialSeq
-place_order(order_id, side, stake)                       # stake escrowed in PDA
-evaluate_order()                                         # guard runs; refund or fill
-#   -> emits GuardVerdictEvent { edge, verdict_code, ... }`;
+const flow = [
+  ["1", "Register market", "Create MarketState with freshness, prices, tolerance, and authority."],
+  ["2", "Commit configuration", "Hash type, fixture, title, materiality, and settlement rules; attach MarketConfig."],
+  ["3", "Ingest event", "Normalize a material event and commit its source hash through the authority."],
+  ["4", "Reprice", "Advance pricedAtSeq when the displayed quote catches up."],
+  ["5", "Escrow order", "Freeze side, stake, and observed quote in an OrderEscrow PDA."],
+  ["6", "Evaluate", "Calculate fair side price and stale edge deterministically."],
+  ["7", "Refund or finalize", "Return exploitative stake to the trader or transfer safe stake to ProtocolVault."],
+  ["8", "Build receipt", "Render the on-chain accounts, event hash, config hashes, and transactions for verification."],
+];
 
 export default function IntegratePage() {
   return (
     <FairXShell>
-      <div className="mx-auto max-w-[1120px]">
-        <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
+      <div className="mx-auto max-w-[1120px] space-y-4">
+        <header className="flex flex-col gap-4 border-b border-(--border) pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <Link href="/" className="inline-flex items-center gap-1.5 text-[11px] font-bold text-(--ink-2) hover:text-(--blue)">
-              <ArrowLeft className="h-3.5 w-3.5" /> Back to FairX
-            </Link>
-            <div className="mt-3">
-              <p className="section-label">Protocol primitive</p>
-              <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.04em] text-(--ink)">Plug any market into LineGuard.</h1>
-              <p className="mt-2 max-w-2xl text-[12.5px] leading-relaxed text-(--ink-2)">
-                LineGuard is not a marketplace — it is a settlement-integrity check that sits between an order and its fill. FairX is one
-                reference market that uses it. Any prediction market with a fair-value signal and a repricing sequence can call the same guard.
-              </p>
-            </div>
+            <p className="section-label">LineGuard protocol integration</p>
+            <h1 className="mt-2 text-[30px] font-extrabold tracking-[-0.05em] text-(--ink)">Add selective stale-order protection.</h1>
+            <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-(--ink-2)">FairX demonstrates LineGuard. A prediction market can integrate the same settlement guard while keeping its own discovery, pricing, and matching layer.</p>
           </div>
-          <Badge tone="amber">Devnet prototype · not production-audited</Badge>
+          <Link href="/walkthrough" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-(--ink) px-4 text-[11px] font-bold text-white hover:bg-[#273244]">Run the proof walkthrough <ArrowRight className="h-3.5 w-3.5" /></Link>
         </header>
 
-        {/* Architecture */}
+        <RuntimeStatusStrip detailed />
+
+        <section className="grid gap-3 lg:grid-cols-2">
+          <CapabilityCard title="Deployed on devnet now" tone="green" items={liveNow} />
+          <CapabilityCard title="Still required for production" tone="amber" items={planned} />
+        </section>
+
         <section className="card p-4 sm:p-5">
-          <div className="flex items-center gap-2">
-            <Boxes className="h-4 w-4 text-(--blue)" />
-            <p className="section-label">Architecture</p>
+          <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-(--blue)" /><p className="section-label">Integration flow</p></div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {flow.map(([n, title, body]) => <div key={n} className="rounded-lg border border-(--border) bg-[#fbfcfe] p-3"><span className="mono text-[9px] font-bold text-(--blue)">{n.padStart(2, "0")}</span><h2 className="mt-1 text-[11.5px] font-bold text-(--ink)">{title}</h2><p className="mt-1 text-[9.5px] leading-relaxed text-(--ink-3)">{body}</p></div>)}
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <div className="flex min-w-[720px] items-stretch gap-2">
-              <ArchBox tone="amber" step="Source" title="Officiated feed" body="TxLINE-style event with a monotonic sequence." />
-              <ArchArrow />
-              <ArchBox tone="blue" step="Normalize" title="Fair value" body="Derive fairYes + advance materialSeq." />
-              <ArchArrow />
-              <ArchBox tone="ink" step="Guard" title="LineGuard" body="Compare edge vs tolerance while stale." highlight />
-              <ArchArrow />
-              <ArchBox tone="green" step="Settle" title="Refund / fill" body="Void unfair edge, allow safe trades." />
-              <ArchArrow />
-              <ArchBox tone="green" step="Prove" title="Receipt + tx" body="Hash-sealed receipt, on-chain verdict." />
-            </div>
-          </div>
-          <p className="mt-3 text-[10.5px] leading-relaxed text-(--ink-3)">
-            The guard is a single pure function. Your market keeps its own matching, pricing, and custody — LineGuard only decides whether a
-            given order is exploiting an un-repriced event.
-          </p>
         </section>
 
-        {/* How a market plugs in */}
-        <section className="mt-4 grid gap-3 md:grid-cols-3">
-          <PlugStep
-            n="01"
-            icon={<GitBranch className="h-4 w-4" />}
-            title="Expose two sequences"
-            body="Track materialSeq (latest event that moved fair value) and pricedAtSeq (what your quote has repriced through)."
-          />
-          <PlugStep
-            n="02"
-            icon={<ShieldCheck className="h-4 w-4" />}
-            title="Call the guard pre-settlement"
-            body="Freeze the observed price, pass it with fairYes + tolerance into evaluateLineGuard, and read the verdict."
-          />
-          <PlugStep
-            n="03"
-            icon={<Puzzle className="h-4 w-4" />}
-            title="Honor the verdict"
-            body="Refund voided stale-edge orders; fill everything else. Optionally enforce it on-chain with the Anchor program."
-          />
+        <section className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]">
+          <div className="overflow-hidden rounded-xl border border-(--border)">
+            <div className="flex items-center justify-between border-b border-(--border) bg-[#f8fafc] px-3.5 py-2.5"><p className="text-[11px] font-bold text-(--ink)">Current repository instruction flow</p><span className="rounded-full bg-(--amber-bg) px-2 py-0.5 text-[9px] font-bold text-(--amber)">not an SDK</span></div>
+            <pre className="thin-scroll overflow-x-auto bg-[#0f1729] p-3.5 text-[10px] leading-relaxed text-[#d7e0ee]"><code>{instructions}</code></pre>
+          </div>
+          <div className="card p-4">
+            <p className="section-label">Deployed program</p>
+            <p className="mono mt-2 break-all text-[11px] font-bold text-(--blue)">{proofData.program.id}</p>
+            <p className="mt-3 text-[10px] leading-relaxed text-(--ink-2)">The status strip checks the executable ProgramData account and whether the deployed binary supports the repository&rsquo;s MarketConfig schema. Configuration instructions must not be treated as available until that runtime check passes.</p>
+            <a href={proofData.program.explorerUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">Open devnet program <ExternalLink className="h-3.5 w-3.5" /></a>
+            <Link href="/proof" className="mt-2 flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">Inspect on-chain proof <ArrowRight className="h-3.5 w-3.5" /></Link>
+          </div>
         </section>
 
-        {/* Code */}
-        <section className="mt-4 grid gap-3 lg:grid-cols-2">
-          <CodeCard title="SDK usage (off-chain guard)" icon={<Terminal className="h-4 w-4" />} code={guardSnippet} />
-          <CodeCard title="On-chain instruction flow" icon={<GitBranch className="h-4 w-4" />} code={instructionSnippet} />
-        </section>
-
-        {/* Program + proof */}
-        <section className="mt-4 card p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="section-label">Deployed program</p>
-              <h2 className="mt-1 text-[16px] font-extrabold text-(--ink)">Solana devnet enforcement</h2>
-              <p className="mono mt-1 break-all text-[11px] font-bold text-(--blue)">{PROGRAM_ID}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <a href={proofData.program.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-(--border) bg-white px-3 text-[11px] font-bold text-(--ink-2) hover:text-(--blue)">
-                Program explorer <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-              <Link href="/proof" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-(--ink) px-3 text-[11px] font-bold text-white hover:bg-[#273244]">
-                Live devnet proof <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <RoadmapRow done label="Guard evaluation on-chain" detail="edge vs tolerance while stale" />
-            <RoadmapRow done label="Escrow + refund of unfair edge" detail="stake returned to the trader" />
-            <RoadmapRow label="ProtocolVault finalization" detail="filled-order destination — documented next step" />
-          </div>
-          <p className="mt-3 text-[10.5px] leading-relaxed text-(--ink-3)">
-            This is a devnet reference implementation. Production use still needs counterparty settlement, an audited program, and a hardened
-            oracle-authority path. See <Link href="/proof" className="font-semibold text-(--blue) hover:underline">/proof</Link> for what is real today.
-          </p>
+        <section className="rounded-xl border border-[#d9e6fc] bg-[#f7faff] p-4 text-[10.5px] leading-relaxed text-[#3d5e95]">
+          <p className="flex items-center gap-2 font-bold"><Radio className="h-4 w-4" />TxLINE boundary</p>
+          <p className="mt-1.5">TxLINE HTTP/SSE transport and normalization remain off-chain. The authority commits the normalized event evidence hash on-chain. FairX does not claim a decentralized production oracle or a direct TxLINE CPI today.</p>
         </section>
       </div>
     </FairXShell>
   );
 }
 
-function ArchBox({ step, title, body, tone, highlight = false }: { step: string; title: string; body: string; tone: "amber" | "blue" | "green" | "ink"; highlight?: boolean }) {
-  const toneMap = {
-    amber: "border-[#f0d39a] bg-(--amber-bg) text-(--amber)",
-    blue: "border-[#cddcf5] bg-(--blue-bg) text-(--blue)",
-    green: "border-[#bce6d5] bg-(--green-bg) text-(--green)",
-    ink: "border-(--ink) bg-(--ink) text-white",
-  } as const;
-  return (
-    <div className={`flex-1 rounded-lg border p-3 ${highlight ? toneMap.ink : "border-(--border) bg-white"}`}>
-      <p className={`inline-flex rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.1em] ${toneMap[tone]}`}>{step}</p>
-      <p className={`mt-2 text-[12px] font-bold ${highlight ? "text-white" : "text-(--ink)"}`}>{title}</p>
-      <p className={`mt-1 text-[9.5px] leading-relaxed ${highlight ? "text-white/75" : "text-(--ink-3)"}`}>{body}</p>
-    </div>
-  );
-}
-
-function ArchArrow() {
-  return (
-    <div className="flex shrink-0 items-center px-0.5 text-(--ink-3)">
-      <ArrowRight className="h-3.5 w-3.5" />
-    </div>
-  );
-}
-
-function PlugStep({ n, icon, title, body }: { n: string; icon: React.ReactNode; title: string; body: string }) {
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#d8e5fa] bg-[#f6f9ff] text-(--blue)">{icon}</span>
-        <span className="mono text-[11px] font-bold text-(--ink-3)">{n}</span>
-      </div>
-      <p className="mt-3 text-[12.5px] font-bold text-(--ink)">{title}</p>
-      <p className="mt-1 text-[10.5px] leading-relaxed text-(--ink-2)">{body}</p>
-    </div>
-  );
-}
-
-function CodeCard({ title, icon, code }: { title: string; icon: React.ReactNode; code: string }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-(--border)">
-      <div className="flex items-center gap-2 border-b border-(--border) bg-[#f8fafc] px-3.5 py-2.5">
-        <span className="text-(--ink-2)">{icon}</span>
-        <p className="text-[11px] font-bold text-(--ink)">{title}</p>
-      </div>
-      <div className="overflow-x-auto bg-[#0f1729] p-3.5">
-        <pre className="mono text-[10.5px] leading-relaxed text-[#d7e0ee]">
-          <code>{code}</code>
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-function RoadmapRow({ label, detail, done = false }: { label: string; detail: string; done?: boolean }) {
-  return (
-    <div className={`rounded-lg border p-2.5 ${done ? "border-[#bce6d5] bg-(--green-bg)" : "border-[#f0d39a] bg-(--amber-bg)"}`}>
-      <div className="flex items-center gap-1.5">
-        <span className={`h-1.5 w-1.5 rounded-full ${done ? "bg-(--green)" : "bg-(--amber)"}`} />
-        <p className={`text-[10.5px] font-bold ${done ? "text-(--green)" : "text-(--amber)"}`}>{done ? "Live on devnet" : "Planned"}</p>
-      </div>
-      <p className="mt-1 text-[11px] font-semibold text-(--ink)">{label}</p>
-      <p className="text-[9.5px] leading-snug text-(--ink-3)">{detail}</p>
-    </div>
-  );
+function CapabilityCard({ title, tone, items }: { title: string; tone: "green" | "amber"; items: string[] }) {
+  const live = tone === "green";
+  return <section className={`rounded-xl border p-4 ${live ? "border-[#bce6d5] bg-(--green-bg)" : "border-[#f0d39a] bg-(--amber-bg)"}`}><div className="flex items-center gap-2">{live ? <ShieldCheck className="h-4 w-4 text-(--green)" /> : <Wrench className="h-4 w-4 text-(--amber)" />}<h2 className={`text-[12px] font-bold ${live ? "text-(--green)" : "text-(--amber)"}`}>{title}</h2></div><ul className="mt-3 space-y-2">{items.map((item) => <li key={item} className="flex items-start gap-2 text-[10px] leading-relaxed text-(--ink-2)">{live ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--green)" /> : <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--amber)" />}{item}</li>)}</ul></section>;
 }

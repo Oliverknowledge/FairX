@@ -10,18 +10,18 @@ import {
   Copy,
   FileCheck2,
   Gauge,
-  LoaderCircle,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   TicketCheck,
-  Waves,
 } from "lucide-react";
 import { sha256 } from "js-sha256";
 import { MarketStatus, SourceBadge } from "@/components/fairx/MarketStatus";
 import { CustomMarketDevnetInit } from "@/components/fairx/CustomMarketDevnetInit";
+import { TxLineProvenance, type ProvenanceMode } from "@/components/fairx/TxLineProvenance";
 import { FreshDevnetPanel } from "@/components/fairx-proof/FreshDevnetPanel";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 import { encodeReceiptForUrl } from "@/lib/receipts/create";
 import type { LineGuardReceipt } from "@/lib/receipts/types";
 import type { FairXMarket, GuardedOrder, GuardedOrderPreview } from "@/lib/markets/fairx";
@@ -105,6 +105,7 @@ function eventLabel(type: MaterialEventInput["eventType"]): string {
  * preview and receipt is made from the frozen quote supplied at submit time.
  */
 export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpdate, onOrderCreated, onReceiptCreated }: MarketWorkspaceProps) {
+  const { status: runtime } = useRuntimeStatus();
   const [market, setMarket] = useState(initialMarket);
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [stakeText, setStakeText] = useState("50");
@@ -134,6 +135,16 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
   const currentPrice = preview.observedPrice;
   const payout = currentPrice > 0 ? stake / currentPrice : 0;
   const stale = market.materialSeq > market.pricedAtSeq;
+  const liveConnected = runtime?.txline.connected === true;
+  const provenanceMode: ProvenanceMode = market.source === "live" ? (liveConnected ? "live" : "unconfigured") : market.source === "captured" ? "captured" : "guided";
+  const sourceHash = market.lastEvent?.rawPayloadHash?.match(/^[a-f0-9]{64}$/i) ? market.lastEvent.rawPayloadHash : undefined;
+  const sourceEndpoint = provenanceMode === "live"
+    ? `${runtime?.txline.apiOrigin ?? "TxLINE"}${runtime?.txline.endpoints.scoresStream ?? ""}`
+    : provenanceMode === "captured"
+      ? "Stored TxLINE payload replay"
+      : provenanceMode === "unconfigured"
+        ? "Live TxLINE connection not configured"
+        : "FairX guided scenario generator";
 
   const updateMarket = (next: FairXMarket) => {
     setMarket(next);
@@ -230,7 +241,7 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/markets" className="text-[10.5px] font-semibold text-(--blue) hover:underline">Markets</Link>
             <span className="text-(--ink-3)">/</span>
-            <SourceBadge source={market.source} />
+            <SourceBadge source={market.source} liveConnected={liveConnected} />
             <MarketStatus status={market.status} compact />
           </div>
           <h1 className="mt-2 text-[26px] font-bold leading-tight tracking-[-0.05em] text-(--ink) sm:text-[34px]">{market.title}</h1>
@@ -252,20 +263,24 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
 
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
         <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
-          <section className="card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-(--border) px-3.5 py-3">
-              <span className="section-label">TxLINE / provenance</span>
-              <SourceBadge source={market.source} />
-            </div>
-            <div className="space-y-3 p-3.5 text-[10.5px]">
-              <InfoRow label="Fixture" value={market.fixtureId ?? "Sandbox market"} mono />
-              <InfoRow label="Feed mode" value={market.source === "live" ? "TxLINE live (when configured)" : market.source === "captured" ? "Captured TxLINE replay" : "Guided scenario payload"} />
-              <InfoRow label="Materiality" value={materialitySummary(market)} />
-              <InfoRow label="Latest impact" value={stale ? "A material event is ahead of the quote." : "No outstanding source-to-price gap."} />
-              <div className="rounded-md border border-[#dce6f7] bg-[#f8fbff] p-2.5 leading-relaxed text-[#3d5e95]">
-                Raw payloads are normalized before the guard reads them. Custom market events remain clearly labelled as simulation or replay.
-              </div>
-            </div>
+          <TxLineProvenance
+            compact
+            mode={provenanceMode}
+            connected={liveConnected}
+            endpoint={sourceEndpoint}
+            fixtureId={market.fixtureId ?? `custom:${market.id}`}
+            eventType={market.lastEvent?.eventType}
+            sequence={market.lastEvent?.seq}
+            receivedAt={market.lastEvent?.timestamp}
+            rawEventHash={sourceHash}
+            normalizedEventHash={sourceHash}
+            proofState={market.lastEvent ? `${market.lastEvent.proofStatus} · ${market.lastEvent.material ? "material" : "not material"}` : "No event ingested in this browser session"}
+          />
+
+          <section className="card p-3.5 text-[10.5px]">
+            <p className="section-label">Market materiality</p>
+            <p className="mt-2 leading-relaxed text-(--ink-2)">{materialitySummary(market)}</p>
+            <p className="mt-2 leading-relaxed text-(--ink-3)">{stale ? "A material event is ahead of the quote." : "No outstanding source-to-price gap."}</p>
           </section>
 
           <section className="card overflow-hidden">
@@ -298,17 +313,15 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-3.5 py-3">
               <div>
                 <p className="section-label">Quote / fair value</p>
-                <p className="mt-1 text-[10.5px] text-(--ink-2)">The visible blue quote is frozen until repricing; the dashed fair line reacts to the source sequence.</p>
+                <p className="mt-1 text-[10.5px] text-(--ink-2)">Displayed and fair prices are shown directly. No synthetic market chart or volume is implied.</p>
               </div>
               <MarketStatus status={market.status} />
             </div>
-            <div className="grid gap-3 p-3.5 sm:grid-cols-[minmax(0,1fr)_180px]">
-              <PriceChart displayed={market.displayedPrice} fair={market.fairPrice} stale={stale} />
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
-                <Metric title="Displayed YES" value={cents(market.displayedPrice)} tone="blue" />
-                <Metric title="Fair YES" value={cents(market.fairPrice)} tone={stale ? "amber" : "green"} />
-                <Metric title="Market liquidity" value="Sandbox escrow" />
-              </div>
+            <div className="grid gap-2 p-3.5 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric title="Displayed YES" value={cents(market.displayedPrice)} tone="blue" />
+              <Metric title="Fair YES input" value={cents(market.fairPrice)} tone={stale ? "amber" : "green"} />
+              <Metric title="materialSeq" value={String(market.materialSeq)} tone={stale ? "amber" : "neutral"} />
+              <Metric title="pricedAtSeq" value={String(market.pricedAtSeq)} />
             </div>
           </section>
 
@@ -380,9 +393,9 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
               <GuardPreview preview={preview} tolerance={market.tolerance} stale={stale} />
               <button onClick={() => submit()} className={`mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-[11px] font-bold text-white ${preview.verdict === "VOIDED_REFUNDED" ? "bg-[#c63636] hover:bg-[#ab2d2d]" : "bg-(--ink) hover:bg-[#273244]"}`}>
                 <ShieldCheck className="h-4 w-4" />
-                Submit guarded order
+                Preview locally
               </button>
-              <p className="mt-2 text-center text-[9px] leading-relaxed text-(--ink-3)">Sandbox funds only · local simulation. The frozen observed price is shown before submission.</p>
+              <p className="mt-2 text-center text-[9px] leading-relaxed text-(--ink-3)">This ticket is a local preview. Use the separate devnet execution card for a real escrowed test order.</p>
             </div>
           </section>
 
@@ -390,13 +403,15 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
             <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-(--green)" /><span className="section-label">On-chain mode</span></div>
             <div className="mt-3 space-y-2 text-[10.5px]">
               <InfoRow label="Program" value={`${PROGRAM_ID.slice(0, 8)}…${PROGRAM_ID.slice(-6)}`} mono />
-              <InfoRow label="Route" value={market.onChain?.initialized ? "Canonical devnet proof available" : executionMode === "demo_replay" ? "Replay / local decision" : "Local decision"} />
+              <InfoRow label="Route" value={market.onChain?.settled ? "Devnet-settled" : market.onChain?.initialized ? "Devnet initialized" : executionMode === "demo_replay" ? "Guided local preview" : "Local preview"} />
               {market.onChain?.marketPda && <InfoRow label="Market PDA" value={market.onChain.marketPda} mono />}
             </div>
-            {market.onChain?.initialized ? (
-              <p className="mt-3 rounded-md border border-[#bde9d8] bg-(--green-bg) p-2 text-[9.5px] leading-relaxed text-(--green)">The canonical market has fixed devnet evidence. New browser orders remain replay/local receipts until a real transaction proof is attached.</p>
+            {market.onChain?.settled ? (
+              <p className="mt-3 rounded-md border border-[#bde9d8] bg-(--green-bg) p-2 text-[9.5px] leading-relaxed text-(--green)">Devnet-settled. A protected test order for this market has been placed, evaluated, and attached to a verifiable receipt.</p>
+            ) : market.onChain?.initialized ? (
+              <p className="mt-3 rounded-md border border-[#bde9d8] bg-(--green-bg) p-2 text-[9.5px] leading-relaxed text-(--green)">Market initialized on devnet; the order ticket above is currently a local preview. Use “Submit guarded order on devnet” below for real execution.</p>
             ) : (
-              <p className="mt-3 rounded-md border border-[#f1d59b] bg-(--amber-bg) p-2 text-[9.5px] leading-relaxed text-(--amber)">Custom markets are intentionally local simulation unless their contract actually calls the configured devnet program. FairX does not claim devnet settlement for them.</p>
+              <p className="mt-3 rounded-md border border-[#f1d59b] bg-(--amber-bg) p-2 text-[9.5px] leading-relaxed text-(--amber)">Local preview only until this market is initialized and an order is sent through the configured devnet program.</p>
             )}
             <a href={`https://explorer.solana.com/address/${PROGRAM_ID}?cluster=devnet`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-(--blue) hover:underline">Open program on devnet <ArrowUpRight className="h-3 w-3" /></a>
           </section>
@@ -408,7 +423,7 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
       {market.id === "eng-win" && (
         <section>
           <div className="mb-2 flex items-center gap-2">
-            <span className="section-label">Live devnet settlement for this market</span>
+            <span className="section-label">Fresh canonical devnet execution</span>
             <span className="h-px flex-1 bg-(--border)" />
           </div>
           <FreshDevnetPanel />
@@ -441,11 +456,6 @@ function SimulatorButton({ icon: Icon, children, tone = "normal", ...props }: Re
 function GuardPreview({ preview, tolerance, stale }: { preview: GuardedOrderPreview; tolerance: number; stale: boolean }) {
   const blocked = preview.verdict === "VOIDED_REFUNDED";
   return <div className={`mt-3 rounded-md border p-2.5 ${blocked ? "border-[#f5c6c6] bg-(--red-bg)" : "border-[#bfead9] bg-(--green-bg)"}`}><div className="flex items-start gap-2"><span className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded-full ${blocked ? "bg-[#e45a5a] text-white" : "bg-(--green) text-white"}`}>{blocked ? <ShieldAlert className="h-2.5 w-2.5" /> : <ShieldCheck className="h-2.5 w-2.5" />}</span><div><p className={`text-[10px] font-bold ${blocked ? "text-(--red)" : "text-(--green)"}`}>{blocked ? "This order would be refunded" : "This order would fill"}</p><p className={`mt-0.5 text-[9.5px] leading-relaxed ${blocked ? "text-[#a54b4b]" : "text-[#337e68]"}`}>{stale ? `Edge ${signedCents(preview.edge)} vs ${cents(tolerance)} tolerance. ${preview.reason}` : preview.reason}</p></div></div></div>;
-}
-
-function PriceChart({ displayed, fair, stale }: { displayed: number; fair: number; stale: boolean }) {
-  const y = (value: number) => Math.round(104 - value * 84);
-  return <div className="relative min-h-[160px] overflow-hidden rounded-md border border-(--border) bg-[#fbfcfe] p-3"><div className="absolute inset-x-3 top-3 flex justify-between text-[8px] text-(--ink-3)"><span>100¢</span><span>Fair value moves on source event</span></div><svg viewBox="0 0 520 128" className="mt-4 h-[130px] w-full" role="img" aria-label="Displayed versus fair price chart"><path d="M 12 104 H 508 M 12 62 H 508 M 12 20 H 508" stroke="#e7ebf1" strokeWidth="1" /><path d={`M 12 ${y(displayed)} L 274 ${y(displayed)} L 508 ${y(displayed)}`} fill="none" stroke="#2563eb" strokeWidth="3" /><path d={`M 12 ${y(displayed)} L 250 ${y(displayed)} L 330 ${y(fair)} L 508 ${y(fair)}`} fill="none" stroke={stale ? "#d97706" : "#059669"} strokeDasharray="5 5" strokeWidth="2.5" /><circle cx="508" cy={y(displayed)} r="4" fill="#2563eb" /><circle cx="508" cy={y(fair)} r="4" fill={stale ? "#d97706" : "#059669"} />{stale && <><path d={`M 420 ${y(displayed)} V ${y(fair)}`} stroke="#dc2626" strokeWidth="1.5" /><text x="429" y={(y(displayed) + y(fair)) / 2} fill="#dc2626" fontSize="9">stale gap</text></>}</svg><div className="absolute bottom-3 left-3 flex gap-3 text-[8.5px] text-(--ink-3)"><span className="inline-flex items-center gap-1"><i className="h-1.5 w-4 bg-(--blue)" />Displayed</span><span className="inline-flex items-center gap-1"><i className={`h-0 w-4 border-t border-dashed ${stale ? "border-(--amber)" : "border-(--green)"}`} />Fair</span></div></div>;
 }
 
 function OrderRow({ order, receipt }: { order: GuardedOrder; receipt?: LineGuardReceipt }) {
