@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+target/
+test-ledger/
+
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example

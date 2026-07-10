@@ -1,0 +1,21 @@
+[toolchain]
+package_manager = "npm"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+lineguard = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe"
+
+[programs.devnet]
+lineguard = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npm exec -- ts-mocha -p ./tsconfig.anchor.json -t 1000000 \"tests/**/*.ts\""
+
+[hooks]
