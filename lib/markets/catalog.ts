@@ -4,6 +4,8 @@ import {
   type FairXMarketEventSummary,
   type MaterialityRules,
 } from "@/lib/markets/fairx";
+import canonicalCapture from "@/fixtures/txline/canonical.json";
+import type { TxLineEventType } from "@/lib/txline/types";
 
 export type {
   ExecutionMode,
@@ -62,8 +64,42 @@ const goalAtSeq2: FairXMarketEventSummary = {
  */
 export const marketCatalog: FairXMarket[] = [
   {
+    id: "france-morocco-france-win",
+    title: "France wins",
+    fixtureId: canonicalCapture.fixtureId,
+    type: "MATCH_WINNER",
+    status: "STALE",
+    displayedPrice: canonicalCapture.odds.displayedPricingInput.impliedProbability,
+    fairPrice: canonicalCapture.odds.normalizedPricingInput.impliedProbability,
+    materialSeq: canonicalCapture.normalizedEvent.seq,
+    pricedAtSeq: canonicalCapture.normalizedEvent.seq - 1,
+    tolerance: 0.02,
+    source: "historical",
+    materialityRules: { ...allMaterial },
+    backedTeam: "France",
+    targetSide: "France",
+    resolutionNote: "Historical replay: France led Morocco after the confirmed TxLINE goal at sequence 739.",
+    createdAt: Number(canonicalCapture.fixture.record.StartTime),
+    updatedAt: canonicalCapture.normalizedEvent.ts,
+    staleOpenedAt: canonicalCapture.normalizedEvent.ts,
+    lastRepriceAt: Number(canonicalCapture.odds.displayedPricingInput.timestamp),
+    lastEvent: {
+      fixtureId: canonicalCapture.fixtureId,
+      seq: canonicalCapture.normalizedEvent.seq,
+      timestamp: canonicalCapture.normalizedEvent.ts,
+      eventType: canonicalCapture.normalizedEvent.eventType as TxLineEventType,
+      source: "historical",
+      team: canonicalCapture.normalizedEvent.team,
+      minute: canonicalCapture.normalizedEvent.minute,
+      rawPayloadHash: canonicalCapture.rawPayloadHash,
+      proofStatus: "onchain_verified",
+      material: true,
+      impact: "Confirmed France goal advanced TxLINE sequence and moved the genuine StablePrice fair input.",
+    },
+  },
+  {
     id: "eng-win",
-    title: "England wins",
+    title: "England wins — offline scenario",
     fixtureId: "ENG-FRA-2026-QF",
     type: "MATCH_WINNER",
     status: "TRADING",
@@ -77,24 +113,12 @@ export const marketCatalog: FairXMarket[] = [
     createdBy: "demo",
     backedTeam: "England",
     targetSide: "England",
-    resolutionNote: "Resolves YES if England beat France in regulation.",
+    resolutionNote: "Guided offline fallback; not a TxLINE fixture.",
     createdAt: 1_783_615_000_000,
     updatedAt: 1_783_615_000_000,
     staleOpenedAt: null,
     lastRepriceAt: 1_783_615_000_000,
     lastEvent: null,
-    onChain: {
-      initialized: true,
-      marketPda: "HvfPZpLz5Sym6LSKQtKoATJ8VaAv9KmbjdLEjHuAzt8C",
-      txSignatures: [
-        "5cMHjD3JkzkJgfStJhrQtoMLozcgNrV7jcnDKnLtcqEQSivwU8T24evuNNsEM2FRWpNFW27zFTwWumF3YaWpgLif",
-        "5dfrQNRyxvLN8YyFEcGWVxPfZT4bebRuc1cnNjyi6EFjVvoQjmjnM5Cdkd3Xj4B4eb5EFUB427W9AT1v44odWeY8",
-        "WBWBHmktP5HzL3YNtAJ5Zt3J8xPVWV6kRA1XRmde2vSfxksPHJDwtewX5rAFvrBF1573s5FsWR7vaLNDiW8H3Bs",
-        "2tR13kJbCS4K75f2UFiLEExgsDdoRo26B8Q7tZGhEhWwiAtDJkaQcGerJiQ3GEzqdxKvs8NWc4Rkqe6oXHuCNcH2",
-      ],
-      cluster: "devnet",
-      programId: "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe",
-    },
   },
   {
     id: "eng-fra-over-2-5",

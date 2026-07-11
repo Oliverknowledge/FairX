@@ -1,16 +1,28 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ProofPage from "@/app/proof/page";
+import { proofData } from "@/lib/proof/staticProofData";
+import { verifyReceipt } from "@/lib/receipts/verify";
 
 describe("proof page", () => {
-  it("renders the six clickable config and settlement commitments", () => {
+  it("renders the ten canonical TxLINE and settlement proof stages", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("Program deployed");
-    expect(html).toContain("Market config committed");
-    expect(html).toContain("Event hash committed");
-    expect(html).toContain("YES attack refunded to trader");
-    expect(html).toContain("NO safe trade finalized to vault");
-    expect(html).toContain("Receipt verifies all hashes");
-    expect((html.match(/<a /g) ?? []).length).toBeGreaterThanOrEqual(6);
+    for (const title of [
+      "TxLINE subscription active", "Genuine fixture loaded", "TxLINE score proof validated", "MarketConfig committed",
+      "Source event hash committed", "YES stake escrowed", "YES refunded", "NO stake escrowed",
+      "NO finalized to ProtocolVault", "Receipt integrity verified",
+    ]) expect(html).toContain(title);
+    expect(html).toContain("market-config-v2 · 475298151");
+    expect(html).toContain(proofData.txline.programId);
+    expect(html).toContain(proofData.txline.rootPda);
+    expect(html).toContain(proofData.receipt.noReceipt.receiptHash);
+    expect((html.match(/<a /g) ?? []).length).toBeGreaterThanOrEqual(18);
+  });
+
+  it("publishes stable valid routes for both canonical receipts", () => {
+    expect(proofData.receipt.verifierHref).toBe(`/verify/${proofData.receipt.receipt.receiptId}`);
+    expect(proofData.receipt.noVerifierHref).toBe(`/verify/${proofData.receipt.noReceipt.receiptId}`);
+    expect(verifyReceipt(proofData.receipt.receipt, 0).valid).toBe(true);
+    expect(verifyReceipt(proofData.receipt.noReceipt, 0).valid).toBe(true);
   });
 });

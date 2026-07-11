@@ -36,29 +36,32 @@ import {
   sideCode,
   type OnChainSide,
 } from "@/lib/solana/pdas";
-import { DEMO_EVENT_HASHES } from "@/lib/proof/onchainReceipt";
+import canonicalCapture from "@/fixtures/txline/canonical.json";
 import { hashNormalizedEvent } from "@/lib/proof/eventHash";
 
-const DISPLAYED_40 = 400_000;
-const FAIR_40 = 400_000;
-const FAIR_63 = 630_000;
+const CANONICAL_DISPLAYED_PRICE = canonicalCapture.odds.displayedPricingInput.fairPriceMicros;
+const CANONICAL_FAIR_PRICE = canonicalCapture.odds.normalizedPricingInput.fairPriceMicros;
+const CANONICAL_EVENT_SEQ = canonicalCapture.normalizedEvent.seq;
+const CANONICAL_INITIAL_SEQ = CANONICAL_EVENT_SEQ - 1;
 const TOLERANCE_2C = 20_000;
 // On-chain sandbox stake in lamports (0.02 SOL). Kept small because filled orders now
 // finalize into the ProtocolVault; the receipt's display stake ($500) is separate.
 const STAKE_LAMPORTS = 20_000_000;
+const CANONICAL_LINEGUARD_PROGRAM_ID = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe";
+const CANONICAL_OPERATOR_PUBLIC_KEY = "ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq";
 
 const MARKET_DISCRIMINATOR = accountDiscriminator("MarketState");
 const MARKET_CONFIG_DISCRIMINATOR = accountDiscriminator("MarketConfig");
 const ORDER_DISCRIMINATOR = accountDiscriminator("OrderEscrow");
 const VAULT_DISCRIMINATOR = accountDiscriminator("ProtocolVault");
 /** 32-byte normalized-event hash bound on-chain for the canonical proof flow. */
-const DEMO_SOURCE_EVENT_HASH = Buffer.from(DEMO_EVENT_HASHES.normalizedEventHash, "hex");
-const DEMO_CONFIG_COMMITMENT = buildMarketConfigCommitment({
+const CANONICAL_SOURCE_EVENT_HASH = Buffer.from(canonicalCapture.normalizedEventHash, "hex");
+const CANONICAL_CONFIG_COMMITMENT = buildMarketConfigCommitment({
   marketType: "MATCH_WINNER",
-  fixtureId: "ENG-FRA-2026-QF",
-  marketTitle: "England wins",
+  fixtureId: canonicalCapture.fixtureId,
+  marketTitle: "France wins",
   materialityRules: { goals: true, redCards: true, penalties: true, oddsUpdates: true },
-  backedTeam: "England",
+  backedTeam: "France",
   toleranceMicros: TOLERANCE_2C,
 });
 
@@ -221,7 +224,7 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
   const marketPdaExplorerUrl = addressExplorerUrl(cfg.cluster, marketPda.toBase58());
   const connection = new Connection(cfg.rpcUrl, "confirmed");
   if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
-    return { ...base, marketPda: marketPda.toBase58(), marketConfigPda: marketConfigPda.toBase58(), marketPdaExplorerUrl, reason: SCHEMA_PENDING_REASON };
+    return { ...base, marketPda: marketPda.toBase58(), marketConfigPda: marketConfigPda.toBase58(), marketPdaExplorerUrl, reason: SCHEMA_MISMATCH_REASON };
   }
   const commitment = configCommitment(input);
 
@@ -383,7 +386,7 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
 
   const connection = new Connection(cfg.rpcUrl, "confirmed");
   if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
-    return { ...base, reason: SCHEMA_PENDING_REASON };
+    return { ...base, reason: SCHEMA_MISMATCH_REASON };
   }
   const seed = marketIdSeed(input.marketId);
   const marketPda = deriveMarketPda(programId, seed);
@@ -607,7 +610,7 @@ export async function initializeOnChainMarket() {
           { pubkey: pdas.marketConfigPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-        data: ixData("attach_market_config", configIxParts(DEMO_CONFIG_COMMITMENT)),
+          data: ixData("attach_market_config", configIxParts(CANONICAL_CONFIG_COMMITMENT)),
       })
       : new TransactionInstruction({
         programId: cfg.programId,
@@ -618,8 +621,8 @@ export async function initializeOnChainMarket() {
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
         data: ixData("initialize_market_config", [
-          Buffer.from(bytes32(LINEGUARD_MARKET_LABEL)), u64(1), u64(1), u64(DISPLAYED_40), u64(FAIR_40), u64(TOLERANCE_2C),
-          ...configIxParts(DEMO_CONFIG_COMMITMENT),
+          Buffer.from(bytes32(LINEGUARD_MARKET_LABEL)), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C),
+          ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
         ]),
       });
     const signature = await sendInstruction(connection, cfg, instruction);
@@ -637,7 +640,7 @@ export async function ingestOnChainEvent() {
         { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
         { pubkey: pdas.marketPda, isSigner: false, isWritable: true },
       ],
-      data: ixData("ingest_material_event", [u64(2), u64(FAIR_63), DEMO_SOURCE_EVENT_HASH]),
+      data: ixData("ingest_material_event", [u64(CANONICAL_EVENT_SEQ), u64(CANONICAL_FAIR_PRICE), CANONICAL_SOURCE_EVENT_HASH]),
     })
   );
 }
@@ -650,7 +653,7 @@ export async function repriceOnChainMarket() {
         { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
         { pubkey: pdas.marketPda, isSigner: false, isWritable: true },
       ],
-      data: ixData("reprice_market", [u64(FAIR_63)]),
+      data: ixData("reprice_market", [u64(CANONICAL_FAIR_PRICE)]),
     })
   );
 }
@@ -692,8 +695,8 @@ export async function evaluateOnChainOrder(side: OnChainSide) {
 
 /** Program-data length at/above which the deployed program includes the MarketConfig (v2) schema. */
 const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 238_717;
-const SCHEMA_PENDING_REASON =
-  "The deployed program is on the event-hash/vault version; the MarketConfig upgrade is pending. Canonical proof is available.";
+const SCHEMA_MISMATCH_REASON =
+  "The deployed program schema does not match MarketConfig v2. Canonical verified proof remains available.";
 
 /** True only when the currently deployed program supports initialize_market_config / config-bound evaluation. */
 async function schemaSupportsMarketConfig(connection: Connection, programId: PublicKey): Promise<boolean> {
@@ -720,16 +723,14 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
   const labels = { marketLabel, orderLabel };
   const pdas = derivePdasFor(cfg.programId.toBase58(), side, labels);
   const connection = new Connection(cfg.rpcUrl, "confirmed");
+  if (cfg.programId.toBase58() !== CANONICAL_LINEGUARD_PROGRAM_ID) throw new Error("Safety stop: configured LineGuard program differs from the approved program.");
+  if (cfg.payer.publicKey.toBase58() !== CANONICAL_OPERATOR_PUBLIC_KEY) throw new Error("Safety stop: configured fee payer differs from the approved operator.");
   if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
-    return { ...(await getOnChainState(side)), ok: false, reason: SCHEMA_PENDING_REASON };
+    return { ...(await getOnChainState(side)), ok: false, reason: SCHEMA_MISMATCH_REASON };
   }
   const signatures: string[] = [];
 
-  signatures.push(
-    await sendInstruction(
-      connection,
-      cfg,
-      new TransactionInstruction({
+  const initializeInstruction = new TransactionInstruction({
         programId: cfg.programId,
         keys: [
           { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
@@ -739,41 +740,36 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
         ],
         data: ixData("initialize_market_config", [
           Buffer.from(pdas.marketId),
-          u64(1),
-          u64(1),
-          u64(DISPLAYED_40),
-          u64(FAIR_40),
+          u64(CANONICAL_INITIAL_SEQ),
+          u64(CANONICAL_INITIAL_SEQ),
+          u64(CANONICAL_DISPLAYED_PRICE),
+          u64(CANONICAL_DISPLAYED_PRICE),
           u64(TOLERANCE_2C),
-          ...configIxParts(DEMO_CONFIG_COMMITMENT),
+          ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
         ]),
-      })
-    )
-  );
+      });
+  assertCanonicalInstruction("initialize", side, cfg, pdas, undefined, initializeInstruction);
+  signatures.push(await sendInstruction(connection, cfg, initializeInstruction));
 
-  signatures.push(
-    await sendInstruction(
-      connection,
-      cfg,
-      new TransactionInstruction({
+  const ingestInstruction = new TransactionInstruction({
         programId: cfg.programId,
         keys: [
           { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: false },
           { pubkey: pdas.marketPda, isSigner: false, isWritable: true },
         ],
-        data: ixData("ingest_material_event", [u64(2), u64(FAIR_63), DEMO_SOURCE_EVENT_HASH]),
-      })
-    )
-  );
+        data: ixData("ingest_material_event", [u64(CANONICAL_EVENT_SEQ), u64(CANONICAL_FAIR_PRICE), CANONICAL_SOURCE_EVENT_HASH]),
+      });
+  assertCanonicalInstruction("ingest", side, cfg, pdas, undefined, ingestInstruction);
+  signatures.push(await sendInstruction(connection, cfg, ingestInstruction));
 
-  // The vault must exist before evaluation finalizes a filled stake into it.
-  const vaultPda = await ensureVault(connection, cfg);
+  // Canonical execution is exactly four transactions per flow; never add a surprise vault-initialization transaction.
+  const vaultPda = deriveVaultPda(cfg.programId);
+  const vaultAccount = await connection.getAccountInfo(vaultPda, "finalized");
+  if (!vaultAccount || !vaultAccount.owner.equals(cfg.programId)) throw new Error("Safety stop: the approved ProtocolVault does not exist or has the wrong owner.");
+  const vaultBalanceBeforeLamports = vaultAccount.lamports;
 
   const balanceBeforePlace = await connection.getBalance(cfg.payer.publicKey, "confirmed");
-  signatures.push(
-    await sendInstruction(
-      connection,
-      cfg,
-      new TransactionInstruction({
+  const placeInstruction = new TransactionInstruction({
         programId: cfg.programId,
         keys: [
           { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
@@ -782,12 +778,14 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
         data: ixData("place_order", [Buffer.from(pdas.orderId), Buffer.from([sideCode(side)]), u64(STAKE_LAMPORTS)]),
-      })
-    )
-  );
+      });
+  assertCanonicalInstruction("place", side, cfg, pdas, vaultPda, placeInstruction);
+  signatures.push(await sendInstruction(connection, cfg, placeInstruction));
   const balanceAfterPlace = await connection.getBalance(cfg.payer.publicKey, "confirmed");
 
-  signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, pdas.marketPda, pdas.marketConfigPda, pdas.orderEscrowPda, vaultPda)));
+  const evaluationInstruction = evaluateInstruction(cfg, pdas.marketPda, pdas.marketConfigPda, pdas.orderEscrowPda, vaultPda);
+  assertCanonicalInstruction("evaluate", side, cfg, pdas, vaultPda, evaluationInstruction);
+  signatures.push(await sendInstruction(connection, cfg, evaluationInstruction));
   const balanceAfterEvaluate = await connection.getBalance(cfg.payer.publicKey, "confirmed");
 
   const latestSignature = signatures.at(-1);
@@ -833,7 +831,9 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
       balanceAfterEvaluate,
       settlementDestination: refunded ? "REFUNDED_TO_TRADER" : "FINALIZED_TO_VAULT",
       vaultPda: vaultPda.toBase58(),
+      vaultBalanceBeforeLamports,
       vaultBalanceLamports,
+      vaultDeltaLamports: vaultBalanceLamports - vaultBalanceBeforeLamports,
       sourceEventHash: state.market.sourceEventHashHex,
     };
   }
@@ -875,7 +875,7 @@ async function sendInstruction(connection: Connection, cfg: ServerConfig, instru
     throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
   }
 
-  const signature = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false });
+  const signature = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 0 });
   await confirmSignatureHttp(connection, signature, latest.lastValidBlockHeight);
   return signature;
 }
@@ -890,7 +890,7 @@ async function confirmSignatureHttp(connection: Connection, signature: string, l
       throw new Error(`Transaction ${signature} failed: ${JSON.stringify(status.err)}`);
     }
 
-    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized" || status?.confirmations === null) {
+    if (status?.confirmationStatus === "finalized") {
       return;
     }
 
@@ -903,6 +903,63 @@ async function confirmSignatureHttp(connection: Connection, signature: string, l
   }
 
   throw new Error(`Timed out waiting for transaction ${signature} confirmation.`);
+}
+
+type CanonicalStage = "initialize" | "ingest" | "place" | "evaluate";
+
+function assertCanonicalInstruction(
+  stage: CanonicalStage,
+  side: OnChainSide,
+  cfg: ServerConfig,
+  pdas: ReturnType<typeof derivePdasFor>,
+  vaultPda: PublicKey | undefined,
+  instruction: TransactionInstruction,
+): void {
+  if (!cfg.payer) throw new Error("Safety stop: approved operator is unavailable.");
+  if (!instruction.programId.equals(cfg.programId) || cfg.programId.toBase58() !== CANONICAL_LINEGUARD_PROGRAM_ID) {
+    throw new Error(`Safety stop: ${stage} targets an unexpected program.`);
+  }
+  if (cfg.payer.publicKey.toBase58() !== CANONICAL_OPERATOR_PUBLIC_KEY) throw new Error(`Safety stop: ${stage} has an unexpected fee payer.`);
+
+  const expected = stage === "initialize"
+    ? {
+        keys: [
+          [cfg.payer.publicKey, true, true], [pdas.marketPda, false, true], [pdas.marketConfigPda, false, true], [SystemProgram.programId, false, false],
+        ] as const,
+        data: ixData("initialize_market_config", [
+          Buffer.from(pdas.marketId), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C), ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
+        ]),
+      }
+    : stage === "ingest"
+      ? {
+          keys: [[cfg.payer.publicKey, true, false], [pdas.marketPda, false, true]] as const,
+          data: ixData("ingest_material_event", [u64(CANONICAL_EVENT_SEQ), u64(CANONICAL_FAIR_PRICE), CANONICAL_SOURCE_EVENT_HASH]),
+        }
+      : stage === "place"
+        ? {
+            keys: [
+              [cfg.payer.publicKey, true, true], [pdas.marketPda, false, false], [pdas.orderEscrowPda, false, true], [SystemProgram.programId, false, false],
+            ] as const,
+            data: ixData("place_order", [Buffer.from(pdas.orderId), Buffer.from([sideCode(side)]), u64(STAKE_LAMPORTS)]),
+          }
+        : {
+            keys: [
+              [pdas.marketPda, false, false], [pdas.marketConfigPda, false, false], [pdas.orderEscrowPda, false, true], [cfg.payer.publicKey, false, true], [vaultPda!, false, true],
+            ] as const,
+            data: ixData("evaluate_order", []),
+          };
+
+  if (instruction.keys.length !== expected.keys.length) throw new Error(`Safety stop: ${stage} has an unexpected account count.`);
+  for (let index = 0; index < expected.keys.length; index += 1) {
+    const actual = instruction.keys[index];
+    const [pubkey, signer, writable] = expected.keys[index];
+    if (!actual.pubkey.equals(pubkey) || actual.isSigner !== signer || actual.isWritable !== writable) {
+      throw new Error(`Safety stop: ${stage} account ${index} differs from the approved plan.`);
+    }
+  }
+  if (!instruction.data.equals(expected.data)) throw new Error(`Safety stop: ${stage} arguments differ from the approved plan.`);
+  if (stage === "place" && instruction.data.readBigUInt64LE(41) !== BigInt(STAKE_LAMPORTS)) throw new Error("Safety stop: escrow amount is not 0.02 SOL.");
+  if (stage === "ingest" && instruction.data.subarray(24, 56).toString("hex") !== canonicalCapture.normalizedEventHash) throw new Error("Safety stop: source event hash mismatch.");
 }
 
 function sleep(ms: number): Promise<void> {

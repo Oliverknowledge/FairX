@@ -170,23 +170,25 @@ export function isRepriced(state: TerminalState): boolean {
 // the last ingested event — not just which toggle is selected — so the badge
 // can never claim "live" for data that didn't come from a live connection.
 
-export type DataSourceKind = "live" | "captured" | "demo";
+export type DataSourceKind = "live" | "historical" | "captured" | "demo";
 
 export const DATA_SOURCE_LABEL: Record<DataSourceKind, string> = {
   live: "Live TxLINE",
+  historical: "TxLINE historical",
   captured: "Captured TxLINE replay",
   demo: "Guided scenario",
 };
 
 export const DATA_SOURCE_TONE: Record<DataSourceKind, "green" | "blue" | "amber"> = {
   live: "green",
+  historical: "blue",
   captured: "blue",
   demo: "amber",
 };
 
-/** What actually produced the most recent event — falls back to the mode toggle only when nothing has been ingested yet. */
+/** What actually produced the most recent event; selecting live mode alone never earns a live label. */
 export function activeDataSource(state: TerminalState): DataSourceKind {
   const source = state.txline.lastEvent?.source ?? state.market.lastMaterialEvent?.source;
   if (source) return source;
-  return state.mode === "live" ? "live" : "demo";
+  return "demo";
 }

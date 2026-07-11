@@ -9,7 +9,7 @@ export function RuntimeStatusStrip({ detailed = false }: { detailed?: boolean })
     { label: "Solana RPC", value: status.solana.rpcConnected ? `connected · slot ${status.solana.rpcSlot}` : "unavailable", ok: status.solana.rpcConnected, icon: DatabaseZap },
     { label: "Program", value: status.solana.programExecutable ? status.solana.schemaLabel : "not executable", ok: status.solana.programExecutable, icon: Cpu },
     { label: "Operator", value: status.operator.configured ? `${status.operator.balanceSol?.toFixed(3) ?? "—"} SOL` : "unavailable", ok: status.operator.configured && !status.operator.lowBalance, icon: Wallet },
-    { label: "TxLINE", value: status.txline.connected ? "live connected" : status.txline.configured ? "configured · unreachable" : "not configured", ok: status.txline.connected, icon: Radio },
+    { label: "TxLINE", value: status.txline.authenticated ? `authenticated · ${status.txline.canonicalSourceMode}` : status.txline.configured ? "configured · unreachable" : "not configured", ok: status.txline.authenticated, icon: Radio },
     { label: "Fresh proof", value: status.freshProofAvailable ? "available" : "canonical only", ok: status.freshProofAvailable, icon: Activity },
   ] : [];
 

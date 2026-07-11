@@ -67,7 +67,7 @@ function modeForMarket(market: FairXMarket): "devnet_verified" | "local_simulati
   // `initialized` records a market setup, not a proof for a newly-created
   // browser order.  Never label a fresh local order devnet-verified unless an
   // actual OnChainProof is attached to that order by the server flow.
-  if (market.source === "demo" || market.source === "captured") return "demo_replay";
+  if (market.source === "demo" || market.source === "captured" || market.source === "historical") return "demo_replay";
   return "local_simulation";
 }
 
@@ -136,14 +136,16 @@ export function MarketWorkspace({ initialMarket, initialOrders = [], onMarketUpd
   const payout = currentPrice > 0 ? stake / currentPrice : 0;
   const stale = market.materialSeq > market.pricedAtSeq;
   const liveConnected = runtime?.txline.connected === true;
-  const provenanceMode: ProvenanceMode = market.source === "live" ? (liveConnected ? "live" : "unconfigured") : market.source === "captured" ? "captured" : "guided";
+  const provenanceMode: ProvenanceMode = market.source === "live" ? (liveConnected ? "live" : "unconfigured") : market.source === "captured" ? "captured" : market.source === "historical" ? "historical" : "guided";
   const sourceHash = market.lastEvent?.rawPayloadHash?.match(/^[a-f0-9]{64}$/i) ? market.lastEvent.rawPayloadHash : undefined;
   const sourceEndpoint = provenanceMode === "live"
     ? `${runtime?.txline.apiOrigin ?? "TxLINE"}${runtime?.txline.endpoints.scoresStream ?? ""}`
     : provenanceMode === "captured"
       ? "Stored TxLINE payload replay"
+      : provenanceMode === "historical"
+        ? "/api/scores/historical/18209181"
       : provenanceMode === "unconfigured"
-        ? "Live TxLINE connection not configured"
+        ? "TxLINE connection not configured"
         : "FairX guided scenario generator";
 
   const updateMarket = (next: FairXMarket) => {

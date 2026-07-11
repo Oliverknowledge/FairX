@@ -105,7 +105,7 @@ export function MarketsDiscovery() {
   return (
     <section>
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Live TxLINE" value={summary.live} detail={liveConnected ? "connected markets" : "not connected"} icon={Activity} tone="blue" onClick={() => setActiveFilter("LIVE")} />
+        <SummaryCard label={liveConnected && summary.live > 0 ? "Live TxLINE" : "TxLINE connection"} value={summary.live} detail={liveConnected && summary.live > 0 ? "connected markets" : liveConnected ? "connected · no live market payload" : "not connected"} icon={Activity} tone="blue" onClick={() => setActiveFilter("LIVE")} />
         <SummaryCard
           label="Protected"
           value={summary.protected}

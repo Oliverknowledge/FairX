@@ -6,8 +6,8 @@ import { getTxLineServerConfig, hasTxLineCredentials, txLineAuthHeaders, txLineU
  */
 
 const MISSING_CREDENTIALS = {
-  error: "TxLINE credentials missing — running in sandbox mode.",
-  demoMode: true,
+  error: "TxLINE credentials unavailable. Canonical historical evidence remains available.",
+  canonicalSourceMode: "historical",
 } as const;
 
 export function missingCredentialsResponse(): Response {
@@ -27,23 +27,28 @@ export async function proxyTxLineStream(path: string, req: Request): Promise<Res
   if (lastEventId) headers["Last-Event-ID"] = lastEventId;
 
   let upstream: Response;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  req.signal.addEventListener("abort", onAbort, { once: true });
+  const handshakeTimeout = setTimeout(() => controller.abort(), 8_000);
   try {
-    upstream = await fetch(txLineUrl(cfg, path), {
+    upstream = await fetch(txLineUrl(cfg, path, true), {
       headers,
       cache: "no-store",
-      signal: req.signal, // browser disconnect aborts the upstream fetch
+      signal: controller.signal,
     });
-  } catch (err) {
+    clearTimeout(handshakeTimeout);
+  } catch {
+    clearTimeout(handshakeTimeout);
     return Response.json(
-      { error: `TxLINE unreachable: ${err instanceof Error ? err.message : String(err)}` },
+      { error: "TxLINE stream unavailable. Canonical historical evidence remains available." },
       { status: 502 }
     );
   }
 
   if (!upstream.ok || !upstream.body) {
-    const body = await upstream.text().catch(() => "");
     return Response.json(
-      { error: `TxLINE upstream ${upstream.status}`, detail: body.slice(0, 500) },
+      { error: "TxLINE stream authentication or upstream service is unavailable. Canonical historical evidence remains available." },
       { status: 502 }
     );
   }
@@ -68,7 +73,14 @@ export async function proxyTxLineJson(path: string): Promise<Response> {
     const upstream = await fetch(txLineUrl(cfg, path), {
       headers: { ...txLineAuthHeaders(cfg), Accept: "application/json" },
       cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
     });
+    if (!upstream.ok) {
+      return Response.json(
+        { error: "TxLINE authentication or upstream service is unavailable. Canonical historical evidence remains available." },
+        { status: 502 },
+      );
+    }
     const text = await upstream.text();
     return new Response(text, {
       status: upstream.status,
@@ -77,9 +89,9 @@ export async function proxyTxLineJson(path: string): Promise<Response> {
         "Cache-Control": "no-cache",
       },
     });
-  } catch (err) {
+  } catch {
     return Response.json(
-      { error: `TxLINE unreachable: ${err instanceof Error ? err.message : String(err)}` },
+      { error: "TxLINE request unavailable. Canonical historical evidence remains available." },
       { status: 502 }
     );
   }

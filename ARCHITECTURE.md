@@ -3,11 +3,13 @@
 ```text
 TxLINE
    ↓
-Next.js ingestion and normalization
+raw capture + deterministic normalization
+   ↓
+TxLINE validateStatV2 (separate devnet verification)
    ↓
 source event hash
    ↓
-LineGuard MarketState (+ MarketConfig after v2 deployment)
+LineGuard MarketState + MarketConfig
    ↓
 OrderEscrow
    ↓
@@ -29,7 +31,7 @@ receipt / verifier UI
 - trader refund for stale positive edge
 - ProtocolVault finalization for safe/no-edge orders
 - `GuardVerdict` event evidence
-- MarketConfig hashes and OrderEscrow config/event snapshots in the checked-in v2 program (runtime-gated until deployed)
+- MarketConfig hashes and OrderEscrow config/event snapshots
 
 ## Off-chain
 
@@ -45,7 +47,7 @@ The UI does not custody devnet order funds. Server-only routes create and sign o
 
 ## Trust model
 
-The current oracle path is authority controlled. `ingest_material_event` authorizes the market authority, requires a non-zero hash, validates price bounds, and advances freshness. This is not production oracle decentralization. A direct TxLINE `validate_stat` CPI is not implemented.
+The current LineGuard ingestion path is authority controlled. `ingest_material_event` authorizes the market authority, requires a non-zero hash, validates price bounds, and advances freshness. TxLINE `validateStatV2` passed separately against the real devnet program and its metadata is sealed into the receipt; direct CPI is not implemented or claimed.
 
 ## Not included
 

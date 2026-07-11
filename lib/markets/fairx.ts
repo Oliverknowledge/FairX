@@ -12,7 +12,7 @@ export type FairXMarketType = "MATCH_WINNER" | "TOTAL_GOALS" | "NEXT_GOAL" | "CU
 
 export type FairXMarketStatus = "TRADING" | "STALE" | "REPRICING" | "SETTLED";
 
-export type FairXSource = "live" | "captured" | "demo";
+export type FairXSource = "live" | "historical" | "captured" | "demo";
 
 /** Honest execution provenance.  Custom markets never become devnet verified by inference. */
 export type ExecutionMode = "devnet_verified" | "local_simulation" | "demo_replay";

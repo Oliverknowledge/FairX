@@ -25,7 +25,7 @@ export function OperatorDashboard() {
         <Metric icon={<DatabaseZap className="h-4 w-4" />} label="Program" value={loading ? "Checking…" : status?.solana.programExecutable ? "Executable" : "Unavailable"} detail={status ? `${status.solana.schemaLabel} · slot ${status.solana.deployedSlot ?? "—"}` : "Runtime status not loaded"} tone={status?.solana.programExecutable ? "green" : "amber"} />
         <Metric icon={<WalletCards className="h-4 w-4" />} label="Operator" value={operatorBalance === undefined ? "Unavailable" : `${operatorBalance.toFixed(3)} SOL`} detail={status?.operator.publicKey ? shorten(status.operator.publicKey) : "No server signer configured"} tone={status?.operator.configured && !status.operator.lowBalance ? "green" : "amber"} />
         <Metric icon={<ShieldCheck className="h-4 w-4" />} label="ProtocolVault" value={vaultBalance === undefined ? "Unavailable" : `${(vaultBalance / 1_000_000_000).toFixed(4)} SOL`} detail={`${status?.vault.fillCount ?? proofData.vault.fillCount} verified finalization${(status?.vault.fillCount ?? 1) === 1 ? "" : "s"} · devnet funds`} tone={status?.vault.exists ? "blue" : "amber"} />
-        <Metric icon={<Radio className="h-4 w-4" />} label="TxLINE" value={status?.txline.connected ? "Live connected" : status?.txline.configured ? "Configured, unreachable" : "Not configured"} detail="Never inferred from a seeded market" tone={status?.txline.connected ? "green" : "amber"} />
+        <Metric icon={<Radio className="h-4 w-4" />} label="TxLINE" value={status?.txline.connected ? "Streams connected" : status?.txline.configured ? "Configured, unreachable" : "Not configured"} detail={`Canonical source: ${status?.txline.canonicalSourceMode ?? "historical"}`} tone={status?.txline.connected ? "green" : "amber"} />
         <Metric icon={<Activity className="h-4 w-4" />} label="Fresh proof" value={status?.freshProofAvailable ? "Available" : "Canonical only"} detail={status?.reason ?? "Runtime gated"} tone={status?.freshProofAvailable ? "green" : "amber"} />
         <Metric icon={<FileCheck2 className="h-4 w-4" />} label="Canonical proof" value="Verified" detail="Current event-hash + ProtocolVault YES/NO evidence" tone="green" />
       </section>
@@ -101,9 +101,9 @@ export function OperatorDashboard() {
             </div>
           </div>
           <div className="mt-3 rounded-xl border border-(--red)/25 bg-(--red-bg) p-3">
-            <p className="mono text-[10px] font-bold text-(--red)">+23¢ edge &gt; 2¢ tolerance</p>
+            <p className="mono text-[10px] font-bold text-(--red)">+34.231¢ edge &gt; 2¢ tolerance</p>
             <p className="mt-1 text-[11px] leading-relaxed text-(--ink-2)">
-              Observed YES price 40¢ versus fair 63¢ while materialSeq was ahead of pricedAtSeq. The recorded devnet verdict is a refund.
+              Observed YES price 52.274¢ versus fair 86.505¢ while TxLINE sequence 739 was ahead of pricedAtSeq 738. The recorded devnet verdict is a refund.
             </p>
             <a href={yesCase.txs.at(-1)!.explorerUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-(--blue) hover:underline">
               Open evaluation transaction <ArrowUpRight className="h-3.5 w-3.5" />
@@ -173,23 +173,24 @@ function Head({ children }: { children: React.ReactNode }) {
 function OrderRow({ proof }: { proof: SettlementProofCase }) {
   const yes = proof.id === "yes";
   const proofTx = proof.txs.at(-1)!;
-  const observed = yes ? "40¢" : "60¢";
-  const fair = yes ? "63¢" : "37¢";
+  const observed = `${(proof.proof.observedPriceMicros / 10_000).toFixed(3)}¢`;
+  const fair = `${(proof.proof.fairSidePriceMicros / 10_000).toFixed(3)}¢`;
+  const edge = `${proof.edgeMicros > 0 ? "+" : "−"}${(Math.abs(proof.edgeMicros) / 10_000).toFixed(3)}¢`;
   const verdictTone = yes ? "red" : "blue";
 
   return (
     <tr className="border-b border-(--border) last:border-b-0">
       <td className="px-4 py-3 align-top">
-        <p className="text-[12px] font-bold text-(--ink)">England wins</p>
-        <p className="mt-0.5 text-[10.5px] text-(--ink-3)">material event sequence 2</p>
+        <p className="text-[12px] font-bold text-(--ink)">France wins</p>
+        <p className="mt-0.5 text-[10.5px] text-(--ink-3)">genuine TxLINE sequence {proof.proof.materialSeq}</p>
       </td>
       <td className="px-4 py-3 align-top">
-        <p className="mono text-[11px] font-bold text-(--amber)">2 &gt; 1</p>
+        <p className="mono text-[11px] font-bold text-(--amber)">{proof.proof.materialSeq} &gt; {proof.proof.pricedAtSeq}</p>
         <p className="mt-0.5 text-[10.5px] text-(--ink-3)">stale window open</p>
       </td>
       <td className="px-4 py-3 align-top">
         <p className="mono text-[11px] font-bold text-(--ink)">{yes ? "YES" : "NO"} @ {observed}</p>
-        <p className="mt-0.5 text-[10.5px] text-(--ink-3)">fair {fair} · {yes ? "+23¢" : "-23¢"} edge</p>
+        <p className="mt-0.5 text-[10.5px] text-(--ink-3)">fair {fair} · {edge} edge</p>
       </td>
       <td className="px-4 py-3 align-top">
         <Badge tone={verdictTone}>{proof.verdict}</Badge>

@@ -1,21 +1,47 @@
 # FairX — Fair Settlement for Live Prediction Markets
 
-FairX is a devnet-backed prediction-market prototype powered by LineGuard, an on-chain settlement guard that protects live markets from stale-price extraction.
+## What FairX does
 
-When an authoritative event is known before a displayed market price has repriced, LineGuard evaluates each escrowed order independently:
+**FairX protects live prediction markets from stale-price exploitation.**
+
+When TxLINE reports a material event before the market reprices, LineGuard refunds only the orders exploiting the old price while allowing safe trades to settle.
+
+## How it works
+
+FairX uses genuine TxLINE events and consensus odds as its sports-data source. The canonical France vs Morocco walkthrough preserves and hashes the raw TxLINE data, validates its score proof, commits the normalized event evidence to LineGuard on Solana, and demonstrates selective refund versus settlement.
+
+LineGuard evaluates every escrowed order independently:
 
 - stale positive-edge trade → `VOIDED_REFUNDED` → trader
 - stale trade with no positive edge → `STALE_ALLOWED_NO_EDGE` → ProtocolVault
 - synchronized trade → `ALLOWED`
 
-The important property is selective asymmetry: LineGuard does not freeze every stale trade. It blocks only the order benefiting from the stale information.
+LineGuard does not freeze the market. It blocks only the side benefiting from stale information.
+
+## Canonical proof
+
+| Evidence | Verified value |
+| --- | --- |
+| Fixture | France vs Morocco |
+| TxLINE fixture ID / sequence | `18209181` / `739` |
+| France probability | `52.274%` before → `86.505%` after |
+| YES result | `+34.231¢` → `VOIDED_REFUNDED` → trader |
+| NO result | `−34.231¢` → `STALE_ALLOWED_NO_EDGE` → ProtocolVault |
+| LineGuard program | `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe` |
+| Schema / deployment slot | `market-config-v2` / `475298151` |
+
+- Public app: `[PUBLIC_APP_URL]`
+- Walkthrough: `/walkthrough`
+- Proof page: `/proof`
+- Repository: `[GITHUB_REPOSITORY_URL]`
+- Demo video: `[DEMO_VIDEO_URL]`
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [the proof walkthrough](http://localhost:3000/walkthrough) for the judge path or [the proof audit](http://localhost:3000/proof) for PDAs and transaction evidence.
+Open [the proof walkthrough](http://localhost:3000/walkthrough) for the judge path or [the proof audit](http://localhost:3000/proof) for independently verifiable evidence.
 
 ## Current truth
 
@@ -34,14 +60,10 @@ Verified on the current Solana devnet deployment:
 - stale/no-edge NO finalization to `ProtocolVault`
 - `GuardVerdict` evidence and tamper-evident receipts
 - custom-market initialization and guarded order execution routes
-
-Implemented in the current repository program/IDL but not claimable against the audited deployment until the pending program upgrade succeeds:
-
 - `MarketConfig` PDA with fixture/title/materiality/settlement hashes
 - config attachment to `MarketState`
 - config/event-hash snapshots in `OrderEscrow`
-
-The `/api/status` endpoint checks this schema boundary from ProgramData. Fresh actions are disabled when the deployed binary is older than the checked-in MarketConfig-capable build.
+- genuine TxLINE historical capture, deterministic normalization, StablePrice conversion, and `validateStatV2` proof simulation
 
 See [PROOF.md](PROOF.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [TXLINE.md](TXLINE.md).
 
@@ -69,14 +91,18 @@ SOLANA_RPC_URL=https://api.devnet.solana.com
 # Server-only; never prefix with NEXT_PUBLIC_.
 LINEGUARD_OPERATOR_KEYPAIR='[64-byte secret array]'
 
-# Optional TxLINE server integration.
+# Server-only TxLINE integration.
 TXLINE_API_ORIGIN=https://txline-dev.txodds.com
 TXLINE_JWT=
 TXLINE_API_TOKEN=
 TXLINE_FIXTURE_ID=
-TXLINE_SCORES_STREAM_PATH=/scores/stream
-TXLINE_ODDS_STREAM_PATH=/odds/stream
-TXLINE_SCORES_SNAPSHOT_PATH=/scores/snapshot
+TXLINE_NETWORK=devnet
+TXLINE_SCORES_STREAM_PATH=/api/scores/stream
+TXLINE_ODDS_STREAM_PATH=/api/odds/stream
+TXLINE_SCORES_SNAPSHOT_PATH=/api/scores/snapshot
+TXLINE_SCORES_HISTORICAL_PATH=/api/scores/historical
+TXLINE_FIXTURES_SNAPSHOT_PATH=/api/fixtures/snapshot
+TXLINE_ODDS_SNAPSHOT_PATH=/api/odds/snapshot
 ```
 
 `LINEGUARD_OPERATOR_KEYPAIR`, `TXLINE_JWT`, and `TXLINE_API_TOKEN` are read only by server code. Public APIs expose booleans, public keys, balances, endpoints, and health—not secret values.
@@ -87,6 +113,8 @@ TXLINE_SCORES_SNAPSHOT_PATH=/scores/snapshot
 npm test
 npm run typecheck
 npm run build
+npm run txline:verify-capture
+npm run txline:validate
 NO_DNA=1 anchor test
 ```
 
@@ -99,8 +127,8 @@ NO_DNA=1 anchor deploy --provider.cluster devnet
 
 ## Boundaries
 
-On-chain: market freshness and event evidence, order escrow, edge evaluation, verdict, refund/finalize destination, ProtocolVault, and—after the pending schema upgrade—market configuration hashes.
+On-chain: market freshness and event evidence, MarketConfig commitments, order escrow, edge evaluation, verdict, refund/finalize destination, and ProtocolVault.
 
-Off-chain: website, discovery, charts/presentation, TxLINE HTTP/SSE transport, normalization, fair-price input, receipt rendering, operator dashboard, and terminal.
+Off-chain: website, discovery, TxLINE HTTP/SSE transport, normalization, StablePrice conversion, separate TxLINE `validateStatV2` view/simulation, receipt rendering, operator dashboard, and terminal. Direct TxLINE CPI is not implemented.
 
 FairX is not a full exchange, sportsbook, AMM, order book, production oracle, mainnet deployment, or real-money product. Devnet and sandbox funds only.

@@ -31,6 +31,8 @@ export interface NormalizedEventHashInput {
   team?: string;
   player?: string;
   minute?: number;
+  homeScore?: number;
+  awayScore?: number;
   proofStatus?: string;
 }
 
@@ -45,6 +47,8 @@ export function hashNormalizedEvent(event: NormalizedEventHashInput): string {
     team: event.team,
     player: event.player,
     minute: event.minute,
+    homeScore: event.homeScore,
+    awayScore: event.awayScore,
     proofStatus: event.proofStatus,
   };
   return sha256(canonicalize(canonical));
@@ -61,6 +65,8 @@ export function hashNormalizedTxLineEvent(event: NormalizedTxLineEvent): string 
     team: event.team,
     player: event.player,
     minute: event.minute,
+    homeScore: event.homeScore,
+    awayScore: event.awayScore,
     proofStatus: event.proofStatus,
   });
 }

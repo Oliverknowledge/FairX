@@ -21,11 +21,12 @@ export type TxLineProofStatus = "unverified" | "api_verified" | "onchain_verifie
 /**
  * Provenance of a normalized event — the honesty axis the whole UI keys off:
  *   live      — arrived over a real SSE connection to TxLINE, this session
+ *   historical — returned by a genuine TxLINE historical endpoint
  *   captured  — a payload actually received (or manually pasted) earlier,
  *               replayed through the same normalizer/reducer path
  *   demo      — the scripted fixture (Saka/seq 2), never claimed to be real
  */
-export type TxLineSource = "live" | "captured" | "demo";
+export type TxLineSource = "live" | "historical" | "captured" | "demo";
 
 /** Which field (if any) supplied each extracted value — surfaced in diagnostics so nothing is a black box. */
 export interface NormalizeTrace {
@@ -33,6 +34,9 @@ export interface NormalizeTrace {
   tsField: string | null;
   eventTypeField: string | null;
   eventTypeMethod: "explicit" | "structural" | "default";
+  fixtureIdField?: string | null;
+  scoreMethod?: "flat" | "txline-stats" | "txline-score" | "none";
+  teamMethod?: "field" | "participant-map" | "none";
 }
 
 export interface NormalizedTxLineEvent {

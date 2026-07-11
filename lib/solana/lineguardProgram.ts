@@ -101,7 +101,9 @@ export interface OnChainDemoSummary {
   /** REFUNDED_TO_TRADER (voided) or FINALIZED_TO_VAULT (filled). */
   settlementDestination: "REFUNDED_TO_TRADER" | "FINALIZED_TO_VAULT";
   vaultPda: string;
+  vaultBalanceBeforeLamports: number;
   vaultBalanceLamports: number;
+  vaultDeltaLamports: number;
   sourceEventHash: string;
 }
 

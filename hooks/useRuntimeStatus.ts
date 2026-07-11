@@ -11,12 +11,12 @@ export function useRuntimeStatus() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/status", { cache: "no-store" });
+      const response = await fetch("/api/status", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new Error(`Runtime status failed (${response.status})`);
       setStatus(await response.json() as FairXRuntimeStatus);
       setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Runtime status unavailable");
+    } catch {
+      setError("Runtime checks unavailable. Canonical verified proof remains available.");
     } finally {
       setLoading(false);
     }

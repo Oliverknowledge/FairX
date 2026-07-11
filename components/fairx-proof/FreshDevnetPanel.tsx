@@ -83,14 +83,14 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
     try {
       const response = await postOnChainAction(side === "YES" ? "full-yes-demo" : "full-no-demo");
       if (!response.ok || !response.proof) {
-        setError(response.reason ?? "The devnet route did not return a settlement proof.");
+        setError("Fresh devnet execution is temporarily unavailable. Use the canonical verified YES and NO proof below.");
         return;
       }
       const receipt = buildFreshDevnetReceipt(side, response.proof);
       setRuns((current) => [{ side, response, receipt, at: Date.now() }, ...current].slice(0, 4));
       void refreshRuntime();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Fresh devnet execution failed.");
+    } catch {
+      setError("Fresh devnet execution is temporarily unavailable. Use the canonical verified YES and NO proof below.");
     } finally {
       setRunning(null);
     }
@@ -142,7 +142,7 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
               </span>
               <span>
                 <span className="block text-[11.5px] font-bold text-(--red)">Run fresh on-chain YES attack</span>
-                <span className="block text-[9.5px] text-[#a85a5a]">Stale +23¢ edge → expect refund</span>
+                <span className="block text-[9.5px] text-[#a85a5a]">Stale +34.231¢ edge → expect refund</span>
               </span>
             </span>
             <Sparkles className="h-3.5 w-3.5 text-(--red) opacity-70 group-hover:opacity-100" />
@@ -160,7 +160,7 @@ export function FreshDevnetPanel({ compact = false }: { compact?: boolean }) {
               </span>
               <span>
                 <span className="block text-[11.5px] font-bold text-(--blue)">Run fresh on-chain NO safe trade</span>
-                <span className="block text-[9.5px] text-[#3d6ea5]">Stale −23¢ edge → expect fill</span>
+                <span className="block text-[9.5px] text-[#3d6ea5]">Stale −34.231¢ edge → expect fill</span>
               </span>
             </span>
             <Sparkles className="h-3.5 w-3.5 text-(--blue) opacity-70 group-hover:opacity-100" />

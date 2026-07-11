@@ -1,77 +1,118 @@
-# TxLINE Integration
+# FairX × TxLINE
 
-TxLINE is the intended low-latency event and odds source for LineGuard. Its transport and normalization run off-chain; the event evidence hash is what crosses the on-chain authority boundary.
+FairX uses genuine TxLINE fixture, score, and StablePrice odds responses as its canonical sports-data evidence. The raw response is preserved before deterministic normalization and hashing; the normalized hash is then committed to LineGuard on Solana devnet.
 
-## Endpoints used by the implementation
+## Network and subscription
 
-Default origin from `lib/txline/config.ts`:
+- Environment: TxLINE devnet
+- API origin: `https://txline-dev.txodds.com`
+- API base: `https://txline-dev.txodds.com/api`
+- TxLINE program: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
+- Solana RPC: `https://api.devnet.solana.com`
+- Operator: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`
+- Service level: `1`, World Cup & International Friendlies, free tier
+- Duration: four weeks (`subscribe(1, 4)`)
+- Subscription transaction: `3gCxJZXZxapQhN9giuVeByJxen8yAqVE69pYLhYgL3vNq3hHBibtj5CJJgTqJdkoeQAyiUtcEHfP48Woj2dsDmm`
+- Operator TxL associated account: `Edwv4WDkaBq3e8Yqb5QWjork8Du1nr6BZSvVWAZsred`
+- On-chain expiry: `2026-08-07T14:27:11Z`
 
-```text
-https://txline-dev.txodds.com
+The transaction combined creation of the operator's Token-2022 TxL associated account and the subscription instruction. It was simulated first, then sent once and finalized.
+
+## Authentication lifecycle
+
+The same operator wallet and devnet environment are used throughout:
+
+1. Subscribe on-chain to service level 1.
+2. Request a guest JWT with `POST /auth/guest/start`.
+3. Sign the exact activation message with the subscription wallet.
+4. Activate with `POST /api/token/activate`.
+5. Send the guest JWT and activated API token only from server code.
+
+`TXLINE_JWT`, `TXLINE_API_TOKEN`, and `LINEGUARD_OPERATOR_KEYPAIR` live in the gitignored, mode-0600 `.env.local`. They are never returned by APIs or placed in `NEXT_PUBLIC_*` variables.
+
+## Canonical fixture and endpoints
+
+The capture command queries TxLINE instead of hardcoding a fictional fixture. It selected:
+
+- Fixture: France vs Morocco
+- Fixture ID: `18209181`
+- Competition: World Cup (`72`)
+- Feed designation: France is `Participant1` and home; Morocco is `Participant2`
+- Start time: `1783627200000`
+- Fixture response timestamp: `1783641600000`
+- Fixture endpoint: `/api/fixtures/snapshot`
+- Fixture response hash: `22594d12895885e777b8f1e9e469ea0a14e7473c0ea91777956511b092e223ec`
+
+Endpoints used and supported by the server integration:
+
+- `GET /api/fixtures/snapshot`
+- `GET /api/scores/snapshot/:fixtureId`
+- `GET /api/scores/historical/:fixtureId`
+- `GET /api/scores/updates/...`
+- `GET /api/scores/stream`
+- `GET /api/odds/snapshot/:fixtureId`
+- `GET /api/odds/updates/...`
+- `GET /api/odds/stream`
+- `GET /api/scores/stat-validation`
+
+The score and odds SSE endpoints returned HTTP 200 with `text/event-stream` during the integration audit, but no event arrived during the short quiet-period probes. The canonical label is therefore **TxLINE historical**, never live.
+
+## Score normalization and hashing
+
+The historical score sequence contains adjacent records 738 and 739. Sequence 739 is TxLINE's confirmed France goal record and changes the score from 0–0 to 1–0. FairX preserves TxLINE's `FixtureId`, `Seq`, `Ts`, `Action`, `Participant`, `Stats`, and `Clock` fields without manufacturing a sequence.
+
+- Source endpoint: `/api/scores/historical/18209181`
+- Source mode: historical
+- Sequence: `739`
+- Raw payload hash: `e4701bab0a8d2b8576eef7d2050ad032d3e090315129f51a732c8c6e5f2db598`
+- Normalized event hash: `ebd02daad8b04845804c46ebeae892026adf4b37f2b4909952cd9fe80f4b16d5`
+- Normalizer: `txline-normalizer-v2`
+
+Hashing uses recursively key-sorted canonical JSON and SHA-256. The normalizer trace records the exact source field for every provenance-critical value.
+
+## Odds and fair-price derivation
+
+The canonical price uses genuine full-match `TXLineStablePriceDemargined` 1X2 records:
+
+- Pre-event endpoint: `/api/odds/updates/20643/21/4?fixtureId=18209181`
+- Pre-event France probability: `52.274%` (`522740` micros)
+- Post-event endpoint: `/api/odds/updates/20643/21/5?fixtureId=18209181`
+- Post-event France probability: `86.505%` (`865050` micros)
+- Post-event odds payload hash: `67747c9378b15f9ca0a080a88449d74de9a9d06cc57096c4a063368e23c8512e`
+- Derivation: `txline-demargined-pct-v1`
+- Model config hash: `b80c573d463f213b5cc7da1178abece152221b5d61b6543c6053296a5a6cfc58`
+
+FairX parses TxLINE's demargined `Pct` value and divides by 100. It does not claim that TxLINE supplied a LineGuard verdict.
+
+## Durable capture
+
+`fixtures/txline/canonical.json` is a versioned, schema-validated capture containing the raw score event, adjacent record, fixture provenance, odds records, normalized event, trace, and hashes. It contains no headers or credentials.
+
+```bash
+npm run txline:capture
+npm run txline:verify-capture
 ```
 
-Default paths:
+Verification replays the production normalizer and fails if the fixture ID, TxLINE sequence, payload, normalization, or hash is altered.
 
-```text
-GET /scores/stream
-GET /odds/stream
-GET /scores/snapshot
-```
+## TxLINE cryptographic validation
 
-FairX proxies them through server routes so credentials never enter the browser:
+FairX fetched the genuine stat proof for fixture `18209181`, sequence `739`, and stat keys `1,2` from `/api/scores/stat-validation`.
 
-```text
-GET /api/txline/scores/stream
-GET /api/txline/odds/stream
-GET /api/txline/scores/snapshot
-GET /api/txline/health
-```
+- Method: `validateStatV2`
+- Daily scores Merkle-root PDA: `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`
+- Validation payload hash: `a16b46dbdc5f80a62fa102460b9826386fa130e25db2076303ab4a018bd6f809`
+- Result: `true` through an on-chain view/simulation against the real TxLINE devnet program
 
-All origin and path values can be overridden by server environment variables. The UI reads the sanitized resolved origin/paths from `/api/status`; it does not invent endpoint names.
+The safe validation record is stored in `fixtures/txline/canonical.validation.json`. Direct CPI was not added to LineGuard: validation is a separately verified step and its fixture, sequence, root, method, stat keys, and payload hash are sealed into the receipt. A direct `ingest_verified_txline_event` CPI remains planned only after a dedicated compute/account-safety review.
 
-## Payloads and normalization
+## Runtime and fallback
 
-The integration accepts scores and odds payloads as untrusted JSON. `lib/txline/normalize.ts` extracts a monotonic sequence, timestamp, event type, fixture, team/player/minute fields, and records the exact fields/method used. Unknown event types do not stale-lock a market.
+`/api/status` derives authentication, endpoint availability, stream connectivity, last request time, canonical mode, and validation state from real checks or the verified capture. Historical/captured evidence is never labelled live. If authentication or the upstream API is unavailable, the canonical historical artifact remains usable and the separate generated path stays behind **Use offline fallback**.
 
-Two deterministic hashes are generated:
+## Friction and feedback for TxLINE
 
-- raw event hash: canonical JSON of the received payload
-- normalized event hash: provenance-relevant normalized fields
-
-The normalized hash used for the guard is committed to `MarketState.source_event_hash` by the market authority. Receipts seal both hashes where available.
-
-## Provenance modes
-
-- **Live TxLINE**: only after credentials exist and the actual stream/health request succeeds.
-- **Captured TxLINE event**: a previously received or manually provided payload replayed through the same normalizer.
-- **Historical TxLINE replay**: an explicitly historical payload.
-- **Guided scenario**: FairX-generated controlled evidence; never labelled live.
-- **Unconfigured**: no live credentials/working connection; captured and guided paths remain available.
-
-The current canonical proof uses a guided TxLINE-shaped goal scenario, not a live production feed.
-
-## Production environment
-
-```text
-TXLINE_API_ORIGIN
-TXLINE_JWT
-TXLINE_API_TOKEN
-TXLINE_FIXTURE_ID
-TXLINE_NETWORK
-TXLINE_SCORES_STREAM_PATH
-TXLINE_ODDS_STREAM_PATH
-TXLINE_SCORES_SNAPSHOT_PATH
-```
-
-At least one supported credential is required to attempt live mode. Secret values are server-only and must never use `NEXT_PUBLIC_`.
-
-## Friction and feedback
-
-- Payload field names vary enough that normalizer traces must remain visible.
-- A configured credential is not proof of a healthy stream; connection state must be checked separately.
-- A stable fixture identifier and monotonic event sequence are essential for safe market freshness updates.
-- Explicit signed event identifiers or a canonical payload-hash recipe would reduce integration ambiguity.
-
-## Future CPI path
-
-A future program version may call a TxLINE `validate_stat` CPI before accepting an event. That path is planned, not implemented. The current program uses an operator-controlled authority and commits the supplied non-zero event hash.
+- Activation requires exact wallet/network continuity; clearer machine-readable activation errors would help.
+- Historical score data uses SSE framing even for bounded reads, which should be prominent in endpoint documentation.
+- Examples pairing `stat-validation` responses with the exact `validateStatV2` IDL argument conversion would reduce integration time.
+- Explicit canonical-hash guidance for API records would make cross-application provenance comparison easier.

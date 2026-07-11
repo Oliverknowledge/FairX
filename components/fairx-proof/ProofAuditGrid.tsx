@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, CheckCircle2, CircleAlert, Code2, FileCheck2, Hash, Layers3, LockKeyhole, ShieldCheck, Undo2, Vault } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, CircleAlert, DatabaseZap, FileCheck2, Hash, Layers3, LockKeyhole, Radio, ShieldCheck, Undo2, Vault } from "lucide-react";
 import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 import { proofData } from "@/lib/proof/staticProofData";
 
@@ -8,20 +8,21 @@ const yes = proofData.cases.find((item) => item.id === "yes")!;
 const no = proofData.cases.find((item) => item.id === "no")!;
 
 export function ProofAuditGrid() {
-  const { status } = useRuntimeStatus();
   const cards = [
-    { n: 1, title: "Program deployed", claim: "Upgradeable Anchor program is executable on Solana devnet.", value: proofData.program.id, href: proofData.program.explorerUrl, verified: status?.solana.programExecutable ?? true, source: "runtime + canonical", time: proofData.program.deployedAt, slot: status?.solana.deployedSlot ?? proofData.program.deployedSlot, icon: ShieldCheck },
-    { n: 2, title: "Current program version / upgrade", claim: "The runtime check reads ProgramData rather than trusting page copy.", value: status?.solana.schemaLabel ?? "checking runtime", href: status?.solana.deploymentSignature ? `https://explorer.solana.com/tx/${status.solana.deploymentSignature}?cluster=devnet` : proofData.program.deploymentTxUrl, verified: status?.solana.programExecutable ?? true, source: "runtime", time: status?.solana.deploymentTime ?? proofData.program.deployedAt, slot: status?.solana.deployedSlot ?? proofData.program.deployedSlot, icon: Code2 },
-    { n: 3, title: "Market config committed", claim: status?.solana.schemaCurrent ? "MarketConfig-capable program deployed; a fresh configured market is required for account proof." : "Not yet on current devnet: MarketConfig is locally tested but the program upgrade is pending.", value: status?.solana.schemaCurrent ? "SCHEMA READY · FRESH PROOF REQUIRED" : "PENDING DEVNET UPGRADE", href: "#fresh-proof", verified: false, source: "runtime", icon: Layers3 },
-    { n: 4, title: "Event hash committed", claim: "The normalized guided-event source hash is stored in canonical devnet MarketState accounts.", value: yes.sourceEventHash, href: yes.txs[1].explorerUrl, verified: true, source: "canonical", time: yes.txs[1].blockTime, slot: yes.txs[1].slot, icon: Hash },
-    { n: 5, title: "Order escrowed", claim: "The observed quote and devnet stake entered an OrderEscrow PDA before evaluation.", value: yes.orderPda, href: yes.txs[2].explorerUrl, verified: true, source: "canonical", time: yes.txs[2].blockTime, slot: yes.txs[2].slot, icon: LockKeyhole },
-    { n: 6, title: "YES attack refunded to trader", claim: "+23¢ of stale positive edge produced VOIDED_REFUNDED and returned the stake.", value: yes.txs[3].signature, href: yes.txs[3].explorerUrl, verified: true, source: "canonical", time: yes.recordedAt, slot: yes.txs[3].slot, icon: Undo2 },
-    { n: 7, title: "NO safe trade finalized to vault", claim: "−23¢ edge was safe, so STALE_ALLOWED_NO_EDGE finalized to ProtocolVault.", value: no.txs[3].signature, href: no.txs[3].explorerUrl, verified: true, source: "canonical", time: no.recordedAt, slot: no.txs[3].slot, icon: Vault },
-    { n: 8, title: "Receipt verifies all hashes", claim: "The verifier seals event, inputs, verdict, destination, and four transaction signatures.", value: proofData.receipt.receipt.receiptHash, href: proofData.receipt.verifierHref, verified: true, source: "canonical", time: yes.recordedAt, icon: FileCheck2 },
+    { n: 1, title: "TxLINE subscription active", claim: `${proofData.txline.subscriptionLabel}; expiry ${new Date(proofData.txline.subscriptionExpiresAt).toLocaleDateString("en-GB", { timeZone: "UTC" })}.`, value: proofData.txline.subscriptionTx, href: proofData.txline.subscriptionTxUrl, verified: true, source: "TxLINE devnet", icon: Radio },
+    { n: 2, title: "Genuine fixture loaded", claim: "France vs Morocco was selected from the genuine TxLINE fixture snapshot.", value: `fixture ${proofData.txline.fixtureId}`, href: "/api/txline/canonical", verified: true, source: "TxLINE historical", icon: DatabaseZap },
+    { n: 3, title: "TxLINE score proof validated", claim: "validateStatV2 returned true separately against the TxLINE devnet program; direct CPI is not claimed.", value: proofData.txline.rootPda, href: proofData.txline.rootExplorerUrl, verified: proofData.txline.validationPassed, source: "TxLINE devnet", icon: ShieldCheck },
+    { n: 4, title: "MarketConfig committed", claim: "Fixture, title, materiality, and settlement hashes are committed in the canonical MarketConfig PDA.", value: yes.marketConfigPda, href: yes.txs[0].explorerUrl, verified: true, source: "canonical", time: yes.txs[0].blockTime, slot: yes.txs[0].slot, icon: Layers3 },
+    { n: 5, title: "Source event hash committed", claim: "The normalized genuine TxLINE source hash is stored in both canonical MarketState accounts.", value: yes.sourceEventHash, href: yes.txs[1].explorerUrl, verified: true, source: "canonical", time: yes.txs[1].blockTime, slot: yes.txs[1].slot, icon: Hash },
+    { n: 6, title: "YES stake escrowed", claim: "The stale YES quote and 0.02 SOL stake entered its OrderEscrow PDA before evaluation.", value: yes.orderPda, href: yes.txs[2].explorerUrl, verified: true, source: "canonical", time: yes.txs[2].blockTime, slot: yes.txs[2].slot, icon: LockKeyhole },
+    { n: 7, title: "YES refunded", claim: "+34.231¢ of positive stale edge produced VOIDED_REFUNDED and returned the full stake.", value: yes.txs[3].signature, href: yes.txs[3].explorerUrl, verified: true, source: "canonical", time: yes.recordedAt, slot: yes.txs[3].slot, icon: Undo2 },
+    { n: 8, title: "NO stake escrowed", claim: "The opposite 0.02 SOL order entered a distinct OrderEscrow PDA under the same event evidence.", value: no.orderPda, href: no.txs[2].explorerUrl, verified: true, source: "canonical", time: no.txs[2].blockTime, slot: no.txs[2].slot, icon: LockKeyhole },
+    { n: 9, title: "NO finalized to ProtocolVault", claim: "−34.231¢ edge produced STALE_ALLOWED_NO_EDGE and exactly 0.02 SOL reached ProtocolVault.", value: no.txs[3].signature, href: no.txs[3].explorerUrl, verified: true, source: "canonical", time: no.recordedAt, slot: no.txs[3].slot, icon: Vault },
+    { n: 10, title: "Receipt integrity verified", claim: "Both stable receipt routes recompute raw, normalized, config, verdict, destination, and transaction evidence.", value: proofData.receipt.receipt.receiptHash, href: proofData.receipt.verifierHref, verified: true, source: "canonical", time: yes.recordedAt, icon: FileCheck2 },
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
@@ -37,6 +38,27 @@ export function ProofAuditGrid() {
         );
       })}
     </div>
+  );
+}
+
+export function CanonicalReferenceGrid() {
+  const references = [
+    ["LineGuard program", proofData.program.id, proofData.program.explorerUrl],
+    ["Program schema / slot", `${proofData.program.schemaLabel} · ${proofData.program.deployedSlot}`, proofData.program.deploymentTxUrl],
+    ["TxLINE program", proofData.txline.programId, proofData.txline.programExplorerUrl],
+    ["Fixture / sequence", `${proofData.txline.fixtureId} · ${proofData.txline.sequence}`, "/api/txline/canonical"],
+    ["Daily scores root PDA", proofData.txline.rootPda, proofData.txline.rootExplorerUrl],
+    ["Source event hash", yes.sourceEventHash, yes.txs[1].explorerUrl],
+    ["YES receipt hash", proofData.receipt.receipt.receiptHash, proofData.receipt.verifierHref],
+    ["NO receipt hash", proofData.receipt.noReceipt.receiptHash, proofData.receipt.noVerifierHref],
+  ] as const;
+  return (
+    <section className="card p-4">
+      <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="section-label">Canonical genuine TxLINE proof</p><h2 className="mt-1 text-[16px] font-extrabold text-(--ink)">Independent verification references</h2></div><span className="rounded-full bg-(--blue-bg) px-2.5 py-1 text-[9px] font-bold text-(--blue)">HISTORICAL · DEVNET</span></div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {references.map(([label, value, href]) => <a key={label} href={href} target={href.startsWith("http") ? "_blank" : undefined} rel={href.startsWith("http") ? "noreferrer" : undefined} className="min-w-0 rounded-lg border border-(--border) bg-[#fafbfc] p-2.5 hover:border-(--blue)/35"><p className="text-[9px] font-bold text-(--ink-3)">{label}</p><p className="mono mt-1 truncate text-[10px] font-bold text-(--ink)">{value}</p></a>)}
+      </div>
+    </section>
   );
 }
 

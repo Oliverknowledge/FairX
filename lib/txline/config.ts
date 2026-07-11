@@ -8,7 +8,7 @@ import type { TxLineHealth } from "@/lib/txline/types";
  */
 
 export interface TxLineServerConfig {
-  network: string;
+  network: "devnet" | "mainnet";
   apiOrigin: string;
   jwt: string | null;
   apiToken: string | null;
@@ -17,6 +17,9 @@ export interface TxLineServerConfig {
   scoresStreamPath: string;
   oddsStreamPath: string;
   scoresSnapshotPath: string;
+  scoresHistoricalPath: string;
+  fixturesSnapshotPath: string;
+  oddsSnapshotPath: string;
 }
 
 const env = (key: string): string | null => {
@@ -27,19 +30,22 @@ const env = (key: string): string | null => {
 /** Server-side only — do not import from client components. */
 export function getTxLineServerConfig(): TxLineServerConfig {
   return {
-    network: env("TXLINE_NETWORK") ?? "devnet",
+    network: env("TXLINE_NETWORK") === "mainnet" ? "mainnet" : "devnet",
     apiOrigin: env("TXLINE_API_ORIGIN") ?? "https://txline-dev.txodds.com",
     jwt: env("TXLINE_JWT"),
     apiToken: env("TXLINE_API_TOKEN"),
     fixtureId: env("TXLINE_FIXTURE_ID"),
-    scoresStreamPath: env("TXLINE_SCORES_STREAM_PATH") ?? "/scores/stream",
-    oddsStreamPath: env("TXLINE_ODDS_STREAM_PATH") ?? "/odds/stream",
-    scoresSnapshotPath: env("TXLINE_SCORES_SNAPSHOT_PATH") ?? "/scores/snapshot",
+    scoresStreamPath: env("TXLINE_SCORES_STREAM_PATH") ?? "/api/scores/stream",
+    oddsStreamPath: env("TXLINE_ODDS_STREAM_PATH") ?? "/api/odds/stream",
+    scoresSnapshotPath: env("TXLINE_SCORES_SNAPSHOT_PATH") ?? "/api/scores/snapshot",
+    scoresHistoricalPath: env("TXLINE_SCORES_HISTORICAL_PATH") ?? "/api/scores/historical",
+    fixturesSnapshotPath: env("TXLINE_FIXTURES_SNAPSHOT_PATH") ?? "/api/fixtures/snapshot",
+    oddsSnapshotPath: env("TXLINE_ODDS_SNAPSHOT_PATH") ?? "/api/odds/snapshot",
   };
 }
 
 export function hasTxLineCredentials(cfg: TxLineServerConfig = getTxLineServerConfig()): boolean {
-  return Boolean(cfg.jwt || cfg.apiToken);
+  return Boolean(cfg.jwt && cfg.apiToken);
 }
 
 /** Sanitized shape safe to send to the browser. */
@@ -66,8 +72,8 @@ export function txLineAuthHeaders(cfg: TxLineServerConfig): Record<string, strin
 }
 
 /** Build a full upstream URL, appending the fixture filter when configured. */
-export function txLineUrl(cfg: TxLineServerConfig, path: string): string {
+export function txLineUrl(cfg: TxLineServerConfig, path: string, includeFixtureQuery = false): string {
   const url = new URL(path, cfg.apiOrigin);
-  if (cfg.fixtureId) url.searchParams.set("fixtureId", cfg.fixtureId);
+  if (includeFixtureQuery && cfg.fixtureId) url.searchParams.set("fixtureId", cfg.fixtureId);
   return url.toString();
 }

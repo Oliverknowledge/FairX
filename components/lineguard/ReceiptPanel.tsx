@@ -152,7 +152,7 @@ export function ReceiptPanel({
               <BadgeCheck className="h-5 w-5 shrink-0 text-(--green)" />
               <div>
                 <p className="text-[12px] font-extrabold text-(--green)">VERIFIED · hash matches</p>
-                <p className="text-[10px] text-(--ink-2)">Recomputed sha256 equals the sealed hash — the verdict is tamper-evident.</p>
+                <p className="text-[10px] text-(--ink-2)">{receipt.txlineProof ? "TxLINE payload, normalized event, fixture commitment, and on-chain source hash all match." : "Recomputed sha256 equals the sealed hash — the verdict is tamper-evident."}</p>
               </div>
             </>
           ) : (

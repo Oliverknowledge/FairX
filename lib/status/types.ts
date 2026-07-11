@@ -37,16 +37,29 @@ export interface FairXRuntimeStatus {
   };
   txline: {
     configured: boolean;
+    authenticated: boolean;
     connected: boolean;
     mode: "live_connected" | "configured_unreachable" | "unconfigured";
-    network: string;
+    network: "devnet" | "mainnet" | null;
     apiOrigin: string;
     fixtureId: string | null;
     endpoints: {
       scoresStream: string;
       oddsStream: string;
       scoresSnapshot: string;
+      scoresHistorical: string;
+      fixturesSnapshot: string;
+      oddsSnapshot: string;
     };
+    fixturesAvailable: boolean;
+    scoresAvailable: boolean;
+    oddsAvailable: boolean;
+    scoresStreamConnected: boolean;
+    oddsStreamConnected: boolean;
+    lastSuccessfulRequestAt: string | null;
+    canonicalSourceMode: "live" | "historical" | "captured" | "guided";
+    validationAvailable: boolean;
+    lastValidationPassed: boolean | null;
   };
   freshProofAvailable: boolean;
   canonicalProofAvailable: true;

@@ -36,7 +36,7 @@ describe("FairX catalog and creation", () => {
 
     const copy = getMarketCatalog();
     copy[0].title = "mutated copy";
-    expect(marketCatalog[0].title).toBe("England wins");
+    expect(marketCatalog[0].title).toBe("France wins");
   });
 
   it("validates and creates a local creator market without claiming on-chain initialization", () => {

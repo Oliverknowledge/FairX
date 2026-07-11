@@ -23,11 +23,11 @@ export interface TxLineProvenanceProps {
 }
 
 function provenanceLabel(mode: ProvenanceMode, connected = false): string {
-  if (mode === "live") return connected ? "Live TxLINE" : "Live TxLINE connection not active";
+  if (mode === "live") return connected ? "Live TxLINE" : "TxLINE connection not active";
   if (mode === "captured") return "Captured TxLINE event";
-  if (mode === "historical") return "Historical TxLINE replay";
+  if (mode === "historical") return "TxLINE historical";
   if (mode === "guided") return "Guided scenario";
-  return "Live TxLINE connection not configured";
+  return "TxLINE connection not configured";
 }
 
 function provenanceTone(mode: ProvenanceMode, connected = false): string {

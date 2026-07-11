@@ -35,6 +35,8 @@ export interface LineGuardReceipt {
   rawEventHash?: string;
   /** sha256 of the normalized event's provenance fields (receipt-level event binding). */
   normalizedEventHash?: string;
+  /** Self-contained TxLINE evidence required to recompute both provenance hashes. */
+  txlineProof?: TxlineProof;
   /** Where the stake ended up. Refund and vault finalization are both enforced by the on-chain guard. */
   settlementDestination?: SettlementDestination;
   proofStatus: string;
@@ -68,6 +70,35 @@ export interface ReceiptVerification {
   expectedHash: string;
   recomputedHash: string;
   checkedAt: number;
+  receiptSealVerified: boolean;
+  payloadIntegrityVerified: boolean | null;
+  normalizedEventVerified: boolean | null;
+  onChainSourceEventHashMatches: boolean | null;
+  fixtureCommitmentMatches: boolean | null;
+  errors: string[];
+}
+
+export interface TxlineProof {
+  source: "txline";
+  network: "devnet" | "mainnet";
+  mode: "live" | "historical" | "captured";
+  endpoint: string;
+  fixtureId: string;
+  seq?: number;
+  receivedAt?: string;
+  rawPayloadHash: string;
+  normalizedEventHash: string;
+  normalizerVersion: string;
+  rawPayload: unknown;
+  normalizedEvent: import("@/lib/txline/captureFormat").CapturedNormalizedEvent;
+  validation?: {
+    method: "validateStatV2";
+    endpoint: "/api/scores/stat-validation";
+    statKeys: number[];
+    dailyScoresRootPda: string;
+    validationPayloadHash: string;
+    passed: boolean;
+  };
 }
 
 export interface OnChainProof {

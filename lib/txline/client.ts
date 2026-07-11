@@ -15,7 +15,7 @@ export const INTERNAL_ROUTES = {
 
 export async function fetchTxLineHealth(): Promise<TxLineHealth | null> {
   try {
-    const res = await fetch(INTERNAL_ROUTES.health, { cache: "no-store" });
+    const res = await fetch(INTERNAL_ROUTES.health, { cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return null;
     return (await res.json()) as TxLineHealth;
   } catch {
@@ -49,10 +49,10 @@ export function openOddsStream(callbacks: TxLineStreamCallbacks): StreamHandle {
 
 export async function fetchScoresSnapshot(): Promise<{ ok: boolean; status: number; body: unknown }> {
   try {
-    const res = await fetch(INTERNAL_ROUTES.scoresSnapshot, { cache: "no-store" });
+    const res = await fetch(INTERNAL_ROUTES.scoresSnapshot, { cache: "no-store", signal: AbortSignal.timeout(8_000) });
     const text = await res.text();
     return { ok: res.ok, status: res.status, body: safeJsonParse(text) ?? text };
-  } catch (err) {
-    return { ok: false, status: 0, body: err instanceof Error ? err.message : String(err) };
+  } catch {
+    return { ok: false, status: 0, body: "TxLINE snapshot unavailable; use canonical historical evidence." };
   }
 }

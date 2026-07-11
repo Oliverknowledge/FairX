@@ -4,6 +4,8 @@ import { buildFreshDevnetReceipt, buildOnChainOrderReceipt } from "@/lib/proof/o
 import { buildProofSummary } from "@/lib/proof/proofSummary";
 import { verifyReceipt } from "@/lib/receipts/verify";
 import type { OnChainProof } from "@/lib/receipts/types";
+import canonicalCapture from "@/fixtures/txline/canonical.json";
+import { hashMarketText } from "@/lib/markets/marketConfig";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -16,19 +18,19 @@ function proofFor(side: "YES" | "NO"): OnChainProof {
     orderEscrowPda: "8khPDtj1S1yQA67898yRXKyUdgV45cMUiBainz1JCxo2",
     txSignatures: ["a", "b", "c", "d"],
     explorerUrls: ["https://e/1", "https://e/2", "https://e/3", "https://e/4"],
-    materialSeq: 2,
-    pricedAtSeq: 1,
-    observedPriceMicros: yes ? 400_000 : 600_000,
-    fairSidePriceMicros: yes ? 630_000 : 370_000,
+    materialSeq: canonicalCapture.normalizedEvent.seq,
+    pricedAtSeq: canonicalCapture.normalizedEvent.seq - 1,
+    observedPriceMicros: yes ? canonicalCapture.odds.displayedPricingInput.fairPriceMicros : 1_000_000 - canonicalCapture.odds.displayedPricingInput.fairPriceMicros,
+    fairSidePriceMicros: yes ? canonicalCapture.odds.normalizedPricingInput.fairPriceMicros : 1_000_000 - canonicalCapture.odds.normalizedPricingInput.fairPriceMicros,
     toleranceMicros: 20_000,
-    edgeMicros: yes ? 230_000 : -230_000,
+    edgeMicros: yes ? 342_310 : -342_310,
     verdictCode: yes ? 2 : 1,
     statusCode: yes ? 4 : 3,
-    sourceEventHash: hashNormalizedEvent({ source: "demo", fixtureId: "ENG-FRA-2026-QF", seq: 2, ts: 1, eventType: "GOAL" }),
-    orderSourceEventHash: hashNormalizedEvent({ source: "demo", fixtureId: "ENG-FRA-2026-QF", seq: 2, ts: 1, eventType: "GOAL" }),
+    sourceEventHash: canonicalCapture.normalizedEventHash,
+    orderSourceEventHash: canonicalCapture.normalizedEventHash,
     marketConfigPda: "Config111111111111111111111111111111111111",
     marketType: "MATCH_WINNER",
-    fixtureIdHash: "1".repeat(64),
+    fixtureIdHash: hashMarketText(canonicalCapture.fixtureId),
     marketTitleHash: "2".repeat(64),
     materialityConfigHash: "3".repeat(64),
     settlementConfigHash: "4".repeat(64),

@@ -5,6 +5,8 @@ import { FairXShell } from "@/components/fairx/FairXShell";
 import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 import { TxLineProvenance } from "@/components/fairx/TxLineProvenance";
 import { proofData } from "@/lib/proof/staticProofData";
+import canonicalCapture from "@/fixtures/txline/canonical.json";
+import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
 
 export const metadata: Metadata = {
   title: "Fair settlement for live prediction markets",
@@ -13,6 +15,11 @@ export const metadata: Metadata = {
 
 const yesCase = proofData.cases.find((proof) => proof.id === "yes")!;
 const noCase = proofData.cases.find((proof) => proof.id === "no")!;
+const displayed = canonicalCapture.odds.displayedPricingInput.impliedProbability;
+const fair = canonicalCapture.odds.normalizedPricingInput.impliedProbability;
+const edge = fair - displayed;
+const price = (value: number) => `${(value * 100).toFixed(3)}¢`;
+const probability = (value: number) => `${(value * 100).toFixed(3)}%`;
 
 export default function HomePage() {
   return (
@@ -29,7 +36,7 @@ export default function HomePage() {
             <p className="mt-3 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-3)">FairX is a devnet-backed prediction-market prototype powered by an on-chain settlement guard. It evaluates each trade independently—selective protection, not a market-wide freeze.</p>
             <div className="mt-7 flex flex-wrap gap-2">
               <Link href="/walkthrough" className="inline-flex h-11 items-center gap-2 rounded-lg bg-(--ink) px-4 text-[11.5px] font-bold text-white hover:bg-[#273244]">Run the proof walkthrough <ArrowRight className="h-4 w-4" /></Link>
-              <Link href="/proof" className="inline-flex h-11 items-center gap-2 rounded-lg border border-(--blue)/25 bg-(--blue-bg) px-4 text-[11.5px] font-bold text-(--blue) hover:border-(--blue)/45">Inspect devnet proof <FileCheck2 className="h-4 w-4" /></Link>
+              <Link href="/proof" className="inline-flex h-11 items-center gap-2 rounded-lg border border-(--blue)/25 bg-(--blue-bg) px-4 text-[11.5px] font-bold text-(--blue) hover:border-(--blue)/45">Inspect on-chain proof <FileCheck2 className="h-4 w-4" /></Link>
             </div>
           </div>
 
@@ -57,7 +64,13 @@ export default function HomePage() {
             <p className="mt-2 text-[16px] font-bold text-(--blue)">No. Only the trade exploiting the stale information.</p>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Canonical France probability movement">
+            <CanonicalMetric label="France probability before event" value={probability(displayed)} />
+            <CanonicalMetric label="France probability after event" value={probability(fair)} tone="blue" />
+            <CanonicalMetric label="Stale-price edge" value={price(edge)} tone="red" />
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
             <div className="rounded-xl border border-(--border) bg-white p-4">
               {[
                 ["Goal occurs", "The match changes."],
@@ -68,8 +81,8 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <VerdictCard side="YES attack" observed="40¢" fair="63¢" edge="+23¢" verdict="VOIDED_REFUNDED" destination="Refunded to trader" tone="red" />
-              <VerdictCard side="NO trade" observed="60¢" fair="37¢" edge="−23¢" verdict="STALE_ALLOWED_NO_EDGE" destination="Finalized to ProtocolVault" tone="blue" />
+              <VerdictCard side="YES attack" observed={price(displayed)} fair={price(fair)} edge={`+${price(edge)}`} verdict="VOIDED_REFUNDED" destination="Refunded to trader" tone="red" />
+              <VerdictCard side="NO trade" observed={price(1 - displayed)} fair={price(1 - fair)} edge={`−${price(edge)}`} verdict="STALE_ALLOWED_NO_EDGE" destination="Finalized to ProtocolVault" tone="blue" />
             </div>
           </div>
         </section>
@@ -104,15 +117,16 @@ export default function HomePage() {
           </div>
           <div className="self-start">
             <TxLineProvenance
-              mode="guided"
-              endpoint="No network — guided TxLINE-shaped payload"
-              fixtureId="ENG-FRA-2026-QF"
-              eventType="GOAL"
-              sequence={2}
-              receivedAt={1_783_615_318_241}
-              rawEventHash={proofData.receipt.receipt.rawEventHash}
-              normalizedEventHash={yesCase.sourceEventHash}
-              proofState="Normalized hash committed on Solana devnet"
+              mode="historical"
+              endpoint={canonicalCapture.endpoint}
+              fixtureId={canonicalCapture.fixtureId}
+              eventType={canonicalCapture.normalizedEvent.eventType}
+              sequence={canonicalCapture.normalizedEvent.seq}
+              receivedAt={canonicalCapture.receivedAt}
+              rawEventHash={canonicalCapture.rawPayloadHash}
+              normalizedEventHash={canonicalCapture.normalizedEventHash}
+              proofState={canonicalValidation.simulationPassed ? "TxLINE validation passed" : "TxLINE validation unavailable"}
+              trace={canonicalCapture.normalizedEvent.trace}
             />
           </div>
         </section>
@@ -122,7 +136,7 @@ export default function HomePage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-(--blue-bg) text-(--blue)"><Radio className="h-4 w-4" /></div>
             <h2 className="mt-4 text-[20px] font-extrabold tracking-[-0.035em] text-(--ink)">Why TxLINE matters</h2>
             <p className="mt-2 text-[11.5px] leading-relaxed text-(--ink-2)">LineGuard needs an authoritative, low-latency signal that a material event occurred. TxLINE supplies the match event and odds data that opens, updates, and resolves protected market state.</p>
-            <p className="mt-3 rounded-lg border border-(--amber)/25 bg-(--amber-bg) p-2.5 text-[10px] text-(--amber)">This build does not claim a live connection unless the server has credentials and the upstream health check succeeds.</p>
+            <p className="mt-3 rounded-lg border border-(--blue)/25 bg-(--blue-bg) p-2.5 text-[10px] text-(--blue)">Canonical source: genuine TxLINE historical score and StablePrice payloads. Stream connectivity is reported separately and is not used to label this replay live.</p>
           </article>
           <article className="rounded-2xl border border-(--border) bg-white p-5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-(--green-bg) text-(--green)"><Target className="h-4 w-4" /></div>
@@ -152,4 +166,9 @@ function Value({ label, value, strong = false, tone }: { label: string; value: s
 
 function Evidence({ label, value, href }: { label: string; value: string; href: string }) {
   return <a href={href} target="_blank" rel="noreferrer" className="group min-w-0 rounded-xl border border-(--border) bg-white p-3 hover:border-(--blue)/35"><p className="text-[9.5px] font-bold text-(--ink-3)">{label}</p><p className="mono mt-1 truncate text-[10px] font-bold text-(--ink)">{value}</p><p className="mt-2 inline-flex items-center gap-1 text-[9.5px] font-bold text-(--blue)">Open evidence <ArrowUpRight className="h-3 w-3" /></p></a>;
+}
+
+function CanonicalMetric({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "blue" | "red" }) {
+  const color = tone === "red" ? "text-(--red)" : tone === "blue" ? "text-(--blue)" : "text-(--ink)";
+  return <div className="rounded-xl border border-(--border) bg-white px-3.5 py-3"><p className="text-[9.5px] font-bold text-(--ink-3)">{label}</p><p className={`num mt-1 text-[20px] font-extrabold ${color}`}>{value}</p></div>;
 }

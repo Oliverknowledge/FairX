@@ -21,7 +21,7 @@ type LoadState = {
   issue: string | null;
 };
 
-const canonicalReceipt = proofData.receipt.receipt;
+const canonicalReceipts: readonly LineGuardReceipt[] = [proofData.receipt.receipt, proofData.receipt.noReceipt];
 
 /**
  * Browser-side receipt verifier. It verifies canonical evidence, shareable
@@ -141,16 +141,18 @@ export default function VerifyPage() {
                 <TxLineProvenance
                   mode={load.receipt.sourceMode ?? "guided"}
                   connected={load.receipt.sourceMode === "live"}
-                  endpoint={load.receipt.sourceEndpoint ?? "Provenance not recorded by this receipt version"}
+                  endpoint={load.receipt.txlineProof?.endpoint ?? load.receipt.sourceEndpoint ?? "Provenance not recorded by this receipt version"}
                   fixtureId={load.receipt.fixtureId}
                   eventType={load.receipt.txlineEventType}
                   sequence={load.receipt.txlineEventSeq}
-                  receivedAt={load.receipt.txlineTimestamp}
+                  receivedAt={load.receipt.txlineProof?.receivedAt ?? load.receipt.txlineTimestamp}
                   rawEventHash={load.receipt.rawEventHash}
                   normalizedEventHash={load.receipt.normalizedEventHash}
                   proofState={load.receipt.proofStatus}
                 />
               </div>
+
+              {load.receipt.txlineProof?.validation && <ValidationMetadata receipt={load.receipt} />}
 
               {verdict === "verified" && !verdictMatchesProof && load.receipt.onChain && (
                 <div className="mt-3 flex items-start gap-2 rounded-xl border border-(--amber)/30 bg-(--amber-bg) px-3 py-2.5 text-[11px] leading-relaxed text-(--amber)">
@@ -187,6 +189,10 @@ export default function VerifyPage() {
                   <p className="section-label">Verification scope</p>
                   <div className="mt-3 space-y-2">
                     <ScopeCheck ok={verification.valid} label="sha256 seal recomputed" />
+                    {verification.payloadIntegrityVerified !== null && <ScopeCheck ok={verification.payloadIntegrityVerified} label="Genuine TxLINE payload integrity verified" />}
+                    {verification.normalizedEventVerified !== null && <ScopeCheck ok={verification.normalizedEventVerified} label="Normalized event verified" />}
+                    {verification.onChainSourceEventHashMatches !== null && <ScopeCheck ok={verification.onChainSourceEventHashMatches} label="On-chain source event hash matches" />}
+                    {verification.fixtureCommitmentMatches !== null && <ScopeCheck ok={verification.fixtureCommitmentMatches} label="Fixture commitment matches" />}
                     <ScopeCheck ok={idMatchesRoute} label="Receipt ID matches page URL" />
                     <ScopeCheck ok={Boolean(load.receipt.onChain)} label="On-chain proof attached" muted={!load.receipt.onChain} />
                     {load.receipt.onChain && <ScopeCheck ok={verdictMatchesProof} label="Verdict agrees with proof code" />}
@@ -231,7 +237,10 @@ function MissingState({ issue, routeReceiptId, onShowPaste }: { issue: string | 
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <Link href={proofData.receipt.verifierHref} className="inline-flex h-8 items-center rounded-lg bg-(--ink) px-3 text-[11px] font-bold text-white hover:opacity-90">
-          Open canonical receipt
+          Open canonical YES receipt
+        </Link>
+        <Link href={proofData.receipt.noVerifierHref} className="inline-flex h-8 items-center rounded-lg border border-(--border) bg-white px-3 text-[11px] font-bold text-(--ink-2) hover:text-(--blue)">
+          Open canonical NO receipt
         </Link>
         <button type="button" onClick={onShowPaste} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-(--border) bg-white px-3 text-[11px] font-bold text-(--ink-2) hover:text-(--blue)">
           Paste a local receipt <ChevronDown className="h-3.5 w-3.5" />
@@ -351,6 +360,28 @@ function HashBlock({ label, value, match }: { label: string; value: string; matc
   );
 }
 
+function ValidationMetadata({ receipt }: { receipt: LineGuardReceipt }) {
+  const validation = receipt.txlineProof?.validation;
+  if (!validation) return null;
+  return (
+    <section className="mt-3 rounded-xl border border-(--green)/25 bg-(--green-bg) p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="section-label text-(--green)">TxLINE validation metadata</p>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-(--ink-2)">Validated separately against the TxLINE devnet program before LineGuard ingestion; direct CPI is not claimed.</p>
+        </div>
+        <Badge tone={validation.passed ? "green" : "red"}>{validation.passed ? "VALIDATION PASSED" : "VALIDATION FAILED"}</Badge>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Evidence label="Method / endpoint" value={`${validation.method} · ${validation.endpoint}`} />
+        <Evidence label="Stat keys" value={validation.statKeys.join(", ")} />
+        <Evidence label="Daily scores root PDA" value={validation.dailyScoresRootPda} />
+        <Evidence label="Validation payload hash" value={validation.validationPayloadHash} />
+      </div>
+    </section>
+  );
+}
+
 function loadReceipt(routeReceiptId: string): LoadState {
   if (!routeReceiptId) return { receipt: null, source: null, issue: "The verifier URL is missing a receipt ID." };
   const query = new URLSearchParams(window.location.search).get("r");
@@ -361,7 +392,8 @@ function loadReceipt(routeReceiptId: string): LoadState {
       : { receipt: null, source: null, issue: "The shared receipt payload could not be decoded or is incomplete." };
   }
 
-  if (routeReceiptId === canonicalReceipt.receiptId) {
+  const canonicalReceipt = canonicalReceipts.find((receipt) => receipt.receiptId === routeReceiptId);
+  if (canonicalReceipt) {
     return { receipt: canonicalReceipt, source: "canonical devnet proof", issue: null };
   }
 
@@ -464,7 +496,7 @@ function isSafeHttpUrl(value: unknown): value is string {
 }
 
 function isCanonicalReceipt(receipt: LineGuardReceipt): boolean {
-  return receipt.receiptId === canonicalReceipt.receiptId && receipt.receiptHash === canonicalReceipt.receiptHash;
+  return canonicalReceipts.some((canonical) => receipt.receiptId === canonical.receiptId && receipt.receiptHash === canonical.receiptHash);
 }
 
 function firstParam(value: string | string[] | undefined): string {
@@ -478,7 +510,7 @@ function receiptVerdictCode(verdict: string): number {
 }
 
 function formatCents(value: number): string {
-  return `${Math.round(value * 100)}¢`;
+  return `${(value * 100).toFixed(3)}¢`;
 }
 
 function signedCents(value: number): string {
@@ -491,7 +523,7 @@ function formatStake(value: number, unit?: LineGuardReceipt["stakeUnit"]): strin
 }
 
 function microsToCents(value: number): string {
-  return `${Math.round(value / 10_000)}¢`;
+  return `${(value / 10_000).toFixed(3)}¢`;
 }
 
 function signedMicrosToCents(value: number): string {

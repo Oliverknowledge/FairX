@@ -12,7 +12,11 @@
     "anchor:build": "anchor build",
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
     "test:onchain": "anchor test",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "txline:capture": "node --env-file-if-exists=.env.local --import tsx scripts/txline-capture.ts",
+    "txline:verify-capture": "node --import tsx scripts/txline-verify-capture.ts",
+    "txline:validate": "node --env-file-if-exists=.env.local --import tsx scripts/txline-validate.ts",
+    "lineguard:record-proof": "node --import tsx scripts/lineguard-record-proof.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "1.1.2",
@@ -35,6 +39,7 @@
     "mocha": "9.2.2",
     "tailwindcss": "4.1.8",
     "ts-mocha": "10.1.0",
+    "tsx": "^4.23.0",
     "typescript": "5.8.3",
     "vitest": "^3.2.4"
   }

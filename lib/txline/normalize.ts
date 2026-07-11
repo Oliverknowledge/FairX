@@ -61,7 +61,7 @@ const TYPE_PATTERNS: Array<[RegExp, TxLineEventType]> = [
   [/MATCH[_ ]?(STATE|STATUS)|KICK[_ ]?OFF|HALF|FULL[_ ]?TIME|PERIOD|CLOCK|FIXTURE[_ ]?STATE/, "MATCH_STATE"],
 ];
 
-const EVENT_TYPE_KEYS = ["eventType", "event_type", "type", "event", "msgType", "messageType", "kind", "code", "statType", "stat_type"];
+const EVENT_TYPE_KEYS = ["Action", "action", "eventType", "event_type", "type", "event", "msgType", "messageType", "kind", "code", "statType", "stat_type"];
 const HOME_SCORE_KEYS = ["homeScore", "home_score", "homeGoals"];
 const AWAY_SCORE_KEYS = ["awayScore", "away_score", "awayGoals"];
 const MATCH_STATUS_KEYS = ["matchStatus", "match_status", "period", "phase"];
@@ -110,10 +110,54 @@ export interface NormalizeContext {
   fallbackSeq: number;
   /** Clock injection for determinism in tests. */
   now?: number;
+  /** Genuine fixture metadata used to map TxLINE Participant 1/2 into names. */
+  participantNames?: { 1: string; 2: string };
 }
 
-const SEQ_KEYS = ["seq", "sequence", "updateSeq", "update_seq", "sequenceNumber", "sequence_number", "eventSeq", "event_seq", "msgSeq", "revision", "version"];
-const TS_KEYS = ["ts", "timestamp", "time", "eventTime", "event_time", "publishedAt", "published_at", "createdAt", "created_at"];
+const SEQ_KEYS = ["Seq", "seq", "sequence", "updateSeq", "update_seq", "sequenceNumber", "sequence_number", "eventSeq", "event_seq", "msgSeq", "revision", "version"];
+const TS_KEYS = ["Ts", "ts", "timestamp", "time", "eventTime", "event_time", "publishedAt", "published_at", "createdAt", "created_at"];
+
+export const TXLINE_NORMALIZER_VERSION = "txline-normalizer-v2";
+
+function txlineScores(obj: Record<string, unknown>): {
+  homeScore?: number;
+  awayScore?: number;
+  method: "flat" | "txline-stats" | "txline-score" | "none";
+} {
+  const flatHome = pickNumber(obj, HOME_SCORE_KEYS)?.value;
+  const flatAway = pickNumber(obj, AWAY_SCORE_KEYS)?.value;
+  if (flatHome !== undefined || flatAway !== undefined) {
+    return { homeScore: flatHome, awayScore: flatAway, method: "flat" };
+  }
+
+  const participant1IsHome = obj["Participant1IsHome"] !== false;
+  const stats = isRecord(obj["Stats"]) ? obj["Stats"] : null;
+  const participant1 = stats ? asNumber(stats["1"]) : undefined;
+  const participant2 = stats ? asNumber(stats["2"]) : undefined;
+  if (participant1 !== undefined || participant2 !== undefined) {
+    return {
+      homeScore: participant1IsHome ? participant1 : participant2,
+      awayScore: participant1IsHome ? participant2 : participant1,
+      method: "txline-stats",
+    };
+  }
+
+  const score = isRecord(obj["Score"]) ? obj["Score"] : null;
+  const p1 = score && isRecord(score["Participant1"]) ? score["Participant1"] : null;
+  const p2 = score && isRecord(score["Participant2"]) ? score["Participant2"] : null;
+  const p1Total = p1 && isRecord(p1["Total"]) ? p1["Total"] : null;
+  const p2Total = p2 && isRecord(p2["Total"]) ? p2["Total"] : null;
+  const p1Goals = p1Total ? asNumber(p1Total["Goals"]) : undefined;
+  const p2Goals = p2Total ? asNumber(p2Total["Goals"]) : undefined;
+  if (p1Goals !== undefined || p2Goals !== undefined) {
+    return {
+      homeScore: participant1IsHome ? p1Goals : p2Goals,
+      awayScore: participant1IsHome ? p2Goals : p1Goals,
+      method: "txline-score",
+    };
+  }
+  return { method: "none" };
+}
 
 export function normalizeTxLineEvent(raw: unknown, ctx: NormalizeContext): NormalizedTxLineEvent {
   const obj = unwrap(raw);
@@ -143,25 +187,41 @@ export function normalizeTxLineEvent(raw: unknown, ctx: NormalizeContext): Norma
   const signature = pickString(obj, ["signature", "sig", "eventSignature"]);
   const merkleRoot = pickString(obj, ["merkleRoot", "merkle_root", "root", "statProofRoot"]);
 
+  const fixtureKeys = ["FixtureId", "fixtureId", "fixture_id", "matchId", "match_id", "gameId", "game_id", "fixture"];
+  const fixtureStringPick = pickString(obj, fixtureKeys);
+  const fixtureNumberPick = pickNumber(obj, fixtureKeys);
+  const fixtureId = fixtureStringPick?.value ?? (fixtureNumberPick ? String(fixtureNumberPick.value) : ctx.fallbackFixtureId);
+  const fixtureIdField = fixtureStringPick?.key ?? fixtureNumberPick?.key ?? null;
+  const score = txlineScores(obj);
+  const explicitTeam = pickString(obj, ["team", "teamName", "team_name", "side", "club"]);
+  const participant = pickNumber(obj, ["Participant", "participant"])?.value;
+  const mappedTeam = participant === 1 || participant === 2 ? ctx.participantNames?.[participant] : undefined;
+  const clock = isRecord(obj["Clock"]) ? obj["Clock"] : null;
+  const clockSeconds = clock ? asNumber(clock["Seconds"]) : undefined;
+
   const trace: NormalizeTrace = {
     seqField: seqPick?.key ?? null,
     tsField,
     eventTypeField: typeInfo.field,
     eventTypeMethod: typeInfo.method,
+    fixtureIdField,
+    scoreMethod: score.method,
+    teamMethod: explicitTeam ? "field" : mappedTeam ? "participant-map" : "none",
   };
 
   return {
     provider: "TXLINE",
     source: ctx.source,
-    fixtureId: pickString(obj, ["fixtureId", "fixture_id", "matchId", "match_id", "gameId", "game_id", "fixture"])?.value ?? ctx.fallbackFixtureId,
+    fixtureId,
     seq,
     ts,
     eventType: typeInfo.type,
-    team: pickString(obj, ["team", "teamName", "team_name", "side", "club"])?.value,
+    team: explicitTeam?.value ?? mappedTeam,
     player: pickString(obj, ["player", "playerName", "player_name", "scorer"])?.value,
-    minute: pickNumber(obj, ["minute", "matchMinute", "match_minute", "min"])?.value,
-    homeScore: pickNumber(obj, HOME_SCORE_KEYS)?.value,
-    awayScore: pickNumber(obj, AWAY_SCORE_KEYS)?.value,
+    minute: pickNumber(obj, ["minute", "matchMinute", "match_minute", "min"])?.value
+      ?? (clockSeconds === undefined ? undefined : Math.floor(clockSeconds / 60)),
+    homeScore: score.homeScore,
+    awayScore: score.awayScore,
     raw,
     signature: signature?.value,
     merkleRoot: merkleRoot?.value,

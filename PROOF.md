@@ -1,80 +1,66 @@
-# FairX Devnet Proof
+# FairX canonical devnet proof
 
-Last audited: 10 July 2026.
+Recorded 10 July 2026 from genuine France vs Morocco TxLINE evidence.
 
-## Fresh versus canonical
+## Evidence binding
 
-- **Fresh proof generated now** means the server runtime check passed and a new transaction sequence was executed during this session.
-- **Canonical verified proof** means the recorded devnet accounts and signatures below. It is the fallback when operator balance, RPC, or deployed schema prevents a fresh run.
+- Fixture ID: `18209181`
+- TxLINE score sequence: `739`
+- Raw payload hash: `e4701bab0a8d2b8576eef7d2050ad032d3e090315129f51a732c8c6e5f2db598`
+- Normalized/source event hash: `ebd02daad8b04845804c46ebeae892026adf4b37f2b4909952cd9fe80f4b16d5`
+- LineGuard program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
+- LineGuard schema / deployment slot: `market-config-v2` / `475298151`
+- TxLINE program: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
+- Operator: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`
+- Stake: `0.02 SOL` per flow
 
-The public UI does not label canonical evidence as fresh.
+`validateStatV2` returned true against TxLINE devnet using daily root PDA `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`. Direct CPI is not claimed.
 
-## Program
+## YES — voided and refunded
 
-- Program ID: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- ProgramData: `D6buB3VxXnxX3jXjPX5HCqRAMJqtV4yLzaKuMra17nPT`
-- Upgrade authority: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`
-- Current audited upgrade slot: `475252011`
-- Current audited upgrade transaction: `3z7S9vVxh1CDWw3b3qYap1m7CSxXuciMdDSXujzxLEudP1YP6YyTx4NhKNrH2xfTYUJngENE3y5tR5sKFg92fw49`
-- Upgrade time: `2026-07-10T08:39:55Z`
+- Market: `ETf7e9Kc7NqG7SR1v6LMRoCDbrEL1TzRu1hFZybKWJvE`
+- MarketConfig: `G6LmjfuP5fDZGoNtB52WpDegfaw8rVCu2REeo33vjpZx`
+- Order: `Gt5fHPiRF736jPjWTbiJrfZMQwLP2HtffvcaxwZHuFDY`
+- Observed/fair: `522740 / 865050` micros
+- Edge: `+342310` micros (`+34.231¢`)
+- Verdict: `VOIDED_REFUNDED`
+- Destination: `REFUNDED_TO_TRADER`
 
-The audited deployed binary contains the event-hash and ProtocolVault behavior. The checked-in program and IDL also contain MarketConfig v2; `/api/status` reports `event-hash-v1` until that larger binary is deployed.
+Finalized transactions:
 
-## ProtocolVault
+1. `4NyVsPubbpzzQkoENYZq6NMjCT9xFvEmtAZbLHxzkNTcwza2kuAZ5uDsx8T6AFtrrMR5rm8c5hKPF8jQxTLWPjmC`
+2. `1dc9Qqja2HWqAG95EBi9dgHXn4w3rhpd1Ebkzpx9MUU76gE88EeLyDfjPAehsSpYf7ehRKZAr6861VhmfsHBCU7`
+3. `mJNfEG4BQ3CJ2UD1uZ2HTqAswWJ1zwTLfpKK2VxVkUcxBX6gHRcvNw4g3oUz74Y1rCknm9vPWJK5VRj5pYws286`
+4. `3uqFKfEcAtwE5P5xBRTbWT936Mz6AHuobVvSFSeAc1TSGYnfjs97oDvFowDPEBahBXU7H1eoYydqUyPuQ8rqjtVP`
 
-- PDA: `HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE`
-- Audited balance: `21,287,600` lamports
-- Total finalized: `20,000,000` lamports
-- Fill count: `1`
-- Last finalization: `5m7rcQYWn55s1qDJqLcwEG3Y6aYMDSqMSukX9N5E9muX75LB3wABMgPstwbD4i2zChV3mWK5aohcy7zGKFhpBx6g`
+The trader balance read-back shows the 20,000,000-lamport stake returned; only transaction fees remain paid by the operator.
 
-Devnet funds only.
+## NO — allowed and finalized
 
-## Source event hash
+- Market: `AZ5cKJAFPLyQd3WRf1VdoWhbyNCQD7cWiMYQm5KoWj1c`
+- MarketConfig: `Edo6g9SoNWNJBqcNb8DGHe2RNAKqeGZvzAsHUzDT1eiD`
+- Order: `8YX2SemE9voYxPNxMrREs7g39MdtZtZDfxRWi6d4B4QZ`
+- Observed/fair: `477260 / 134950` micros
+- Edge: `-342310` micros (`−34.231¢`)
+- Verdict: `STALE_ALLOWED_NO_EDGE`
+- Destination: `FINALIZED_TO_VAULT`
 
-Normalized event hash committed by the authority:
+Finalized transactions:
 
-```text
-f6f38ccc42718c0f063908bdf8c6244b135971e55a592c93dd6c2748ed2f6b97
-```
+1. `3Mzw6i3G3J5pYc3tXc1a2Aa4MNqWjk2YBvWEqXkwYbmFFkU4cRort9GbNS5Nnx3NjSQGWheg6cKLXhTVk9cqFYU1`
+2. `3pRVDnTNnmW2R3iRvjn9KmAoh66TjaFxg18knMuRQ2ab6DrpfLFLyBgKFBJehecet6xuvJWXkYTdbFZ6Xp4f4ovT`
+3. `YBn7fpJRCvZ6q4aGHAfDokV2SBnSXH2ScczdxAdmNW5JMMswL6sfvr59HGWAjfAeug5XbwdxZS7ShgEVdfQ3gTm`
+4. `TdYx89cGtQXB1fzR2WprFE8aT8LRr6jAeGjmWZmLeKHLZXZgeWUAsfSwGuZa3qTV9pFiDdWEwtBMtDSygEJrTN9`
 
-The canonical event is a guided TxLINE-shaped goal scenario. It is not presented as a live TxLINE connection.
+ProtocolVault `HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE` increased from `41,287,600` to `61,287,600` lamports: exactly `20,000,000` lamports.
 
-## YES — refunded to trader
+## Receipts
 
-- Market PDA: `HvfPZpLz5Sym6LSKQtKoATJ8VaAv9KmbjdLEjHuAzt8C`
-- OrderEscrow PDA: `FGHuTa2YtoBDkQY31V5iCQQiyNcLhJfsbQFJcRxPRXhB`
-- `materialSeq 2 > pricedAtSeq 1`
-- observed YES `400000`, fair YES `630000`, edge `+230000` micros
-- verdict: `VOIDED_REFUNDED`
-- destination: `REFUNDED_TO_TRADER`
+- YES receipt: `bad1ccb86f2a5e37bfbfc45e168ee10c45291086b0c73d4eb6c756d0aaf38ee4`
+- NO receipt: `65da4f0731adcdad61899e99007c0ee57aba0705d2a5cc733d12bf54d2cf154f`
+- Stable YES route: `/verify/rcpt-devnet-yes-3uqFKfEcAt`
+- Stable NO route: `/verify/rcpt-devnet-no-TdYx89cGtQ`
 
-Transactions:
+Both verifier results are valid. Payload integrity, normalized-event integrity, source hash, OrderEscrow snapshot, fixture commitment, TxLINE validation status, verdict, and settlement destination all match. Tampering any sealed provenance field fails verification.
 
-1. Initialize: `5cMHjD3JkzkJgfStJhrQtoMLozcgNrV7jcnDKnLtcqEQSivwU8T24evuNNsEM2FRWpNFW27zFTwWumF3YaWpgLif`
-2. Ingest: `5dfrQNRyxvLN8YyFEcGWVxPfZT4bebRuc1cnNjyi6EFjVvoQjmjnM5Cdkd3Xj4B4eb5EFUB427W9AT1v44odWeY8`
-3. Place: `WBWBHmktP5HzL3YNtAJ5Zt3J8xPVWV6kRA1XRmde2vSfxksPHJDwtewX5rAFvrBF1573s5FsWR7vaLNDiW8H3Bs`
-4. Evaluate/refund: `2tR13kJbCS4K75f2UFiLEExgsDdoRo26B8Q7tZGhEhWwiAtDJkaQcGerJiQ3GEzqdxKvs8NWc4Rkqe6oXHuCNcH2`
-
-## NO — finalized to ProtocolVault
-
-- Market PDA: `6JWmWT8Nf5Z3hRKspaAZY7oG9y195E6NhPCFDk6uqQ3K`
-- OrderEscrow PDA: `D8ac76DsU7gusDRcGnD9eFsttLteFgc89nWHKTHe6vzu`
-- observed NO `600000`, fair NO `370000`, edge `-230000` micros
-- verdict: `STALE_ALLOWED_NO_EDGE`
-- destination: `FINALIZED_TO_VAULT`
-
-Transactions:
-
-1. Initialize: `648msqkbBW9F18xKWcTxvaBN9r1eTU7yBVip3zhfvXndNui4Bec7rBookL1AtdgNXbpofoWi2JCkugrpMPPwRPRc`
-2. Ingest: `4YN6XVNmGkvjLvrGGw3VdQmULL5CxC5KMfjFb4MsCh17PtFTDxGUuS2NzPvKTdDsVQquL31xaaNs6FrLMDinqXyq`
-3. Place: `3jodiyLyHLgQ2ABUoSnzXwxTx3rmVAQTk6aRiD9mjX6fYV2Paov2t19WKPehRthi7ue4ty9CMQwPnFemec4E89uM`
-4. Evaluate/finalize: `5m7rcQYWn55s1qDJqLcwEG3Y6aYMDSqMSukX9N5E9muX75LB3wABMgPstwbD4i2zChV3mWK5aohcy7zGKFhpBx6g`
-
-## Custom market proof
-
-Custom-market initialization and order routes exist and were verified on devnet against the event-hash deployment. MarketConfig hashes are not attached to a current canonical custom proof because the MarketConfig-capable program upgrade is pending. Generate a fresh custom proof after `/api/status` reports `market-config-v2`.
-
-## Verify a receipt
-
-Open `/proof`, select the canonical receipt, then inspect `/verify/<receipt-id>`. The verifier recomputes the receipt hash in the browser. Changing a sealed event hash, config hash, verdict, destination, or transaction field causes verification failure.
+The machine-readable source of truth is `fixtures/lineguard/canonical-proof.json`, generated by `npm run lineguard:record-proof` from finalized RPC read-back.

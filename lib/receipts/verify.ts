@@ -1,4 +1,7 @@
 import { computeReceiptHash } from "@/lib/receipts/create";
+import { hashMarketText } from "@/lib/markets/marketConfig";
+import { hashNormalizedEvent, hashRawEvent } from "@/lib/proof/eventHash";
+import { captureNormalizedHashInput } from "@/lib/txline/captureFormat";
 import type { LineGuardReceipt, ReceiptVerification } from "@/lib/receipts/types";
 
 /**
@@ -9,11 +12,50 @@ import type { LineGuardReceipt, ReceiptVerification } from "@/lib/receipts/types
 export function verifyReceipt(receipt: LineGuardReceipt, checkedAt: number): ReceiptVerification {
   const { receiptHash, ...fields } = receipt;
   const recomputedHash = computeReceiptHash(fields);
+  const receiptSealVerified = recomputedHash === receiptHash;
+  const errors: string[] = [];
+  let payloadIntegrityVerified: boolean | null = null;
+  let normalizedEventVerified: boolean | null = null;
+  let onChainSourceEventHashMatches: boolean | null = null;
+  let fixtureCommitmentMatches: boolean | null = null;
+
+  if (receipt.txlineProof) {
+    const proof = receipt.txlineProof;
+    payloadIntegrityVerified = hashRawEvent(proof.rawPayload) === proof.rawPayloadHash;
+    normalizedEventVerified = hashNormalizedEvent(captureNormalizedHashInput(proof.normalizedEvent)) === proof.normalizedEventHash;
+    onChainSourceEventHashMatches = Boolean(
+      receipt.onChain?.sourceEventHash === proof.normalizedEventHash
+      && receipt.onChain?.orderSourceEventHash === proof.normalizedEventHash
+    );
+    fixtureCommitmentMatches = Boolean(
+      proof.fixtureId === receipt.fixtureId
+      && proof.normalizedEvent.fixtureId === receipt.fixtureId
+      && receipt.marketConfigProof?.fixtureIdHash === hashMarketText(receipt.fixtureId)
+      && receipt.onChain?.fixtureIdHash === receipt.marketConfigProof?.fixtureIdHash
+    );
+    if (proof.source !== "txline") errors.push("provenance source is not TxLINE");
+    if (proof.endpoint !== receipt.sourceEndpoint) errors.push("provenance endpoint mismatch");
+    if (proof.seq !== receipt.txlineEventSeq || proof.seq !== proof.normalizedEvent.seq) errors.push("provenance sequence mismatch");
+    if (proof.rawPayloadHash !== receipt.rawEventHash) errors.push("raw payload hash is not linked to receipt");
+    if (proof.normalizedEventHash !== receipt.normalizedEventHash) errors.push("normalized event hash is not linked to receipt");
+    if (!payloadIntegrityVerified) errors.push("raw payload hash mismatch");
+    if (!normalizedEventVerified) errors.push("normalized event hash mismatch");
+    if (!onChainSourceEventHashMatches) errors.push("on-chain source event hash mismatch");
+    if (!fixtureCommitmentMatches) errors.push("fixture commitment mismatch");
+    if (proof.validation && !proof.validation.passed) errors.push("TxLINE validation did not pass");
+  }
+  if (!receiptSealVerified) errors.push("receipt seal mismatch");
   return {
-    valid: recomputedHash === receiptHash,
+    valid: errors.length === 0,
     expectedHash: receiptHash,
     recomputedHash,
     checkedAt,
+    receiptSealVerified,
+    payloadIntegrityVerified,
+    normalizedEventVerified,
+    onChainSourceEventHashMatches,
+    fixtureCommitmentMatches,
+    errors,
   };
 }
 
