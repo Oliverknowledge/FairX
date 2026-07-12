@@ -56,6 +56,8 @@ interface SettlementProofRecord {
   programId: string;
   operator: string;
   recordedAt: string;
+  fixtureId: number;
+  sequence: number;
   resolution: "YES_WON" | "NO_WON";
   resolutionEventHash: string;
   marketPda: string;
@@ -75,6 +77,20 @@ interface SettlementProofRecord {
   loserOrderStatus: string;
   vaultBalanceBeforeLamports: number;
   vaultBalanceAfterLamports: number;
+  // Unified lifecycle: protection leg + TxLINE resolution binding + per-market accounting.
+  protectionOrderPda: string;
+  protectionVerdict: string;
+  protectionRefunded: boolean;
+  protectionEdgeMicros: number;
+  validationRootPda: string;
+  validationPayloadHash: string;
+  eventStatRoot: string;
+  homeScore: number;
+  awayScore: number;
+  derivedOutcome: number;
+  marketTotalInLamports: number;
+  marketTotalPaidLamports: number;
+  marketTotalRefundedLamports: number;
   transactions: Array<ProofTx & { finalized: true; error: null }>;
 }
 
@@ -194,15 +210,15 @@ export const proofData = {
     id: canonical.programId,
     deployer: canonical.operator,
     programData: "D6buB3VxXnxX3jXjPX5HCqRAMJqtV4yLzaKuMra17nPT",
-    schemaLabel: "settlement-v3",
-    deploymentTx: "RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh",
-    deployedSlot: 475735558,
-    deployedAt: "2026-07-12T11:29:57.000Z",
-    programDataLength: 270_672,
-    previousUpgradeTx: "525wYLRJL12h7wg6sb7wYFumZB5kUmp7GiPPw8Voc2gDZWmuVFyNHacxJ89C6LyFcxDM1fA9EfSN9RBRcMZQS9mP",
+    schemaLabel: "settlement-v4",
+    deploymentTx: "3UE7ipWmwJypE6TZNdpZDT9X3Jq2CaKgNHS2unWWK5LVUu96zvpm16yKsotsyJYCBrMwrDX82f7HSQDsB3h2Rcu4",
+    deployedSlot: 475793035,
+    deployedAt: "2026-07-12T17:32:29.000Z",
+    programDataLength: 316_672,
+    previousUpgradeTx: "RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh",
     initialDeploymentTx: "2WWNS16VPEhVPRpVdvURuCh6gvXz6KzMe5QL449fXcrg87dvs1zndc7LAUvXRZSMATMTqPVb1Bqf1XxtAEapZbks",
     explorerUrl: addressUrl(canonical.programId),
-    deploymentTxUrl: txUrl("RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh"),
+    deploymentTxUrl: txUrl("3UE7ipWmwJypE6TZNdpZDT9X3Jq2CaKgNHS2unWWK5LVUu96zvpm16yKsotsyJYCBrMwrDX82f7HSQDsB3h2Rcu4"),
   },
   vault: {
     pda: canonical.protocolVaultPda,
@@ -217,10 +233,12 @@ export const proofData = {
   },
   cases,
   settlement: {
-    title: "Complete on-chain settlement — resolution + parimutuel payout",
-    claim: "Both sides filled into their pools, the resolved outcome was committed from the genuine final result, and the winning side was paid its parimutuel share from the ProtocolVault — losers forfeit.",
+    title: "Unified lifecycle — LineGuard protection, then TxLINE-backed settlement",
+    claim: "On one market: a stale exploit is refunded, the market reprices, valid orders fill both pools, the outcome is derived from a genuine on-chain-bound TxLINE result, and the winner is paid parimutuel from the ProtocolVault — the operator never chooses the outcome.",
     resolution: settlement.resolution,
     resolutionEventHash: settlement.resolutionEventHash,
+    fixtureId: settlement.fixtureId,
+    sequence: settlement.sequence,
     marketPda: settlement.marketPda,
     marketConfigPda: settlement.marketConfigPda,
     vaultPda: settlement.vaultPda,
@@ -239,8 +257,27 @@ export const proofData = {
     loserOrderStatus: settlement.loserOrderStatus,
     payoutMultiple: settlement.winnerStakeLamports > 0 ? settlement.winnerPayoutLamports / settlement.winnerStakeLamports : 0,
     recordedAt: settlement.recordedAt,
-    resolveTx: settlement.transactions[5],
-    settleTx: settlement.transactions[6],
+    // Protection leg (same market).
+    protectionOrderPda: settlement.protectionOrderPda,
+    protectionOrderExplorerUrl: addressUrl(settlement.protectionOrderPda),
+    protectionVerdict: settlement.protectionVerdict,
+    protectionRefunded: settlement.protectionRefunded,
+    protectionEdgeMicros: settlement.protectionEdgeMicros,
+    // TxLINE resolution binding.
+    validationRootPda: settlement.validationRootPda,
+    validationRootExplorerUrl: addressUrl(settlement.validationRootPda),
+    validationPayloadHash: settlement.validationPayloadHash,
+    homeScore: settlement.homeScore,
+    awayScore: settlement.awayScore,
+    derivedOutcome: settlement.derivedOutcome,
+    // Per-market accounting.
+    marketTotalInLamports: settlement.marketTotalInLamports,
+    marketTotalPaidLamports: settlement.marketTotalPaidLamports,
+    marketTotalRefundedLamports: settlement.marketTotalRefundedLamports,
+    protectionTx: settlement.transactions[3],
+    validationTx: settlement.transactions[10],
+    resolveTx: settlement.transactions[11],
+    settleTx: settlement.transactions[12],
     txs: settlement.transactions,
   },
   custom: {

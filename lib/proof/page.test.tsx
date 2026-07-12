@@ -12,24 +12,35 @@ describe("proof page", () => {
       "Source event hash committed", "YES stake escrowed", "YES refunded", "NO stake escrowed",
       "NO finalized to ProtocolVault", "Receipt integrity verified",
     ]) expect(html).toContain(title);
-    expect(html).toContain("settlement-v3 · 475735558");
+    expect(html).toContain("settlement-v4 · 475793035");
     expect(html).toContain(proofData.txline.programId);
     expect(html).toContain(proofData.txline.rootPda);
     expect(html).toContain(proofData.receipt.noReceipt.receiptHash);
     expect((html.match(/<a /g) ?? []).length).toBeGreaterThanOrEqual(18);
   });
 
-  it("renders the on-chain settlement (resolution + parimutuel payout) evidence", () => {
+  it("renders the unified lifecycle (protection + TxLINE resolution + payout) evidence", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("parimutuel payout");
-    expect(proofData.settlement.resolution).toBe("YES_WON");
-    expect(proofData.settlement.winnerOrderStatus).toBe("Settled");
-    expect(proofData.settlement.loserOrderStatus).toBe("Filled");
-    // Parimutuel invariant: winner payout = stake * total_pool / winning_pool.
-    const expectedPayout = Math.floor((proofData.settlement.winnerStakeLamports * proofData.settlement.totalPoolLamports) / proofData.settlement.winningPoolLamports);
-    expect(proofData.settlement.winnerPayoutLamports).toBe(expectedPayout);
-    // Every settlement transaction signature is surfaced as evidence.
-    for (const tx of proofData.settlement.txs) expect(html).toContain(tx.signature);
+    expect(html).toContain("TxLINE resolution");
+    const s = proofData.settlement;
+    expect(s.resolution).toBe("YES_WON");
+    expect(s.winnerOrderStatus).toBe("Settled");
+    expect(s.loserOrderStatus).toBe("Filled");
+    // Protection and settlement happened on the SAME market (one unified lifecycle).
+    expect(s.protectionRefunded).toBe(true);
+    expect(s.protectionVerdict).toBe("VOIDED_REFUNDED");
+    expect(s.txs.length).toBe(13);
+    // The outcome is derived from the proven score, never chosen: home 1 - 0 away => YES.
+    expect(s.derivedOutcome).toBe(s.homeScore > s.awayScore ? 1 : 2);
+    expect(s.derivedOutcome).toBe(1);
+    // The genuine on-chain TxLINE daily-scores root is bound.
+    expect(s.validationRootPda).toBe("EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr");
+    // Parimutuel invariant + solvency invariant.
+    const expectedPayout = Math.floor((s.winnerStakeLamports * s.totalPoolLamports) / s.winningPoolLamports);
+    expect(s.winnerPayoutLamports).toBe(expectedPayout);
+    expect(s.marketTotalPaidLamports + s.marketTotalRefundedLamports).toBeLessThanOrEqual(s.marketTotalInLamports);
+    // Every lifecycle transaction signature is surfaced as evidence.
+    for (const tx of s.txs) expect(html).toContain(tx.signature);
   });
 
   it("publishes stable valid routes for both canonical receipts", () => {

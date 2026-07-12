@@ -23,6 +23,7 @@ import {
   type ParsedOnChainMarket,
   type ParsedOnChainMarketConfig,
   type ParsedOnChainOrder,
+  type ParsedOnChainReceipt,
 } from "@/lib/solana/lineguardProgram";
 import {
   bytes32,
@@ -38,12 +39,30 @@ import {
   type OnChainSide,
 } from "@/lib/solana/pdas";
 import canonicalCapture from "@/fixtures/txline/canonical.json";
+import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
 import { hashNormalizedEvent } from "@/lib/proof/eventHash";
 
 const CANONICAL_DISPLAYED_PRICE = canonicalCapture.odds.displayedPricingInput.fairPriceMicros;
 const CANONICAL_FAIR_PRICE = canonicalCapture.odds.normalizedPricingInput.fairPriceMicros;
 const CANONICAL_EVENT_SEQ = canonicalCapture.normalizedEvent.seq;
 const CANONICAL_INITIAL_SEQ = CANONICAL_EVENT_SEQ - 1;
+// Genuine TxLINE fixture (France vs Morocco, 18209181) bound into markets for TxLINE-verified
+// resolution. Custom sandbox markets bind fixture 0 (protection-only, never TxLINE-resolved).
+const CANONICAL_FIXTURE_ID = Number(canonicalCapture.fixtureId);
+// Root epoch day + stat keys + genuine validation evidence for the France 1-0 final result.
+const CANONICAL_ROOT_EPOCH_DAY = 20_643;
+const CANONICAL_STAT_KEY_HOME = 1;
+const CANONICAL_STAT_KEY_AWAY = 2;
+const CANONICAL_TXLINE_ROOT_PDA = new PublicKey("EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr");
+const CANONICAL_VALIDATION_PAYLOAD_HASH = Buffer.from(canonicalValidation.validationPayloadHash, "hex");
+const CANONICAL_EVENT_STAT_ROOT = Buffer.from(canonicalValidation.validationPayload.eventStatRoot as number[]);
+// France (home stat key 1) 1 - 0 Morocco (away stat key 2) at the proven sequence => YES.
+const CANONICAL_HOME_SCORE = Number(
+  (canonicalValidation.validationPayload.statsToProve as Array<{ key: number; value: number }>).find((s) => s.key === CANONICAL_STAT_KEY_HOME)?.value ?? 1
+);
+const CANONICAL_AWAY_SCORE = Number(
+  (canonicalValidation.validationPayload.statsToProve as Array<{ key: number; value: number }>).find((s) => s.key === CANONICAL_STAT_KEY_AWAY)?.value ?? 0
+);
 const TOLERANCE_2C = 20_000;
 // On-chain sandbox stake in lamports (0.02 SOL). Kept small because filled orders now
 // finalize into the ProtocolVault; the receipt's display stake ($500) is separate.
@@ -269,6 +288,8 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
           u64(clampMicros(input.fairPriceMicros)),
           u64(clampMicros(input.toleranceMicros)),
           ...configIxParts(commitment),
+          u64(0),
+          i64(0),
         ]),
       });
     const signature = await sendInstruction(connection, cfg, instruction);
@@ -424,6 +445,8 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
               u64(clampMicros(input.fairPriceMicros ?? displayed)),
               u64(tolerance),
               ...configIxParts(commitment),
+              u64(0),
+              i64(0),
             ]),
           })
         )
@@ -627,6 +650,8 @@ export async function initializeOnChainMarket() {
         data: ixData("initialize_market_config", [
           Buffer.from(bytes32(LINEGUARD_MARKET_LABEL)), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C),
           ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
+          u64(CANONICAL_FIXTURE_ID),
+          i64(0),
         ]),
       });
     const signature = await sendInstruction(connection, cfg, instruction);
@@ -703,7 +728,7 @@ export async function evaluateOnChainOrder(side: OnChainSide) {
  * bytes; the prior market-config-v2 account was 238,717. 264,893 = 45-byte metadata header +
  * the 264,848-byte settlement program, so it cleanly separates v3 from every earlier deploy.
  */
-const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 264_893;
+const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 311_317;
 const SCHEMA_MISMATCH_REASON =
   "The deployed program schema does not match the current settlement schema. Canonical verified proof remains available.";
 
@@ -755,6 +780,8 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
           u64(CANONICAL_DISPLAYED_PRICE),
           u64(TOLERANCE_2C),
           ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
+          u64(CANONICAL_FIXTURE_ID),
+          i64(0),
         ]),
       });
   assertCanonicalInstruction("initialize", side, cfg, pdas, undefined, initializeInstruction);
@@ -871,19 +898,36 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
   }
 
   const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  const marketKey = `settlement-${suffix}`;
+  const marketKey = `lifecycle-${suffix}`;
   const seed = marketIdSeed(marketKey);
   const marketPda = deriveMarketPda(programId, seed);
   const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
+  const receiptPda = deriveReceiptPda(cfg.programId, marketPda);
   const signatures: string[] = [];
 
+  const ingestInstruction = () => new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+    ],
+    data: ixData("ingest_material_event", [u64(CANONICAL_EVENT_SEQ), u64(CANONICAL_FAIR_PRICE), CANONICAL_SOURCE_EVENT_HASH]),
+  });
+  const repriceInstruction = () => new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+    ],
+    data: ixData("reprice_market", [u64(CANONICAL_FAIR_PRICE)]),
+  });
+
   try {
-    // 1. Initialize an in-sync market (displayed == fair, materialSeq == pricedAtSeq) so both
-    //    YES and NO evaluate to ALLOWED → Filled and accumulate into their settlement pools.
+    // 1. Initialize the market in sync at the displayed price, bound to the genuine fixture.
     const commitment = buildMarketConfigCommitment({
       marketType: "MATCH_WINNER",
       fixtureId: canonicalCapture.fixtureId,
-      marketTitle: "France beat Morocco — settlement",
+      marketTitle: "France beat Morocco — full lifecycle",
       materialityRules: { goals: true, redCards: true, penalties: true, oddsUpdates: true },
       backedTeam: "France",
       toleranceMicros: TOLERANCE_2C,
@@ -897,45 +941,65 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data: ixData("initialize_market_config", [
-        Buffer.from(seed), u64(CANONICAL_EVENT_SEQ), u64(CANONICAL_EVENT_SEQ),
-        u64(CANONICAL_FAIR_PRICE), u64(CANONICAL_FAIR_PRICE), u64(TOLERANCE_2C),
-        ...configIxParts(commitment),
+        Buffer.from(seed), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ),
+        u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C),
+        ...configIxParts(commitment), u64(CANONICAL_FIXTURE_ID), i64(0),
       ]),
     })));
 
     const vaultPda = await ensureVault(connection, cfg);
     const vaultBalanceBeforeLamports = await fetchVaultBalance(connection, vaultPda);
 
-    // 2. YES fills into yes_pool.
-    const yesOrderId = customOrderId(marketKey, "YES");
+    // 2. A genuine TxLINE material event opens a stale window (fair moves, quote lags).
+    signatures.push(await sendInstruction(connection, cfg, ingestInstruction()));
+
+    // 3. PROTECTION: a stale positive-edge YES exploit is escrowed and refunded by LineGuard.
+    const exploitId = customOrderId(`${marketKey}:exploit`, "YES");
+    const exploitPda = deriveOrderPda(programId, marketPda, exploitId);
+    signatures.push(await sendInstruction(connection, cfg, placeOrderInstruction(cfg, marketPda, exploitPda, exploitId, "YES", SETTLEMENT_STAKE_LAMPORTS)));
+    signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, marketConfigPda, exploitPda, vaultPda)));
+
+    // 4. The market reprices to the fair value (back in sync).
+    signatures.push(await sendInstruction(connection, cfg, repriceInstruction()));
+
+    // 5. Valid post-reprice YES and NO orders fill into their parimutuel pools.
+    const yesOrderId = customOrderId(`${marketKey}:yes`, "YES");
     const yesOrderPda = deriveOrderPda(programId, marketPda, yesOrderId);
     signatures.push(await sendInstruction(connection, cfg, placeOrderInstruction(cfg, marketPda, yesOrderPda, yesOrderId, "YES", SETTLEMENT_STAKE_LAMPORTS)));
     signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, marketConfigPda, yesOrderPda, vaultPda)));
-
-    // 3. NO fills into no_pool.
-    const noOrderId = customOrderId(marketKey, "NO");
+    const noOrderId = customOrderId(`${marketKey}:no`, "NO");
     const noOrderPda = deriveOrderPda(programId, marketPda, noOrderId);
     signatures.push(await sendInstruction(connection, cfg, placeOrderInstruction(cfg, marketPda, noOrderPda, noOrderId, "NO", SETTLEMENT_STAKE_LAMPORTS)));
     signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, marketConfigPda, noOrderPda, vaultPda)));
 
-    // 4. Commit the resolved outcome (YES = France won) with a genuine normalized final-result hash.
-    const resolutionHash = Buffer.from(hashNormalizedEvent({
-      source: "txline",
-      fixtureId: canonicalCapture.fixtureId,
-      seq: CANONICAL_EVENT_SEQ + 1,
-      ts: 0,
-      eventType: "FULL_TIME_RESULT",
-      proofStatus: "onchain_verified",
-    }), "hex");
-    signatures.push(await sendInstruction(connection, cfg, resolveInstruction(cfg, marketPda, 1, resolutionHash)));
+    // 6. Trading closes.
+    signatures.push(await sendInstruction(connection, cfg, closeMarketInstruction(cfg, marketPda)));
 
-    // 5. Settle the winning YES order — parimutuel payout from the vault to the trader.
+    // 7. The genuine TxLINE final result is bound on-chain; the outcome is derived from the score.
+    signatures.push(await sendInstruction(connection, cfg, submitTxlineValidationInstruction(cfg, marketPda, receiptPda, {
+      fixtureId: CANONICAL_FIXTURE_ID,
+      sequence: CANONICAL_EVENT_SEQ,
+      statKeyHome: CANONICAL_STAT_KEY_HOME,
+      statKeyAway: CANONICAL_STAT_KEY_AWAY,
+      rootEpochDay: CANONICAL_ROOT_EPOCH_DAY,
+      homeScore: CANONICAL_HOME_SCORE,
+      awayScore: CANONICAL_AWAY_SCORE,
+      validationPayloadHash: CANONICAL_VALIDATION_PAYLOAD_HASH,
+      eventStatRoot: CANONICAL_EVENT_STAT_ROOT,
+    })));
+
+    // 8. Resolution consumes the receipt (operator cannot choose the outcome).
+    signatures.push(await sendInstruction(connection, cfg, resolveFromTxlineInstruction(cfg, marketPda, receiptPda)));
+
+    // 9. The winning YES order claims its parimutuel payout from the vault.
     signatures.push(await sendInstruction(connection, cfg, settleInstruction(cfg, marketPda, yesOrderPda, cfg.payer.publicKey, vaultPda)));
 
-    const [finalMarket, yesOrder, noOrder, vaultBalanceAfterLamports] = await Promise.all([
+    const [finalMarket, exploitOrder, yesOrder, noOrder, receipt, vaultBalanceAfterLamports] = await Promise.all([
       fetchMarket(connection, marketPda, cfg.programId),
+      fetchOrder(connection, exploitPda, cfg.programId),
       fetchOrder(connection, yesOrderPda, cfg.programId),
       fetchOrder(connection, noOrderPda, cfg.programId),
+      fetchReceipt(connection, receiptPda, cfg.programId),
       fetchVaultBalance(connection, vaultPda),
     ]);
     const explorerUrls = compact(signatures.map((s) => explorerUrl(cfg.cluster!, s)));
@@ -960,7 +1024,7 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
         marketConfigPda: marketConfigPda.toBase58(),
         vaultPda: vaultPda.toBase58(),
         resolution: finalMarket?.resolution === "NO_WON" ? "NO_WON" : "YES_WON",
-        resolutionEventHash: finalMarket?.resolutionEventHashHex ?? resolutionHash.toString("hex"),
+        resolutionEventHash: finalMarket?.resolutionEventHashHex ?? CANONICAL_EVENT_STAT_ROOT.toString("hex"),
         yesPoolLamports: yesPool,
         noPoolLamports: noPool,
         totalPoolLamports: totalPool,
@@ -977,6 +1041,22 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
         vaultBalanceAfterLamports,
         txSignatures: signatures,
         explorerUrls,
+        protectionOrderPda: exploitPda.toBase58(),
+        protectionVerdict: exploitOrder?.verdict ?? "UNKNOWN",
+        protectionRefunded: exploitOrder?.status === "VoidedRefunded",
+        protectionEdgeMicros: exploitOrder?.edgeMicros ?? 0,
+        protectionEventHash: finalMarket?.sourceEventHashHex,
+        fixtureId: CANONICAL_FIXTURE_ID,
+        sequence: CANONICAL_EVENT_SEQ,
+        validationRootPda: receipt?.validationRootPdaBase58 ?? CANONICAL_TXLINE_ROOT_PDA.toBase58(),
+        validationPayloadHash: receipt?.validationPayloadHashHex ?? CANONICAL_VALIDATION_PAYLOAD_HASH.toString("hex"),
+        eventStatRoot: receipt?.eventStatRootHex ?? CANONICAL_EVENT_STAT_ROOT.toString("hex"),
+        homeScore: receipt?.homeScore ?? CANONICAL_HOME_SCORE,
+        awayScore: receipt?.awayScore ?? CANONICAL_AWAY_SCORE,
+        derivedOutcome: receipt?.derivedOutcome ?? 1,
+        marketTotalInLamports: finalMarket?.marketTotalInLamports ?? totalPool,
+        marketTotalPaidLamports: finalMarket?.marketTotalPaidLamports ?? winnerPayout,
+        marketTotalRefundedLamports: finalMarket?.marketTotalRefundedLamports ?? 0,
       },
     };
   } catch (err) {
@@ -1070,7 +1150,7 @@ function assertCanonicalInstruction(
           [cfg.payer.publicKey, true, true], [pdas.marketPda, false, true], [pdas.marketConfigPda, false, true], [SystemProgram.programId, false, false],
         ] as const,
         data: ixData("initialize_market_config", [
-          Buffer.from(pdas.marketId), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C), ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
+          Buffer.from(pdas.marketId), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C), ...configIxParts(CANONICAL_CONFIG_COMMITMENT), u64(CANONICAL_FIXTURE_ID), i64(0),
         ]),
       }
     : stage === "ingest"
@@ -1136,11 +1216,44 @@ async function fetchMarket(connection: Connection, address: PublicKey, programId
     resolution: marketResolution(data.length >= 163 ? data[162] ?? 0 : 0),
     resolved: data.length >= 196 ? (data[195] ?? 0) === 1 : false,
     resolutionEventHashHex: data.length >= 195 ? data.subarray(163, 195).toString("hex") : "00".repeat(32),
+    // Resolution-integrity fields are additive at offset 196 (settlement-v4 schema).
+    fixtureId: data.length >= 204 ? Number(readU64(data, 196)) : 0,
+    closeTime: data.length >= 212 ? Number(readI64(data, 204)) : 0,
+    tradingClosed: data.length >= 213 ? (data[212] ?? 0) === 1 : false,
+    resolvedAt: data.length >= 221 ? Number(readI64(data, 213)) : 0,
+    marketTotalInLamports: data.length >= 229 ? Number(readU64(data, 221)) : 0,
+    marketTotalPaidLamports: data.length >= 237 ? Number(readU64(data, 229)) : 0,
+    marketTotalRefundedLamports: data.length >= 245 ? Number(readU64(data, 237)) : 0,
+    validationPayloadHashHex: data.length >= 277 ? data.subarray(245, 277).toString("hex") : "00".repeat(32),
   };
 }
 
 function marketResolution(code: number): ParsedOnChainMarket["resolution"] {
-  return code === 0 ? "UNRESOLVED" : code === 1 ? "YES_WON" : code === 2 ? "NO_WON" : "UNKNOWN";
+  return code === 0 ? "UNRESOLVED" : code === 1 ? "YES_WON" : code === 2 ? "NO_WON" : code === 3 ? "VOIDED" : "UNKNOWN";
+}
+
+async function fetchReceipt(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainReceipt | null> {
+  const info = await connection.getAccountInfo(address, "confirmed");
+  if (!info || !info.owner.equals(programId) || info.data.length < 194) return null;
+  const data = Buffer.from(info.data);
+  // Layout after 8-byte discriminator: market(32) authority(32) fixture_id(8) sequence(8)
+  // stat_key_home(1) stat_key_away(1) root_epoch_day(2) validation_root_pda(32)
+  // validation_payload_hash(32) event_stat_root(32) home_score(2) away_score(2) derived_outcome(1)
+  return {
+    address: address.toBase58(),
+    market: new PublicKey(data.subarray(8, 40)).toBase58(),
+    fixtureId: Number(readU64(data, 72)),
+    sequence: Number(readU64(data, 80)),
+    statKeyHome: data[88] ?? 0,
+    statKeyAway: data[89] ?? 0,
+    rootEpochDay: data.readUInt16LE(90),
+    validationRootPdaBase58: new PublicKey(data.subarray(92, 124)).toBase58(),
+    validationPayloadHashHex: data.subarray(124, 156).toString("hex"),
+    eventStatRootHex: data.subarray(156, 188).toString("hex"),
+    homeScore: data.readUInt16LE(188),
+    awayScore: data.readUInt16LE(190),
+    derivedOutcome: data[192] ?? 0,
+  };
 }
 
 async function fetchMarketConfig(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainMarketConfig | null> {
@@ -1284,24 +1397,78 @@ function placeOrderInstruction(cfg: ServerConfig, marketPda: PublicKey, orderPda
   });
 }
 
-/** resolve_market accounts are [authority(signer), market(writable)]. outcome: 1 = YES won, 2 = NO won. */
-function resolveInstruction(cfg: ServerConfig, marketPda: PublicKey, outcome: number, resolutionEventHash: Buffer): TransactionInstruction {
+function deriveReceiptPda(programId: PublicKey, marketPda: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([Buffer.from("txval"), marketPda.toBuffer()], programId)[0];
+}
+
+/** close_market accounts are [closer(signer), market(writable)]. */
+function closeMarketInstruction(cfg: ServerConfig, marketPda: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: cfg.programId,
     keys: [
       { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
       { pubkey: marketPda, isSigner: false, isWritable: true },
     ],
-    data: ixData("resolve_market", [Buffer.from([outcome & 0xff]), resolutionEventHash]),
+    data: ixData("close_market", []),
   });
 }
 
-/** settle_order accounts are [market, order(writable), trader(writable), vault(writable)]. */
+interface TxlineValidationParams {
+  fixtureId: number;
+  sequence: number;
+  statKeyHome: number;
+  statKeyAway: number;
+  rootEpochDay: number;
+  homeScore: number;
+  awayScore: number;
+  validationPayloadHash: Buffer;
+  eventStatRoot: Buffer;
+}
+
+/** submit_txline_validation accounts are [authority(signer,writable), market, txline_root, receipt(writable), system]. */
+function submitTxlineValidationInstruction(cfg: ServerConfig, marketPda: PublicKey, receiptPda: PublicKey, params: TxlineValidationParams): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: true },
+      { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: CANONICAL_TXLINE_ROOT_PDA, isSigner: false, isWritable: false },
+      { pubkey: receiptPda, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: ixData("submit_txline_validation", [
+      u64(params.fixtureId),
+      u64(params.sequence),
+      Buffer.from([params.statKeyHome]),
+      Buffer.from([params.statKeyAway]),
+      u16(params.rootEpochDay),
+      u16(params.homeScore),
+      u16(params.awayScore),
+      params.validationPayloadHash,
+      params.eventStatRoot,
+    ]),
+  });
+}
+
+/** resolve_market_from_txline accounts are [authority(signer), market(writable), receipt]. */
+function resolveFromTxlineInstruction(cfg: ServerConfig, marketPda: PublicKey, receiptPda: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+      { pubkey: receiptPda, isSigner: false, isWritable: false },
+    ],
+    data: ixData("resolve_market_from_txline", []),
+  });
+}
+
+/** settle_order accounts are [market(writable), order(writable), trader(writable), vault(writable)]. */
 function settleInstruction(cfg: ServerConfig, marketPda: PublicKey, orderPda: PublicKey, trader: PublicKey, vaultPda: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: cfg.programId,
     keys: [
-      { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: true },
       { pubkey: orderPda, isSigner: false, isWritable: true },
       { pubkey: trader, isSigner: false, isWritable: true },
       { pubkey: vaultPda, isSigner: false, isWritable: true },
@@ -1325,6 +1492,18 @@ function accountDiscriminator(name: string): Buffer {
 function u64(value: number | bigint): Buffer {
   const out = Buffer.alloc(8);
   out.writeBigUInt64LE(BigInt(value));
+  return out;
+}
+
+function i64(value: number | bigint): Buffer {
+  const out = Buffer.alloc(8);
+  out.writeBigInt64LE(BigInt(value));
+  return out;
+}
+
+function u16(value: number): Buffer {
+  const out = Buffer.alloc(2);
+  out.writeUInt16LE(value);
   return out;
 }
 

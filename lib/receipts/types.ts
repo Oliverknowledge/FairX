@@ -166,4 +166,23 @@ export interface OnChainSettlementProof {
   vaultBalanceAfterLamports: number;
   txSignatures: string[];
   explorerUrls: string[];
+  // Unified lifecycle: the same market first refuses a stale exploit, then settles.
+  protectionOrderPda?: string;
+  protectionVerdict?: string;
+  protectionRefunded?: boolean;
+  protectionEdgeMicros?: number;
+  protectionEventHash?: string;
+  // TxLINE resolution binding: the outcome is derived from the proven score, not chosen.
+  fixtureId?: number;
+  sequence?: number;
+  validationRootPda?: string;
+  validationPayloadHash?: string;
+  eventStatRoot?: string;
+  homeScore?: number;
+  awayScore?: number;
+  derivedOutcome?: number;
+  // Per-market accounting (solvency invariant: totalIn == paid + refunded + remaining).
+  marketTotalInLamports?: number;
+  marketTotalPaidLamports?: number;
+  marketTotalRefundedLamports?: number;
 }

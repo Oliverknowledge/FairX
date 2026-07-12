@@ -27,13 +27,15 @@ LineGuard freezes the quote, side, stake, market configuration, and source-event
 
 This is selective order evaluation, not a market-wide freeze.
 
-**Settlement.** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. The authority commits the resolved outcome with `resolve_market` (bound to a normalized final-result hash), and each winning filled order claims its parimutuel share with `settle_order`:
+**Settlement (TxLINE-bound, trust-minimized).** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. Resolution is two-step and the operator can never choose the outcome: `submit_txline_validation` binds the **genuine on-chain TxLINE daily-scores root PDA** (verified by owner + canonical epoch-day PDA address) into a `TxlineValidationReceipt` and **derives** the outcome from the proven score (`home > away ⇒ YES`); `resolve_market_from_txline` then consumes that receipt and takes no outcome argument. Each winning filled order claims its parimutuel share with `settle_order`:
 
 ```
 payout = stake × total_pool ÷ winning_pool     (parimutuel; losers forfeit)
 ```
 
-Parimutuel math keeps each market's total payouts equal to its pooled stakes, so the shared ProtocolVault stays solvent.
+If the validated winning side has no filled stake the market is `VoidedNoWinningPool` and every order reclaims its exact stake via `refund_voided_order` (with an `emergency_void_market` path for abandoned fixtures). `close_market` gates trading (no fills after close, no resolution before close), and per-market accounting enforces `total_in = paid + refunded + remaining`, so one market can never draw on another's pool.
+
+> Direct same-transaction CPI into TxLINE's `validateStatV2` is not used: it approaches the 1.4M per-transaction compute cap and requires porting 23 nested Borsh proof types with no TxLINE Rust source. This is the sanctioned two-step on-chain validation, clearly labelled — not an off-chain assertion.
 
 ## 6. Why TxLINE
 
@@ -69,8 +71,11 @@ TxLINE devnet: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
 - `STALE_ALLOWED_NO_EDGE` ProtocolVault finalization
 - Guard verdict events and settlement-destination state
 - Parimutuel pools (`yes_pool` / `no_pool`) accumulated on fill
-- `resolve_market` resolved-outcome commitment bound to a normalized final-result hash
+- `submit_txline_validation` binding of the genuine on-chain TxLINE root + score-derived outcome (`TxlineValidationReceipt`)
+- `resolve_market_from_txline` outcome consumption (no operator-chosen outcome parameter)
 - `settle_order` parimutuel payout to the winning side from ProtocolVault, with losing stakes forfeited
+- `VoidedNoWinningPool` + `refund_voided_order` exact-stake reclaim, and `emergency_void_market` for abandoned fixtures
+- `close_market` trading-close gating and per-market accounting (`total_in = paid + refunded + remaining`)
 
 ## 11. What is off-chain
 
@@ -86,17 +91,19 @@ FairX fetched the genuine stat-validation payload for fixture `18209181`, sequen
 
 TxLINE validation is performed separately before LineGuard ingestion. Direct TxLINE CPI is not implemented or claimed.
 
-## 12b. Settlement evidence (devnet, verifiable)
+## 12b. Unified-lifecycle evidence (devnet, verifiable)
 
-A complete resolution + parimutuel payout recorded on devnet — seven finalized transactions. YES and NO each staked `0.02 SOL`; the market resolved `YES_WON`; the winner collected the full `0.04 SOL` pool (2×); the losing order forfeited; the vault netted zero (parimutuel pass-through).
+One market runs the whole loop in **13 finalized transactions**: a stale exploit is refunded, the market reprices, valid YES + NO orders fill both pools, trading closes, the genuine TxLINE final result is bound on-chain, the outcome is **derived** (`1–0 ⇒ YES`), and the winner is paid `0.04 SOL` (2×). `total_in = paid + refunded + remaining` (`0.04 = 0.04 + 0 + 0`).
 
-- Program upgrade (settlement-v3): `RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh` (slot `475735558`)
-- Settlement market PDA: `8fXSf5ZE9vd5rSUySoVhK3nwoS3oNYQSKLBWesXrFBN2`
-- Resolve outcome tx (`YES_WON`): `2NcQ6JsCNbGwj8oFw7PhNYFapgADPWBYdGbo6WaxJYUq1PHGzE95qvbYKABhmeNwsJQ7bvToGhuwhyjJZ6Rb5e4Z`
-- Parimutuel payout tx: `44VBmw5w8iuNAprTFpp6WeRHE9UF8FiDDUqVae5xhk8U3oBgsWVZkMgXKnF7FpUgpsjSCRU6AvANESJqMYf5J9RP`
+- Program upgrade (settlement-v4): `3UE7ipWmwJypE6TZNdpZDT9X3Jq2CaKgNHS2unWWK5LVUu96zvpm16yKsotsyJYCBrMwrDX82f7HSQDsB3h2Rcu4` (slot `475793035`)
+- Lifecycle market PDA: `AGEQQnjamHxtAZVn3xkVxg3u34exK1QyeXC7RYi4SScB`
+- Protection — stale exploit refunded (`VOIDED_REFUNDED`): `5JyHiYVNGB9KSbJE6M84cpWR48uimV562zPmRjM2DvjMMUaXpQRzYQjvMNgATZ9WUyfyUjvAnjsy6nMrDu1tRCVt`
+- TxLINE validation bound (genuine root `EUCbk9…TZ9Zr`): `5SfRcEH5JeAZdMJ7nHxK4pCfEaL7uGeg5wTjm72vNY2c4HnC9Du7uuAVKm7bGoLPSWYWtaDkK9fmHm9Az7FjvGhr`
+- Resolve from TxLINE (outcome derived, not chosen): `4vHbWZaWLXHHM1gzCvEi3JxethtrhWCTAxEWy72pGSvNLzqt9rqPMt1Q2kffuKYwqqNGpE8J2S4bvRyBPBhiWNwy`
+- Parimutuel payout: `3Hnqs2nffc81wQ69QxekHNwsX5tYg3nmTHjJKUhfVBiJgXKrwCnxU3taaVEzXQdE8EuiaXr8vh16BDyHvrg4Z9W1`
 - ProtocolVault: `HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE`
 
-All seven signatures render with explorer links on `/proof#settlement`. Re-run the full lifecycle in one call: `POST /api/solana/lineguard/full-settlement-demo`. Local proof: `NO_DNA=1 anchor test` includes the parimutuel settlement path (winner paid, loser rejected, double-settle rejected, unauthorized resolve rejected).
+All 13 signatures render on `/proof#settlement`, and a receipt verifier detects tampering with the validated result, winning side, payout, fixture, sequence, root, or pool totals. Re-run the full lifecycle in one call: `POST /api/solana/lineguard/full-settlement-demo`. Local proof: `NO_DNA=1 anchor test` (16 tests) covers score-derived outcome, fixture/root rejection, close gating, void + exact-stake refund, many-winner split + bounded dust, and cross-market isolation.
 
 ## 13. Business and use-case potential
 

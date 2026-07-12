@@ -1,4 +1,4 @@
-import { ArrowUpRight, Coins, Gavel, HandCoins, Layers, Trophy, XCircle } from "lucide-react";
+import { ArrowUpRight, Coins, Gavel, HandCoins, Layers, ShieldCheck, Trophy, XCircle } from "lucide-react";
 import { proofData } from "@/lib/proof/staticProofData";
 
 const s = proofData.settlement;
@@ -9,12 +9,12 @@ export function SettlementProofPanel() {
     <section className="rounded-2xl border border-(--green)/25 bg-[#f7fdfa] p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="section-label text-(--green)">Settlement loop closed</p>
-          <h2 className="mt-1 text-[18px] font-extrabold tracking-[-0.03em] text-(--ink)">Resolution → parimutuel payout, on-chain.</h2>
+          <p className="section-label text-(--green)">Unified lifecycle · one market</p>
+          <h2 className="mt-1 text-[18px] font-extrabold tracking-[-0.03em] text-(--ink)">Protection → reprice → fill → TxLINE resolution → payout.</h2>
           <p className="mt-1 max-w-2xl text-[10.5px] leading-relaxed text-(--ink-2)">
-            LineGuard is not only a guard. Both sides fill into their pools, the authority commits the resolved
-            outcome from the genuine final result, and the winning side is paid its parimutuel share out of the
-            ProtocolVault. Losers forfeit. Seven finalized devnet transactions, independently verifiable.
+            One market, {s.txs.length} finalized devnet transactions: LineGuard refunds a stale exploit, the market
+            reprices, valid orders fill both pools, the outcome is <strong>derived from a genuine on-chain-bound TxLINE
+            result</strong> (the operator never chooses it), and the winner is paid parimutuel from the ProtocolVault.
           </p>
         </div>
         <span className="rounded-full border border-(--green)/25 bg-white px-2.5 py-1 text-[9px] font-bold text-(--green)">DEVNET · {s.payoutMultiple.toFixed(0)}× WINNER PAYOUT</span>
@@ -40,13 +40,24 @@ export function SettlementProofPanel() {
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Evidence label="Resolved outcome" value={`${s.resolution} · hash ${s.resolutionEventHash.slice(0, 16)}…`} href={s.resolveTx.explorerUrl} icon={Gavel} />
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Evidence label="Protection — stale exploit refunded" value={`${s.protectionVerdict} · +${(s.protectionEdgeMicros / 10_000).toFixed(3)}¢ edge`} href={s.protectionTx.explorerUrl} icon={ShieldCheck} />
+        <Evidence label="TxLINE outcome (derived, not chosen)" value={`${s.homeScore}–${s.awayScore} ⇒ ${s.derivedOutcome === 1 ? "YES" : "NO"} · genuine root`} href={s.validationRootExplorerUrl} icon={Gavel} />
         <Evidence label="Parimutuel payout tx" value={s.settleTx.signature} href={s.settleTx.explorerUrl} icon={HandCoins} />
       </div>
 
+      <div className="mt-3 rounded-xl border border-(--border) bg-white p-3">
+        <p className="flex items-center gap-1.5 text-[10px] font-extrabold text-(--ink)"><Coins className="h-3.5 w-3.5 text-(--blue)" /> Per-market accounting (solvency invariant)</p>
+        <p className="mt-1 text-[10px] leading-relaxed text-(--ink-2)">
+          Accepted <span className="mono font-bold text-(--ink)">{sol(s.marketTotalInLamports)}</span> = paid{" "}
+          <span className="mono font-bold text-(--green)">{sol(s.marketTotalPaidLamports)}</span> + refunded{" "}
+          <span className="mono font-bold text-(--ink)">{sol(s.marketTotalRefundedLamports)}</span> + remaining{" "}
+          <span className="mono font-bold text-(--ink)">{sol(s.marketTotalInLamports - s.marketTotalPaidLamports - s.marketTotalRefundedLamports)}</span>. One market can never draw on another&rsquo;s pool.
+        </p>
+      </div>
+
       <div className="mt-4">
-        <p className="section-label">Seven finalized transactions</p>
+        <p className="section-label">{s.txs.length} finalized transactions</p>
         <ol className="mt-2 grid gap-1.5">
           {s.txs.map((tx, index) => (
             <li key={tx.signature}>

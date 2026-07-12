@@ -21,10 +21,35 @@ export interface ParsedOnChainMarket {
   yesPoolLamports: number;
   noPoolLamports: number;
   resolutionCode: number;
-  resolution: "UNRESOLVED" | "YES_WON" | "NO_WON" | "UNKNOWN";
+  resolution: "UNRESOLVED" | "YES_WON" | "NO_WON" | "VOIDED" | "UNKNOWN";
   resolved: boolean;
   /** sha256 (hex) of the normalized final-result event committed at resolution (zeros if unresolved). */
   resolutionEventHashHex: string;
+  // Resolution integrity: fixture binding, close gating, per-market accounting.
+  fixtureId: number;
+  closeTime: number;
+  tradingClosed: boolean;
+  resolvedAt: number;
+  marketTotalInLamports: number;
+  marketTotalPaidLamports: number;
+  marketTotalRefundedLamports: number;
+  validationPayloadHashHex: string;
+}
+
+export interface ParsedOnChainReceipt {
+  address: string;
+  market: string;
+  fixtureId: number;
+  sequence: number;
+  statKeyHome: number;
+  statKeyAway: number;
+  rootEpochDay: number;
+  validationRootPdaBase58: string;
+  validationPayloadHashHex: string;
+  eventStatRootHex: string;
+  homeScore: number;
+  awayScore: number;
+  derivedOutcome: number;
 }
 
 export interface ParsedOnChainMarketConfig {

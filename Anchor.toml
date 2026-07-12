@@ -15,6 +15,14 @@ lineguard = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe"
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
+# Inject the genuine TxLINE daily-scores root account (owned by the TxLINE program) into the
+# local validator so submit_txline_validation's on-chain root binding can be tested end-to-end.
+[test.validator]
+
+[[test.validator.account]]
+address = "EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr"
+filename = "fixtures/txline/daily-scores-root-account.json"
+
 [scripts]
 test = "npm exec -- ts-mocha -p ./tsconfig.anchor.json -t 1000000 \"tests/**/*.ts\""
 

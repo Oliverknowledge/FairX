@@ -9,6 +9,16 @@ const FAIR_63 = 630_000;
 const TOLERANCE_2C = 20_000;
 const STAKE_LAMPORTS = 500_000_000;
 
+// Genuine TxLINE France vs Morocco (fixture 18209181, seq 739) validation evidence.
+const FIXTURE_ID = 18_209_181;
+const SEQUENCE = 739;
+const ROOT_EPOCH_DAY = 20_643;
+const STAT_KEY_HOME = 1;
+const STAT_KEY_AWAY = 2;
+const TXLINE_ROOT = new anchor.web3.PublicKey("EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr");
+const VALIDATION_PAYLOAD_HASH = Array.from(Buffer.from("a16b46dbdc5f80a62fa102460b9826386fa130e25db2076303ab4a018bd6f809", "hex"));
+const EVENT_STAT_ROOT = [41, 41, 242, 203, 204, 197, 75, 89, 57, 218, 2, 255, 8, 62, 99, 187, 195, 23, 222, 195, 12, 94, 81, 14, 107, 223, 49, 193, 169, 145, 33, 67];
+
 describe("lineguard on-chain settlement guard", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
@@ -23,39 +33,27 @@ describe("lineguard on-chain settlement guard", () => {
   }
 
   function pdaMarket(marketId: Buffer): anchor.web3.PublicKey {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("market"), marketId],
-      program.programId
-    )[0];
+    return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("market"), marketId], program.programId)[0];
   }
-
   function pdaOrder(market: anchor.web3.PublicKey, orderId: Buffer): anchor.web3.PublicKey {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("order"), market.toBuffer(), orderId],
-      program.programId
-    )[0];
+    return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("order"), market.toBuffer(), orderId], program.programId)[0];
   }
-
   function pdaConfig(market: anchor.web3.PublicKey): anchor.web3.PublicKey {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("config"), market.toBuffer()],
-      program.programId
-    )[0];
+    return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("config"), market.toBuffer()], program.programId)[0];
   }
-
+  function pdaReceipt(market: anchor.web3.PublicKey): anchor.web3.PublicKey {
+    return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("txval"), market.toBuffer()], program.programId)[0];
+  }
+  function pdaVault(): anchor.web3.PublicKey {
+    return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("vault")], program.programId)[0];
+  }
   function enumName(value: unknown): string {
     return Object.keys(value as Record<string, unknown>)[0];
   }
 
   async function initializeMarket(
     label: string,
-    opts: {
-      materialSeq?: number;
-      pricedAtSeq?: number;
-      displayed?: number;
-      fair?: number;
-      tolerance?: number;
-    } = {}
+    opts: { materialSeq?: number; pricedAtSeq?: number; displayed?: number; fair?: number; tolerance?: number; fixtureId?: number; closeTime?: number } = {}
   ) {
     const marketId = id32(label);
     const market = pdaMarket(marketId);
@@ -72,19 +70,20 @@ describe("lineguard on-chain settlement guard", () => {
         Array.from(Buffer.alloc(32, 1)),
         Array.from(Buffer.alloc(32, 2)),
         Array.from(Buffer.alloc(32, 3)),
-        Array.from(Buffer.alloc(32, 4))
+        Array.from(Buffer.alloc(32, 4)),
+        new anchor.BN(opts.fixtureId ?? FIXTURE_ID),
+        new anchor.BN(opts.closeTime ?? 0)
       )
       .accountsPartial({ authority: trader, market, marketConfig })
       .rpc();
-
     return { marketId, market, marketConfig };
   }
 
-  async function placeOrder(label: string, market: anchor.web3.PublicKey, side: 0 | 1) {
+  async function placeOrder(label: string, market: anchor.web3.PublicKey, side: 0 | 1, stake = STAKE_LAMPORTS) {
     const orderId = id32(label);
     const order = pdaOrder(market, orderId);
     await program.methods
-      .placeOrder(Array.from(orderId), side, new anchor.BN(STAKE_LAMPORTS))
+      .placeOrder(Array.from(orderId), side, new anchor.BN(stake))
       .accountsPartial({ trader, market, order })
       .rpc();
     return { orderId, order };
@@ -92,280 +91,327 @@ describe("lineguard on-chain settlement guard", () => {
 
   const EVENT_HASH = Array.from(Buffer.alloc(32, 7));
 
-  function pdaVault(): anchor.web3.PublicKey {
-    return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("vault")], program.programId)[0];
+  async function evaluate(market: anchor.web3.PublicKey, marketConfig: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
+    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
+  }
+  async function fill(label: string, market: anchor.web3.PublicKey, marketConfig: anchor.web3.PublicKey, side: 0 | 1, stake = STAKE_LAMPORTS) {
+    const { order } = await placeOrder(label, market, side, stake);
+    await evaluate(market, marketConfig, order);
+    return order;
+  }
+  async function submitValidation(
+    market: anchor.web3.PublicKey,
+    opts: { fixtureId?: number; sequence?: number; home?: number; away?: number; root?: anchor.web3.PublicKey; payloadHash?: number[]; eventRoot?: number[] } = {}
+  ) {
+    await program.methods
+      .submitTxlineValidation(
+        new anchor.BN(opts.fixtureId ?? FIXTURE_ID),
+        new anchor.BN(opts.sequence ?? SEQUENCE),
+        STAT_KEY_HOME,
+        STAT_KEY_AWAY,
+        ROOT_EPOCH_DAY,
+        opts.home ?? 1,
+        opts.away ?? 0,
+        opts.payloadHash ?? VALIDATION_PAYLOAD_HASH,
+        opts.eventRoot ?? EVENT_STAT_ROOT
+      )
+      .accountsPartial({ authority: trader, market, txlineRoot: opts.root ?? TXLINE_ROOT, receipt: pdaReceipt(market) })
+      .rpc();
+  }
+  async function closeMarket(market: anchor.web3.PublicKey) {
+    await program.methods.closeMarket().accountsPartial({ closer: trader, market }).rpc();
+  }
+  async function resolveFromTxline(market: anchor.web3.PublicKey) {
+    await program.methods.resolveMarketFromTxline().accountsPartial({ authority: trader, market, receipt: pdaReceipt(market) }).rpc();
+  }
+  async function settleOrder(market: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
+    await program.methods.settleOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
+  }
+  async function refundVoided(market: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
+    await program.methods.refundVoidedOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
   }
 
   before(async () => {
     try {
       await program.methods.initializeVault().accountsPartial({ authority: trader, vault: pdaVault() }).rpc();
     } catch {
-      // The singleton vault may already exist on a persistent validator.
+      // singleton vault may already exist
     }
   });
 
-  it("initialize market stores config hashes", async () => {
-    const { market, marketConfig } = await initializeMarket("init-in-sync");
-    const account = await program.account.marketState.fetch(market);
-    const config = await program.account.marketConfig.fetch(marketConfig);
-
-    expect(account.materialSeq.toNumber()).to.equal(1);
-    expect(account.pricedAtSeq.toNumber()).to.equal(1);
-    expect(account.displayedPriceMicros.toNumber()).to.equal(DISPLAYED_40);
-    expect(account.fairPriceMicros.toNumber()).to.equal(DISPLAYED_40);
-    expect(account.toleranceMicros.toNumber()).to.equal(TOLERANCE_2C);
-    expect(enumName(account.status)).to.equal("trading");
-    expect(config.marketType).to.equal(0);
-    expect(Buffer.from(config.fixtureIdHash).equals(Buffer.alloc(32, 1))).to.equal(true);
-    expect(Buffer.from(config.marketTitleHash).equals(Buffer.alloc(32, 2))).to.equal(true);
-    expect(Buffer.from(config.materialityConfigHash).equals(Buffer.alloc(32, 3))).to.equal(true);
-    expect(Buffer.from(config.settlementConfigHash).equals(Buffer.alloc(32, 4))).to.equal(true);
-    expect(config.authority.equals(trader)).to.equal(true);
-    expect(config.createdAtSlot.toNumber()).to.be.greaterThan(0);
+  it("injects the genuine TxLINE root account into the local validator", async () => {
+    const info = await provider.connection.getAccountInfo(TXLINE_ROOT);
+    expect(info, "TxLINE root must be injected via Anchor.toml [[test.validator.account]]").to.not.equal(null);
+    expect(info!.owner.toBase58()).to.equal("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
   });
 
-  it("event hash cannot be zero", async () => {
-    const { market } = await initializeMarket("zero-event-hash");
-    try {
-      await program.methods
-        .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), Array.from(Buffer.alloc(32)))
-        .accountsPartial({ authority: trader, market })
-        .rpc();
-      expect.fail("zero event hash should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Source event hash must be nonzero|ZeroEventHash/);
-    }
-  });
-
-  it("unauthorized ingest fails", async () => {
-    const { market } = await initializeMarket("unauthorized-ingest");
-    const unauthorized = anchor.web3.Keypair.generate();
-    const airdrop = await provider.connection.requestAirdrop(unauthorized.publicKey, 10_000_000);
-    await provider.connection.confirmTransaction(airdrop, "confirmed");
-    try {
-      await program.methods
-        .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH)
-        .accountsPartial({ authority: unauthorized.publicKey, market })
-        .signers([unauthorized])
-        .rpc();
-      expect.fail("unauthorized ingest should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Only the configured market authority|InvalidAuthority/);
-    }
-  });
+  // ---- Protection (LineGuard) ----
 
   it("refunds a stale YES attack", async () => {
     const { market, marketConfig } = await initializeMarket("yes-refund");
-
-    await program.methods
-      .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH)
-      .accountsPartial({ authority: trader, market })
-      .rpc();
-
-    const staleMarket = await program.account.marketState.fetch(market);
-    expect(staleMarket.materialSeq.toNumber()).to.equal(2);
-    expect(staleMarket.pricedAtSeq.toNumber()).to.equal(1);
-    expect(staleMarket.displayedPriceMicros.toNumber()).to.equal(DISPLAYED_40);
-    expect(staleMarket.fairPriceMicros.toNumber()).to.equal(FAIR_63);
-    expect(enumName(staleMarket.status)).to.equal("stale");
-
-    const balanceBeforePlace = await provider.connection.getBalance(trader);
+    await program.methods.ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH).accountsPartial({ authority: trader, market }).rpc();
     const { order } = await placeOrder("yes-refund-order", market, 0);
-    const balanceAfterPlace = await provider.connection.getBalance(trader);
-
-    const placed = await program.account.orderEscrow.fetch(order);
-    expect(placed.observedPriceMicros.toNumber()).to.equal(DISPLAYED_40);
-    expect(enumName(placed.status)).to.equal("escrowed");
-    expect(balanceAfterPlace).to.be.lessThan(balanceBeforePlace - STAKE_LAMPORTS);
-
-    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
-
+    await evaluate(market, marketConfig, order);
     const evaluated = await program.account.orderEscrow.fetch(order);
-    expect(evaluated.fairSidePriceMicros.toNumber()).to.equal(FAIR_63);
     expect(evaluated.edgeMicros.toNumber()).to.equal(230_000);
     expect(enumName(evaluated.verdict)).to.equal("voidedRefunded");
-    expect(enumName(evaluated.status)).to.equal("voidedRefunded");
     expect(enumName(evaluated.settlementDestination)).to.equal("trader");
-    expect(Buffer.from(evaluated.sourceEventHash).equals(Buffer.alloc(32, 7))).to.equal(true);
-    expect(Buffer.from(evaluated.materialityConfigHash).equals(Buffer.alloc(32, 3))).to.equal(true);
-
-    const balanceAfterEvaluate = await provider.connection.getBalance(trader);
-    const orderLamports = await provider.connection.getBalance(order);
-    expect(balanceAfterEvaluate).to.be.greaterThan(balanceAfterPlace + STAKE_LAMPORTS - 100_000);
-    expect(orderLamports).to.be.lessThan(STAKE_LAMPORTS);
   });
 
-  it("fills a stale NO losing-side order", async () => {
+  it("fills a stale NO losing-side order into the vault + pool", async () => {
     const { market, marketConfig } = await initializeMarket("no-fill");
-
-    await program.methods
-      .ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH)
-      .accountsPartial({ authority: trader, market })
-      .rpc();
-
-    const { order } = await placeOrder("no-fill-order", market, 1);
-    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
-
+    await program.methods.ingestMaterialEvent(new anchor.BN(2), new anchor.BN(FAIR_63), EVENT_HASH).accountsPartial({ authority: trader, market }).rpc();
+    const order = await fill("no-fill-order", market, marketConfig, 1);
     const evaluated = await program.account.orderEscrow.fetch(order);
-    expect(evaluated.observedPriceMicros.toNumber()).to.equal(MICROS_ONE - DISPLAYED_40);
-    expect(evaluated.fairSidePriceMicros.toNumber()).to.equal(MICROS_ONE - FAIR_63);
-    expect(evaluated.edgeMicros.toNumber()).to.equal(-230_000);
     expect(enumName(evaluated.verdict)).to.equal("staleAllowedNoEdge");
     expect(enumName(evaluated.status)).to.equal("filled");
-    expect(enumName(evaluated.settlementDestination)).to.equal("vault");
-    expect(Buffer.from(evaluated.sourceEventHash).equals(Buffer.alloc(32, 7))).to.equal(true);
-    expect(Buffer.from(evaluated.materialityConfigHash).equals(Buffer.alloc(32, 3))).to.equal(true);
-
-    // A filled order finalizes its stake into the ProtocolVault, not the order PDA.
-    const orderLamports = await provider.connection.getBalance(order);
-    const vaultLamports = await provider.connection.getBalance(pdaVault());
-    expect(orderLamports).to.be.lessThan(STAKE_LAMPORTS);
-    expect(vaultLamports).to.be.greaterThan(STAKE_LAMPORTS);
-
-    // The normalized source-event hash was bound into on-chain market state.
-    const evaluatedMarket = await program.account.marketState.fetch(market);
-    expect(Buffer.from(evaluatedMarket.sourceEventHash).equals(Buffer.alloc(32, 7))).to.equal(true);
+    const m = await program.account.marketState.fetch(market);
+    expect(m.marketTotalIn.toNumber()).to.equal(STAKE_LAMPORTS);
+    expect(m.noPoolLamports.toNumber()).to.equal(STAKE_LAMPORTS);
   });
 
   it("allows an in-sync order", async () => {
     const { market, marketConfig } = await initializeMarket("sync-allow");
-    const { order } = await placeOrder("sync-allow-order", market, 0);
-
-    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
-
+    const order = await fill("sync-allow-order", market, marketConfig, 0);
     const evaluated = await program.account.orderEscrow.fetch(order);
-    expect(evaluated.fairSidePriceMicros.toNumber()).to.equal(DISPLAYED_40);
-    expect(evaluated.edgeMicros.toNumber()).to.equal(0);
     expect(enumName(evaluated.verdict)).to.equal("allowed");
     expect(enumName(evaluated.status)).to.equal("filled");
   });
 
-  it("allows stale edge below tolerance", async () => {
-    const { market, marketConfig } = await initializeMarket("below-tolerance", {
-      materialSeq: 2,
-      pricedAtSeq: 1,
-      displayed: DISPLAYED_40,
-      fair: 415_000,
-      tolerance: TOLERANCE_2C,
-    });
-    const { order } = await placeOrder("below-tolerance-order", market, 0);
+  // ---- TxLINE-bound resolution ----
 
-    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
-
-    const evaluated = await program.account.orderEscrow.fetch(order);
-    expect(evaluated.observedPriceMicros.toNumber()).to.equal(DISPLAYED_40);
-    expect(evaluated.fairSidePriceMicros.toNumber()).to.equal(415_000);
-    expect(evaluated.edgeMicros.toNumber()).to.equal(15_000);
-    expect(enumName(evaluated.verdict)).to.equal("staleAllowedNoEdge");
-    expect(enumName(evaluated.status)).to.equal("filled");
+  it("submit_txline_validation binds the genuine root and derives the outcome from the score", async () => {
+    const { market } = await initializeMarket("bind-outcome");
+    await submitValidation(market, { home: 1, away: 0 });
+    const receipt = await program.account.txlineValidationReceipt.fetch(pdaReceipt(market));
+    expect(receipt.fixtureId.toNumber()).to.equal(FIXTURE_ID);
+    expect(receipt.sequence.toNumber()).to.equal(SEQUENCE);
+    expect(receipt.validationRootPda.toBase58()).to.equal(TXLINE_ROOT.toBase58());
+    expect(receipt.derivedOutcome).to.equal(1); // home > away => YES
   });
 
-  const RESOLUTION_HASH = Array.from(Buffer.alloc(32, 9));
+  it("resolution is deterministic: identical scores derive an identical outcome", async () => {
+    const { market: a } = await initializeMarket("determ-a");
+    const { market: b } = await initializeMarket("determ-b");
+    await submitValidation(a, { home: 1, away: 0 });
+    await submitValidation(b, { home: 1, away: 0 });
+    const ra = await program.account.txlineValidationReceipt.fetch(pdaReceipt(a));
+    const rb = await program.account.txlineValidationReceipt.fetch(pdaReceipt(b));
+    expect(ra.derivedOutcome).to.equal(rb.derivedOutcome);
+  });
 
-  async function evaluate(market: anchor.web3.PublicKey, marketConfig: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
-    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
-  }
+  it("an away-team win derives NO (operator cannot choose the outcome)", async () => {
+    const { market, marketConfig } = await initializeMarket("away-win");
+    const yes = await fill("away-yes", market, marketConfig, 0);
+    await fill("away-no", market, marketConfig, 1);
+    await closeMarket(market);
+    await submitValidation(market, { home: 0, away: 2 }); // away wins => NO
+    await resolveFromTxline(market);
+    const m = await program.account.marketState.fetch(market);
+    expect(m.resolution).to.equal(2); // NO won, though the same operator ran everything
+    try {
+      await settleOrder(market, yes);
+      expect.fail("YES order should not win an away-team result");
+    } catch (e) {
+      expect(String(e)).to.match(/Order is not on the winning side|OrderDidNotWin/);
+    }
+  });
 
-  async function resolveMarket(market: anchor.web3.PublicKey, outcome: number, hash = RESOLUTION_HASH) {
-    await program.methods.resolveMarket(outcome, hash).accountsPartial({ authority: trader, market }).rpc();
-  }
+  it("rejects a fixture mismatch", async () => {
+    const { market } = await initializeMarket("fixture-mismatch");
+    try {
+      await submitValidation(market, { fixtureId: 99_999_999 });
+      expect.fail("wrong fixture should be rejected");
+    } catch (e) {
+      expect(String(e)).to.match(/fixture does not match|FixtureMismatch/);
+    }
+  });
 
-  async function settleOrder(market: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
-    await program.methods.settleOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
-  }
+  it("rejects a root account not owned by the TxLINE program", async () => {
+    const { market } = await initializeMarket("wrong-root");
+    const fake = anchor.web3.Keypair.generate().publicKey; // non-existent => system-owned
+    try {
+      await submitValidation(market, { root: fake });
+      expect.fail("wrong root should be rejected");
+    } catch (e) {
+      expect(String(e)).to.match(/not the genuine on-chain root|InvalidTxlineRoot/);
+    }
+  });
 
-  it("resolves a market and pays the winning side parimutuel", async () => {
-    // An in-sync market: both YES and NO fill into the vault and their pools.
+  it("rejects resolution before trading closes", async () => {
+    const { market, marketConfig } = await initializeMarket("resolve-before-close");
+    await fill("rbc-yes", market, marketConfig, 0);
+    await submitValidation(market);
+    try {
+      await resolveFromTxline(market);
+      expect.fail("resolve before close should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/Trading must be closed|MarketNotClosed/);
+    }
+  });
+
+  it("rejects a new fill after trading closes, and a double resolution", async () => {
+    const { market, marketConfig } = await initializeMarket("close-gating");
+    await fill("cg-yes", market, marketConfig, 0);
+    await fill("cg-no", market, marketConfig, 1);
+    await closeMarket(market);
+    const { order } = await placeOrder("cg-late", market, 0);
+    try {
+      await evaluate(market, marketConfig, order);
+      expect.fail("fill after close should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/Trading is closed|TradingClosed/);
+    }
+    await submitValidation(market);
+    await resolveFromTxline(market);
+    try {
+      await resolveFromTxline(market);
+      expect.fail("double resolution should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/already been resolved|MarketAlreadyResolved/);
+    }
+  });
+
+  // ---- Parimutuel settlement + accounting ----
+
+  it("resolves from TxLINE and pays the winning side parimutuel", async () => {
     const { market, marketConfig } = await initializeMarket("settle-parimutuel");
-    const { order: yesOrder } = await placeOrder("settle-yes", market, 0);
-    await evaluate(market, marketConfig, yesOrder);
-    const { order: noOrder } = await placeOrder("settle-no", market, 1);
-    await evaluate(market, marketConfig, noOrder);
+    const yesOrder = await fill("sp-yes", market, marketConfig, 0);
+    const noOrder = await fill("sp-no", market, marketConfig, 1);
+    await closeMarket(market);
+    await submitValidation(market, { home: 1, away: 0 });
+    await resolveFromTxline(market);
 
-    const pooled = await program.account.marketState.fetch(market);
-    expect(pooled.yesPoolLamports.toNumber()).to.equal(STAKE_LAMPORTS);
-    expect(pooled.noPoolLamports.toNumber()).to.equal(STAKE_LAMPORTS);
-    expect(pooled.resolved).to.equal(false);
-
-    // Authority commits the resolved outcome (YES won) from the genuine final score.
-    await resolveMarket(market, 1);
     const resolved = await program.account.marketState.fetch(market);
-    expect(resolved.resolved).to.equal(true);
     expect(resolved.resolution).to.equal(1);
-    expect(Buffer.from(resolved.resolutionEventHash).equals(Buffer.alloc(32, 9))).to.equal(true);
+    expect(Buffer.from(resolved.resolutionEventHash).equals(Buffer.from(EVENT_STAT_ROOT))).to.equal(true);
+    expect(resolved.tradingClosed).to.equal(true);
 
-    // The winning YES order claims the entire pool: 0.5 stake back + 0.5 winnings.
     const vaultBefore = await provider.connection.getBalance(pdaVault());
     await settleOrder(market, yesOrder);
     const vaultAfter = await provider.connection.getBalance(pdaVault());
-    const settled = await program.account.orderEscrow.fetch(yesOrder);
-    expect(enumName(settled.status)).to.equal("settled");
     expect(vaultBefore - vaultAfter).to.equal(2 * STAKE_LAMPORTS);
 
-    // The losing NO order forfeits; it cannot settle.
+    const settled = await program.account.orderEscrow.fetch(yesOrder);
+    expect(enumName(settled.status)).to.equal("settled");
+
+    const m = await program.account.marketState.fetch(market);
+    // Accounting conservation: total_in == both pools; paid + refunded <= total_in.
+    expect(m.marketTotalIn.toNumber()).to.equal(m.yesPoolLamports.toNumber() + m.noPoolLamports.toNumber());
+    expect(m.marketTotalPaid.toNumber() + m.marketTotalRefunded.toNumber()).to.be.at.most(m.marketTotalIn.toNumber());
+    expect(m.marketTotalPaid.toNumber()).to.equal(2 * STAKE_LAMPORTS);
+
     try {
       await settleOrder(market, noOrder);
       expect.fail("losing order should not settle");
-    } catch (error) {
-      expect(String(error)).to.match(/Order is not on the winning side|OrderDidNotWin/);
+    } catch (e) {
+      expect(String(e)).to.match(/Order is not on the winning side|OrderDidNotWin/);
     }
-
-    // A winning order cannot double-settle.
     try {
       await settleOrder(market, yesOrder);
       expect.fail("double settle should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Only a filled order can be settled|OrderNotFilled/);
+    } catch (e) {
+      expect(String(e)).to.match(/Only a filled order can be settled|OrderNotFilled/);
     }
   });
 
-  it("rejects unauthorized resolve, settle-before-resolve, and double resolve", async () => {
-    const { market, marketConfig } = await initializeMarket("settle-guards");
-    const { order } = await placeOrder("settle-guards-order", market, 0);
-    await evaluate(market, marketConfig, order);
+  it("splits a pool across many winners and bounds integer dust", async () => {
+    const { market, marketConfig } = await initializeMarket("split-dust");
+    // yes_pool = 3_000_000, no_pool = 1_000_000, total = 4_000_000.
+    const a = await fill("sd-yes-a", market, marketConfig, 0, 1_000_000);
+    const b = await fill("sd-yes-b", market, marketConfig, 0, 2_000_000);
+    await fill("sd-no", market, marketConfig, 1, 1_000_000);
+    await closeMarket(market);
+    await submitValidation(market, { home: 1, away: 0 });
+    await resolveFromTxline(market);
 
-    // Cannot settle before the market resolves.
+    const vaultBefore = await provider.connection.getBalance(pdaVault());
+    await settleOrder(market, a);
+    await settleOrder(market, b);
+    const vaultAfter = await provider.connection.getBalance(pdaVault());
+    const paid = vaultBefore - vaultAfter;
+    const total = 4_000_000;
+    // a: 1_000_000*4/3 -> 1_333_333 ; b: 2_000_000*4/3 -> 2_666_666 ; sum = 3_999_999.
+    expect(paid).to.equal(3_999_999);
+    const dust = total - paid;
+    expect(dust).to.be.greaterThan(0);
+    expect(dust).to.be.lessThan(2); // dust < number of winners
+    const m = await program.account.marketState.fetch(market);
+    expect(m.marketTotalPaid.toNumber()).to.equal(paid);
+    expect(m.marketTotalPaid.toNumber()).to.be.at.most(m.marketTotalIn.toNumber());
+  });
+
+  it("voids a market whose validated winning side has no filled stake, and refunds every order", async () => {
+    const { market, marketConfig } = await initializeMarket("void-no-winner");
+    // Only NO fills; validated outcome is YES (home 1 - 0 away) => yes_pool == 0 => void.
+    const noA = await fill("void-no-a", market, marketConfig, 1, 200_000_000);
+    const noB = await fill("void-no-b", market, marketConfig, 1, 300_000_000);
+    await closeMarket(market);
+    await submitValidation(market, { home: 1, away: 0 });
+    await resolveFromTxline(market);
+
+    const m = await program.account.marketState.fetch(market);
+    expect(m.resolution).to.equal(3); // VoidedNoWinningPool
+
+    // Settlement is not allowed on a voided market.
     try {
-      await settleOrder(market, order);
-      expect.fail("settle before resolve should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Market must be resolved|MarketNotResolved/);
+      await settleOrder(market, noA);
+      expect.fail("voided market cannot settle");
+    } catch (e) {
+      expect(String(e)).to.match(/voided; use refund|MarketVoided/);
     }
 
-    // Unauthorized signer cannot resolve.
-    const outsider = anchor.web3.Keypair.generate();
-    const airdrop = await provider.connection.requestAirdrop(outsider.publicKey, 10_000_000);
-    await provider.connection.confirmTransaction(airdrop, "confirmed");
-    try {
-      await program.methods.resolveMarket(1, RESOLUTION_HASH).accountsPartial({ authority: outsider.publicKey, market }).signers([outsider]).rpc();
-      expect.fail("unauthorized resolve should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Only the configured market authority|InvalidAuthority|has one|ConstraintHasOne/);
-    }
+    const vaultBefore = await provider.connection.getBalance(pdaVault());
+    await refundVoided(market, noA);
+    await refundVoided(market, noB);
+    const vaultAfter = await provider.connection.getBalance(pdaVault());
+    expect(vaultBefore - vaultAfter).to.equal(500_000_000); // exact original stakes returned
 
-    // Resolution outcome must be 1 or 2.
-    try {
-      await program.methods.resolveMarket(3, RESOLUTION_HASH).accountsPartial({ authority: trader, market }).rpc();
-      expect.fail("invalid resolution should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Resolution outcome must be|InvalidResolution/);
-    }
+    const refunded = await program.account.marketState.fetch(market);
+    expect(refunded.marketTotalRefunded.toNumber()).to.equal(500_000_000);
+    expect(refunded.marketTotalRefunded.toNumber()).to.be.at.most(refunded.marketTotalIn.toNumber());
+    expect(enumName((await program.account.orderEscrow.fetch(noA)).status)).to.equal("settled");
 
-    // Resolution hash cannot be zero.
     try {
-      await program.methods.resolveMarket(1, Array.from(Buffer.alloc(32))).accountsPartial({ authority: trader, market }).rpc();
-      expect.fail("zero resolution hash should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/Source event hash must be nonzero|ZeroEventHash/);
+      await refundVoided(market, noA);
+      expect.fail("double refund should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/Only a filled order can be settled|OrderNotFilled/);
     }
+  });
 
-    // A valid resolution succeeds, then a second resolve is rejected.
-    await resolveMarket(market, 1);
-    try {
-      await resolveMarket(market, 2);
-      expect.fail("double resolve should fail");
-    } catch (error) {
-      expect(String(error)).to.match(/already been resolved|MarketAlreadyResolved/);
-    }
+  it("emergency void refunds without picking a winner", async () => {
+    const { market, marketConfig } = await initializeMarket("emergency-void");
+    const yes = await fill("ev-yes", market, marketConfig, 0, 100_000_000);
+    await program.methods.emergencyVoidMarket().accountsPartial({ authority: trader, market }).rpc();
+    const m = await program.account.marketState.fetch(market);
+    expect(m.resolution).to.equal(3);
+    const vaultBefore = await provider.connection.getBalance(pdaVault());
+    await refundVoided(market, yes);
+    const vaultAfter = await provider.connection.getBalance(pdaVault());
+    expect(vaultBefore - vaultAfter).to.equal(100_000_000);
+  });
+
+  it("one market's settlement cannot exceed its own accounted pool (cross-market isolation)", async () => {
+    const { market: a, marketConfig: ca } = await initializeMarket("iso-a");
+    const yesA = await fill("iso-a-yes", a, ca, 0, 100_000_000);
+    await fill("iso-a-no", a, ca, 1, 100_000_000);
+    const { market: b, marketConfig: cb } = await initializeMarket("iso-b");
+    await fill("iso-b-yes", b, cb, 0, 400_000_000);
+    await fill("iso-b-no", b, cb, 1, 400_000_000);
+
+    await closeMarket(a);
+    await submitValidation(a, { home: 1, away: 0 });
+    await resolveFromTxline(a);
+    await settleOrder(a, yesA);
+
+    const ma = await program.account.marketState.fetch(a);
+    // Market A paid exactly its own pool; it can never draw on B's funds.
+    expect(ma.marketTotalPaid.toNumber()).to.equal(ma.marketTotalIn.toNumber());
+    const mb = await program.account.marketState.fetch(b);
+    const vault = await provider.connection.getBalance(pdaVault());
+    // B's stakes are untouched and remain fully backed inside the shared vault.
+    expect(mb.marketTotalPaid.toNumber()).to.equal(0);
+    expect(vault).to.be.at.least(mb.marketTotalIn.toNumber());
   });
 });

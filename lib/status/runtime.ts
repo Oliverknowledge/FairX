@@ -11,9 +11,11 @@ import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
 
 const UPGRADEABLE_LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 const VAULT_PDA = "HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE";
-// settlement-v3 program-data account is 270,717 bytes; 264,893 = 45-byte header + the
-// 264,848-byte settlement program, separating it from the 238,717-byte market-config-v2 deploy.
-const CURRENT_PROGRAM_DATA_ACCOUNT_MIN = 264_893;
+// settlement-v4 (TxLINE-bound resolution + void/refund + close gating + per-market accounting)
+// program-data account is 316,717 bytes; 311,317 = 45-byte header + the 311,272-byte program,
+// separating it from the 270,717-byte settlement-v3 and 238,717-byte market-config-v2 deploys.
+const CURRENT_PROGRAM_DATA_ACCOUNT_MIN = 311_317;
+const SETTLEMENT_V3_ACCOUNT_MIN = 264_893;
 const MARKET_CONFIG_ACCOUNT_MIN = 238_717;
 const SAFE_PROOF_BALANCE_LAMPORTS = 80_000_000;
 const VAULT_DISCRIMINATOR = crypto.createHash("sha256").update("account:ProtocolVault").digest().subarray(0, 8);
@@ -205,10 +207,12 @@ async function computeFairXRuntimeStatus(): Promise<FairXRuntimeStatus> {
         if (bytes.length >= 12 && bytes.readUInt32LE(0) === 3) base.solana.deployedSlot = Number(bytes.readBigUInt64LE(4));
         base.solana.schemaCurrent = bytes.length >= CURRENT_PROGRAM_DATA_ACCOUNT_MIN;
         base.solana.schemaLabel = base.solana.schemaCurrent
-          ? "settlement-v3"
-          : bytes.length >= MARKET_CONFIG_ACCOUNT_MIN
-            ? "market-config-v2"
-            : "event-hash-v1";
+          ? "settlement-v4"
+          : bytes.length >= SETTLEMENT_V3_ACCOUNT_MIN
+            ? "settlement-v3"
+            : bytes.length >= MARKET_CONFIG_ACCOUNT_MIN
+              ? "market-config-v2"
+              : "event-hash-v1";
       }
       const latest = signatures[0];
       if (latest) {

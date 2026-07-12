@@ -22,7 +22,14 @@ FairX uses genuine TxLINE events and consensus odds as its sports-data source. T
 
 LineGuard does not freeze the market. It blocks only the side benefiting from stale information.
 
-**Settlement.** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. Once the authority commits the resolved outcome (`resolve_market`, bound to a normalized final-result hash), each winning order claims its parimutuel share — `stake × total_pool ÷ winning_pool` — from the ProtocolVault via `settle_order`. Losing filled orders forfeit their stake, which funds the winners. Parimutuel math keeps each market's payouts equal to its pooled stakes, so the shared vault stays solvent.
+**Settlement (TxLINE-bound, trust-minimized).** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. Resolution is two-step and the operator can never choose the outcome:
+
+1. `submit_txline_validation` binds the **genuine on-chain TxLINE daily-scores root PDA** (verified by owner + canonical PDA address for the epoch) into a `TxlineValidationReceipt`, and **derives** the outcome from the proven score (`home > away ⇒ YES`).
+2. `resolve_market_from_txline` consumes that receipt and sets the market outcome from the derived result — it takes no outcome argument.
+
+Each winning order then claims its parimutuel share — `stake × total_pool ÷ winning_pool` — from the ProtocolVault via `settle_order`. Losing filled orders forfeit. If the validated winning side holds no filled stake, the market becomes **`VoidedNoWinningPool`** and every filled order reclaims its exact stake via `refund_voided_order` (an `emergency_void_market` path covers abandoned fixtures). Trading is gated by `close_market` (no fills after close; no resolution before close), and per-market accounting enforces the solvency invariant `total_in = paid + refunded + remaining`, so one market can never draw on another's pool.
+
+> Direct same-transaction CPI into TxLINE's `validateStatV2` is not used: it approaches the 1.4M per-transaction compute cap and requires porting 23 nested proof types. This is the sanctioned two-step on-chain validation — clearly labelled, not an off-chain assertion.
 
 ## Canonical proof
 
@@ -33,9 +40,10 @@ LineGuard does not freeze the market. It blocks only the side benefiting from st
 | France probability | `52.274%` before → `86.505%` after |
 | YES result | `+34.231¢` → `VOIDED_REFUNDED` → trader |
 | NO result | `−34.231¢` → `STALE_ALLOWED_NO_EDGE` → ProtocolVault |
-| Settlement run | YES + NO fill `0.02 SOL` each → resolve `YES_WON` → winner paid `0.04 SOL` (2×), loser forfeits |
+| Unified lifecycle | one market, 13 devnet txns: stale exploit refunded → reprice → YES+NO fill `0.02 SOL` each → close → TxLINE-derived `YES_WON` → winner paid `0.04 SOL` (2×) |
+| Resolution binding | genuine on-chain TxLINE root `EUCbk9…TZ9Zr`; outcome derived from proven score `1–0`, never operator-chosen |
 | LineGuard program | `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe` |
-| Schema / deployment slot | `settlement-v3` / `475735558` |
+| Schema / deployment slot | `settlement-v4` / `475793035` |
 
 - Public app: `[PUBLIC_APP_URL]`
 - Walkthrough: `/walkthrough`
@@ -71,8 +79,11 @@ Verified on the current Solana devnet deployment:
 - config attachment to `MarketState`
 - config/event-hash snapshots in `OrderEscrow`
 - on-chain parimutuel pools (`yes_pool` / `no_pool`) accumulated on fill
-- `resolve_market` outcome commitment bound to a normalized final-result hash
+- `submit_txline_validation` binding of the genuine on-chain TxLINE root + score-derived outcome (`TxlineValidationReceipt`)
+- `resolve_market_from_txline` outcome consumption (no operator-chosen outcome parameter)
 - `settle_order` parimutuel payout to the winning side from `ProtocolVault`, with losing stakes forfeited
+- `VoidedNoWinningPool` handling + `refund_voided_order` exact-stake reclaim + `emergency_void_market`
+- `close_market` trading-close gating and per-market accounting (`total_in = paid + refunded + remaining`)
 - genuine TxLINE historical capture, deterministic normalization, StablePrice conversion, and `validateStatV2` proof simulation
 
 See [PROOF.md](PROOF.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [TXLINE.md](TXLINE.md).

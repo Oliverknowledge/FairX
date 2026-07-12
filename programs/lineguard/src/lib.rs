@@ -4,11 +4,24 @@ use anchor_lang::system_program::{transfer, Transfer};
 declare_id!("6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe");
 
 const MICROS_ONE: u64 = 1_000_000;
+// The official TxLINE (TxOdds) devnet oracle program. The genuine on-chain daily-scores
+// root PDA is owned by this program; resolution binds to it so an operator cannot invent
+// a root or an outcome.
+// 6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J (base58) as its raw 32-byte pubkey.
+const TXLINE_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
+    86, 117, 159, 44, 144, 95, 120, 96, 200, 99, 119, 20, 191, 36, 145, 48, 157, 192, 113, 129,
+    81, 63, 122, 36, 191, 62, 218, 248, 127, 119, 80, 3,
+]);
 // MarketState grew by 32 bytes (source_event_hash), then by 50 bytes for the settlement
-// fields (yes_pool, no_pool, resolution, resolution_event_hash, resolved) at the end.
+// fields, then by 81 bytes for the resolution-integrity fields (fixture_id, close_time,
+// trading_closed, resolved_at, per-market accounting, validation_payload_hash) at the end.
 // Additive: existing accounts keep their layout; only newly-initialized markets allocate
 // the larger size, and the new program only ever loads freshly-initialized markets.
-const MARKET_SPACE: usize = 8 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 32 + 8 + 8 + 1 + 32 + 1;
+const MARKET_SPACE: usize =
+    8 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 32 + 8 + 8 + 1 + 32 + 1 + 8 + 8 + 1 + 8 + 8 + 8 + 8 + 32;
+// TxlineValidationReceipt: market, authority, fixture_id, sequence, stat keys, epoch day,
+// root PDA, payload hash, event-stat root, scores, derived outcome, created_at, bump.
+const RECEIPT_SPACE: usize = 8 + 32 + 32 + 8 + 8 + 1 + 1 + 2 + 32 + 32 + 32 + 2 + 2 + 1 + 8 + 1;
 const MARKET_CONFIG_SPACE: usize = 8 + 1 + 32 + 32 + 32 + 32 + 32 + 8;
 // The original 140-byte layout is preserved through `bump`. New proof fields
 // are additive so previously-recorded order offsets remain stable.
@@ -58,6 +71,14 @@ pub mod lineguard {
         market.resolution = 0;
         market.resolution_event_hash = [0u8; 32];
         market.resolved = false;
+        market.fixture_id = 0;
+        market.close_time = 0;
+        market.trading_closed = false;
+        market.resolved_at = 0;
+        market.market_total_in = 0;
+        market.market_total_paid = 0;
+        market.market_total_refunded = 0;
+        market.validation_payload_hash = [0u8; 32];
         Ok(())
     }
 
@@ -77,6 +98,8 @@ pub mod lineguard {
         market_title_hash: [u8; 32],
         materiality_config_hash: [u8; 32],
         settlement_config_hash: [u8; 32],
+        fixture_id: u64,
+        close_time: i64,
     ) -> Result<()> {
         require!(
             displayed_price_micros > 0 && displayed_price_micros < MICROS_ONE,
@@ -125,6 +148,14 @@ pub mod lineguard {
         market.resolution = 0;
         market.resolution_event_hash = [0u8; 32];
         market.resolved = false;
+        market.fixture_id = fixture_id;
+        market.close_time = close_time;
+        market.trading_closed = false;
+        market.resolved_at = 0;
+        market.market_total_in = 0;
+        market.market_total_paid = 0;
+        market.market_total_refunded = 0;
+        market.validation_payload_hash = [0u8; 32];
 
         let config = &mut ctx.accounts.market_config;
         config.market_type = market_type;
@@ -278,6 +309,9 @@ pub mod lineguard {
             ctx.accounts.order.status == OrderStatus::Escrowed,
             LineGuardError::OrderAlreadyEvaluated
         );
+        // No order may fill once trading is closed or the market has resolved.
+        require!(!ctx.accounts.market.trading_closed, LineGuardError::TradingClosed);
+        require!(!ctx.accounts.market.resolved, LineGuardError::MarketAlreadyResolved);
 
         let fair_side_price_micros = ctx
             .accounts
@@ -341,13 +375,15 @@ pub mod lineguard {
             let vault = &mut ctx.accounts.vault;
             vault.total_finalized = vault.total_finalized.saturating_add(stake);
             vault.fill_count = vault.fill_count.saturating_add(1);
-            // Accumulate the filled stake into its side's settlement pool.
+            // Accumulate the filled stake into its side's settlement pool and the
+            // per-market accepted-stake total (the basis for the solvency invariant).
             let market = &mut ctx.accounts.market;
             if side_is_yes {
                 market.yes_pool_lamports = market.yes_pool_lamports.saturating_add(stake);
             } else {
                 market.no_pool_lamports = market.no_pool_lamports.saturating_add(stake);
             }
+            market.market_total_in = market.market_total_in.saturating_add(stake);
         }
 
         let market_key = ctx.accounts.market.key();
@@ -390,29 +426,191 @@ pub mod lineguard {
         Ok(())
     }
 
-    /// The market authority commits the resolved outcome (from a genuine TxLINE final
-    /// score) on-chain. Winning filled orders can then claim a parimutuel payout.
-    pub fn resolve_market(
-        ctx: Context<ResolveMarket>,
-        outcome: u8,
-        resolution_event_hash: [u8; 32],
+    /// Latches trading closed. The market authority may close at any time; anyone may close
+    /// at or after `close_time`. No order can fill after this, and resolution requires it.
+    pub fn close_market(ctx: Context<CloseMarket>) -> Result<()> {
+        require!(!ctx.accounts.market.resolved, LineGuardError::MarketAlreadyResolved);
+        let now = Clock::get()?.unix_timestamp;
+        let is_authority = ctx.accounts.closer.key() == ctx.accounts.market.authority;
+        require!(
+            is_authority || (ctx.accounts.market.close_time != 0 && now >= ctx.accounts.market.close_time),
+            LineGuardError::MarketNotClosed
+        );
+        ctx.accounts.market.trading_closed = true;
+        Ok(())
+    }
+
+    /// Step 1 of trust-minimized resolution. Binds a genuine TxLINE `validateStatV2` result to
+    /// the market: the daily-scores root PDA must be the real TxLINE-owned account for the claimed
+    /// epoch day, and the outcome is DERIVED from the proven scores — never an operator parameter.
+    /// (Direct same-transaction CPI into `validateStatV2` is not used: it approaches the 1.4M
+    /// per-transaction compute cap and requires porting 23 nested proof types; the off-chain/
+    /// simulated validation is bound here and consumed by `resolve_market_from_txline`.)
+    pub fn submit_txline_validation(
+        ctx: Context<SubmitTxlineValidation>,
+        fixture_id: u64,
+        sequence: u64,
+        stat_key_home: u8,
+        stat_key_away: u8,
+        root_epoch_day: u16,
+        home_score: u16,
+        away_score: u16,
+        validation_payload_hash: [u8; 32],
+        event_stat_root: [u8; 32],
     ) -> Result<()> {
         require!(!ctx.accounts.market.resolved, LineGuardError::MarketAlreadyResolved);
-        require!(outcome == 1 || outcome == 2, LineGuardError::InvalidResolution);
-        require!(!is_zero_hash(&resolution_event_hash), LineGuardError::ZeroEventHash);
+        require!(fixture_id == ctx.accounts.market.fixture_id, LineGuardError::FixtureMismatch);
+        require!(stat_key_home != stat_key_away, LineGuardError::InvalidStatKeys);
+        require!(!is_zero_hash(&validation_payload_hash), LineGuardError::ZeroConfigHash);
+        require!(!is_zero_hash(&event_stat_root), LineGuardError::ZeroConfigHash);
+
+        // Bind the GENUINE on-chain TxLINE daily-scores root account: it must be owned by the
+        // real TxLINE program and be the canonical PDA for the claimed epoch day. An operator
+        // cannot substitute a fake root.
+        let root_info = ctx.accounts.txline_root.to_account_info();
+        require!(*root_info.owner == TXLINE_PROGRAM_ID, LineGuardError::InvalidTxlineRoot);
+        let (expected_root, _bump) = Pubkey::find_program_address(
+            &[b"daily_scores_roots", &root_epoch_day.to_le_bytes()],
+            &TXLINE_PROGRAM_ID,
+        );
+        require!(root_info.key() == expected_root, LineGuardError::InvalidTxlineRoot);
+
+        // Derive the outcome from the proven scores: YES = the market's backed (home) side wins;
+        // a draw or a loss => NO. This is deterministic and not chosen by the operator.
+        let derived_outcome: u8 = if home_score > away_score { 1 } else { 2 };
+
+        let receipt = &mut ctx.accounts.receipt;
+        receipt.market = ctx.accounts.market.key();
+        receipt.authority = ctx.accounts.authority.key();
+        receipt.fixture_id = fixture_id;
+        receipt.sequence = sequence;
+        receipt.stat_key_home = stat_key_home;
+        receipt.stat_key_away = stat_key_away;
+        receipt.root_epoch_day = root_epoch_day;
+        receipt.validation_root_pda = root_info.key();
+        receipt.validation_payload_hash = validation_payload_hash;
+        receipt.event_stat_root = event_stat_root;
+        receipt.home_score = home_score;
+        receipt.away_score = away_score;
+        receipt.derived_outcome = derived_outcome;
+        receipt.created_at = Clock::get()?.unix_timestamp;
+        receipt.bump = ctx.bumps.receipt;
+
+        emit!(TxlineValidationEvent {
+            market: receipt.market,
+            fixture_id,
+            sequence,
+            validation_root_pda: receipt.validation_root_pda,
+            validation_payload_hash,
+            home_score,
+            away_score,
+            derived_outcome,
+        });
+        Ok(())
+    }
+
+    /// Step 2 of trust-minimized resolution. Consumes the on-chain validation receipt and sets
+    /// the market outcome from its DERIVED result. The operator cannot supply an outcome here.
+    /// If the validated winning side holds no filled stake, the market becomes voided so every
+    /// filled order can reclaim its exact stake.
+    pub fn resolve_market_from_txline(ctx: Context<ResolveMarketFromTxline>) -> Result<()> {
+        require!(!ctx.accounts.market.resolved, LineGuardError::MarketAlreadyResolved);
+        require!(ctx.accounts.market.trading_closed, LineGuardError::MarketNotClosed);
+        let receipt = &ctx.accounts.receipt;
+        require!(receipt.market == ctx.accounts.market.key(), LineGuardError::InvalidMarket);
+        require!(receipt.fixture_id == ctx.accounts.market.fixture_id, LineGuardError::FixtureMismatch);
+        require!(receipt.derived_outcome == 1 || receipt.derived_outcome == 2, LineGuardError::InvalidResolution);
+
+        // The genuine TxLINE eventStatRoot (proven against the on-chain daily-scores root)
+        // is the bound final-result hash for this resolution.
+        let final_result_hash = receipt.event_stat_root;
+        let validation_payload_hash = receipt.validation_payload_hash;
+        let derived_outcome = receipt.derived_outcome;
 
         let market = &mut ctx.accounts.market;
-        market.resolution = outcome;
-        market.resolution_event_hash = resolution_event_hash;
+        let winning_pool = if derived_outcome == 1 { market.yes_pool_lamports } else { market.no_pool_lamports };
+        // No filled stake on the validated winning side => void so losers can reclaim.
+        market.resolution = if winning_pool == 0 { 3 } else { derived_outcome };
         market.resolved = true;
+        market.trading_closed = true;
+        market.resolved_at = Clock::get()?.unix_timestamp;
+        market.validation_payload_hash = validation_payload_hash;
+        market.resolution_event_hash = final_result_hash;
 
         emit!(MarketResolvedEvent {
             market: market.key(),
             market_id: market.market_id,
-            resolution: outcome,
+            resolution: market.resolution,
             yes_pool_lamports: market.yes_pool_lamports,
             no_pool_lamports: market.no_pool_lamports,
-            resolution_event_hash,
+            resolution_event_hash: final_result_hash,
+            resolved_at: market.resolved_at,
+            validation_payload_hash,
+        });
+        Ok(())
+    }
+
+    /// Authority-only fallback for an abandoned/void fixture. Voids the market (every filled
+    /// order can reclaim its stake). It can only VOID — it can never pick a winning side.
+    pub fn emergency_void_market(ctx: Context<EmergencyVoidMarket>) -> Result<()> {
+        require!(!ctx.accounts.market.resolved, LineGuardError::MarketAlreadyResolved);
+        let now = Clock::get()?.unix_timestamp;
+        let market = &mut ctx.accounts.market;
+        market.resolution = 3;
+        market.resolved = true;
+        market.trading_closed = true;
+        market.resolved_at = now;
+        emit!(MarketResolvedEvent {
+            market: market.key(),
+            market_id: market.market_id,
+            resolution: 3,
+            yes_pool_lamports: market.yes_pool_lamports,
+            no_pool_lamports: market.no_pool_lamports,
+            resolution_event_hash: market.resolution_event_hash,
+            resolved_at: now,
+            validation_payload_hash: market.validation_payload_hash,
+        });
+        Ok(())
+    }
+
+    /// After a void resolution, each filled order reclaims its exact original stake from the
+    /// vault, once. Losing/forfeit semantics do not apply to a voided market.
+    pub fn refund_voided_order(ctx: Context<RefundVoidedOrder>) -> Result<()> {
+        require!(ctx.accounts.market.resolved, LineGuardError::MarketNotResolved);
+        require!(ctx.accounts.market.resolution == 3, LineGuardError::MarketNotVoided);
+        require!(
+            ctx.accounts.order.status == OrderStatus::Filled,
+            LineGuardError::OrderNotFilled
+        );
+
+        let stake = ctx.accounts.order.stake_lamports;
+        // Per-market solvency: refunds + payouts can never exceed accepted stake.
+        let market = &ctx.accounts.market;
+        let accounted = market
+            .market_total_paid
+            .checked_add(market.market_total_refunded)
+            .and_then(|v| v.checked_add(stake))
+            .ok_or(LineGuardError::MathOverflow)?;
+        require!(accounted <= market.market_total_in, LineGuardError::MarketAccountingOverflow);
+
+        let vault_info = ctx.accounts.vault.to_account_info();
+        require!(**vault_info.lamports.borrow() >= stake, LineGuardError::InsufficientVault);
+        let trader_info = ctx.accounts.trader.to_account_info();
+        **vault_info.try_borrow_mut_lamports()? -= stake;
+        **trader_info.try_borrow_mut_lamports()? += stake;
+
+        let market_key = ctx.accounts.market.key();
+        ctx.accounts.market.market_total_refunded =
+            ctx.accounts.market.market_total_refunded.saturating_add(stake);
+        let order = &mut ctx.accounts.order;
+        order.status = OrderStatus::Settled;
+
+        emit!(RefundEvent {
+            market: market_key,
+            order: order.key(),
+            trader: order.trader,
+            side: order.side.code(),
+            refunded_lamports: stake,
         });
         Ok(())
     }
@@ -422,6 +620,11 @@ pub mod lineguard {
     /// forfeit their stake, which remains in the vault.
     pub fn settle_order(ctx: Context<SettleOrder>) -> Result<()> {
         require!(ctx.accounts.market.resolved, LineGuardError::MarketNotResolved);
+        // A voided market refunds via refund_voided_order, not parimutuel settlement.
+        require!(
+            ctx.accounts.market.resolution == 1 || ctx.accounts.market.resolution == 2,
+            LineGuardError::MarketVoided
+        );
         require!(
             ctx.accounts.order.status == OrderStatus::Filled,
             LineGuardError::OrderNotFilled
@@ -446,6 +649,19 @@ pub mod lineguard {
             / winning_pool;
         let payout = payout as u64;
 
+        // Per-market solvency: cumulative payouts + refunds can never exceed accepted stake.
+        let accounted = ctx
+            .accounts
+            .market
+            .market_total_paid
+            .checked_add(ctx.accounts.market.market_total_refunded)
+            .and_then(|v| v.checked_add(payout))
+            .ok_or(LineGuardError::MathOverflow)?;
+        require!(
+            accounted <= ctx.accounts.market.market_total_in,
+            LineGuardError::MarketAccountingOverflow
+        );
+
         // Move the payout from the shared vault to the trader. Parimutuel math keeps a
         // market's total winner payouts equal to its pooled stakes, so the vault stays solvent.
         let vault_info = ctx.accounts.vault.to_account_info();
@@ -458,6 +674,8 @@ pub mod lineguard {
         **trader_info.try_borrow_mut_lamports()? += payout;
 
         let market_key = ctx.accounts.market.key();
+        ctx.accounts.market.market_total_paid =
+            ctx.accounts.market.market_total_paid.saturating_add(payout);
         let order = &mut ctx.accounts.order;
         order.status = OrderStatus::Settled;
 
@@ -617,7 +835,56 @@ pub struct EvaluateOrder<'info> {
 }
 
 #[derive(Accounts)]
-pub struct ResolveMarket<'info> {
+pub struct CloseMarket<'info> {
+    pub closer: Signer<'info>,
+    #[account(mut, seeds = [b"market", market.market_id.as_ref()], bump = market.bump)]
+    pub market: Account<'info, MarketState>,
+}
+
+#[derive(Accounts)]
+pub struct SubmitTxlineValidation<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(
+        has_one = authority @ LineGuardError::InvalidAuthority,
+        seeds = [b"market", market.market_id.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, MarketState>,
+    /// CHECK: verified on-chain by owner (must equal the TxLINE program) and by the canonical
+    /// daily-scores-root PDA address for the claimed epoch day.
+    pub txline_root: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = authority,
+        space = RECEIPT_SPACE,
+        seeds = [b"txval", market.key().as_ref()],
+        bump
+    )]
+    pub receipt: Account<'info, TxlineValidationReceipt>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ResolveMarketFromTxline<'info> {
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        has_one = authority @ LineGuardError::InvalidAuthority,
+        seeds = [b"market", market.market_id.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, MarketState>,
+    #[account(
+        has_one = market @ LineGuardError::InvalidMarket,
+        seeds = [b"txval", market.key().as_ref()],
+        bump = receipt.bump
+    )]
+    pub receipt: Account<'info, TxlineValidationReceipt>,
+}
+
+#[derive(Accounts)]
+pub struct EmergencyVoidMarket<'info> {
     pub authority: Signer<'info>,
     #[account(
         mut,
@@ -629,8 +896,27 @@ pub struct ResolveMarket<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RefundVoidedOrder<'info> {
+    #[account(mut, seeds = [b"market", market.market_id.as_ref()], bump = market.bump)]
+    pub market: Account<'info, MarketState>,
+    #[account(
+        mut,
+        has_one = market @ LineGuardError::InvalidMarket,
+        has_one = trader @ LineGuardError::InvalidTrader,
+        seeds = [b"order", market.key().as_ref(), order.order_id.as_ref()],
+        bump = order.bump
+    )]
+    pub order: Account<'info, OrderEscrow>,
+    #[account(mut)]
+    pub trader: SystemAccount<'info>,
+    #[account(mut, seeds = [b"vault"], bump = vault.bump)]
+    pub vault: Account<'info, ProtocolVault>,
+}
+
+#[derive(Accounts)]
 pub struct SettleOrder<'info> {
     #[account(
+        mut,
         seeds = [b"market", market.market_id.as_ref()],
         bump = market.bump
     )]
@@ -665,9 +951,40 @@ pub struct MarketState {
     // outcome pays the winning side out of the shared ProtocolVault.
     pub yes_pool_lamports: u64,
     pub no_pool_lamports: u64,
-    pub resolution: u8, // 0 = Unresolved, 1 = YesWon, 2 = NoWon
+    pub resolution: u8, // 0 = Unresolved, 1 = YesWon, 2 = NoWon, 3 = VoidedNoWinningPool
     pub resolution_event_hash: [u8; 32],
     pub resolved: bool,
+    // Resolution integrity: fixture binding, close gating, per-market accounting.
+    pub fixture_id: u64,
+    pub close_time: i64, // unix seconds; permissionless close is allowed at/after this
+    pub trading_closed: bool,
+    pub resolved_at: i64,
+    pub market_total_in: u64,       // filled stake accepted into the pools
+    pub market_total_paid: u64,     // paid out to winners
+    pub market_total_refunded: u64, // refunded to traders on a void
+    pub validation_payload_hash: [u8; 32], // TxLINE validation payload hash bound at resolution
+}
+
+/// On-chain proof that a genuine TxLINE `validateStatV2` result was bound to this market.
+/// The daily-scores root PDA is the real TxLINE-owned account, and the outcome is derived
+/// from the proven scores — never chosen by the operator.
+#[account]
+pub struct TxlineValidationReceipt {
+    pub market: Pubkey,
+    pub authority: Pubkey,
+    pub fixture_id: u64,
+    pub sequence: u64,
+    pub stat_key_home: u8,
+    pub stat_key_away: u8,
+    pub root_epoch_day: u16,
+    pub validation_root_pda: Pubkey,
+    pub validation_payload_hash: [u8; 32],
+    pub event_stat_root: [u8; 32],
+    pub home_score: u16,
+    pub away_score: u16,
+    pub derived_outcome: u8, // 1 = YES (backed side won), 2 = NO
+    pub created_at: i64,
+    pub bump: u8,
 }
 
 #[account]
@@ -831,6 +1148,20 @@ pub struct MarketResolvedEvent {
     pub yes_pool_lamports: u64,
     pub no_pool_lamports: u64,
     pub resolution_event_hash: [u8; 32],
+    pub resolved_at: i64,
+    pub validation_payload_hash: [u8; 32],
+}
+
+#[event]
+pub struct TxlineValidationEvent {
+    pub market: Pubkey,
+    pub fixture_id: u64,
+    pub sequence: u64,
+    pub validation_root_pda: Pubkey,
+    pub validation_payload_hash: [u8; 32],
+    pub home_score: u16,
+    pub away_score: u16,
+    pub derived_outcome: u8,
 }
 
 #[event]
@@ -843,6 +1174,15 @@ pub struct SettleEvent {
     pub payout_lamports: u64,
     pub winning_pool_lamports: u64,
     pub total_pool_lamports: u64,
+}
+
+#[event]
+pub struct RefundEvent {
+    pub market: Pubkey,
+    pub order: Pubkey,
+    pub trader: Pubkey,
+    pub side: u8,
+    pub refunded_lamports: u64,
 }
 
 #[error_code]
@@ -889,4 +1229,20 @@ pub enum LineGuardError {
     InsufficientVault,
     #[msg("Arithmetic overflow while computing the payout")]
     MathOverflow,
+    #[msg("Validation fixture does not match the market fixture")]
+    FixtureMismatch,
+    #[msg("The TxLINE daily-scores root account is not the genuine on-chain root")]
+    InvalidTxlineRoot,
+    #[msg("Home and away stat keys must differ")]
+    InvalidStatKeys,
+    #[msg("Trading must be closed before this action")]
+    MarketNotClosed,
+    #[msg("Trading is closed; no new order can fill")]
+    TradingClosed,
+    #[msg("Market is not voided; use parimutuel settlement instead")]
+    MarketNotVoided,
+    #[msg("Market is voided; use refund instead of settlement")]
+    MarketVoided,
+    #[msg("Payouts plus refunds would exceed the market's accepted stake")]
+    MarketAccountingOverflow,
 }
