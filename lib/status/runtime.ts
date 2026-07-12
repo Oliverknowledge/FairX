@@ -11,7 +11,10 @@ import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
 
 const UPGRADEABLE_LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 const VAULT_PDA = "HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE";
-const CURRENT_PROGRAM_DATA_ACCOUNT_MIN = 238_717;
+// settlement-v3 program-data account is 270,717 bytes; 264,893 = 45-byte header + the
+// 264,848-byte settlement program, separating it from the 238,717-byte market-config-v2 deploy.
+const CURRENT_PROGRAM_DATA_ACCOUNT_MIN = 264_893;
+const MARKET_CONFIG_ACCOUNT_MIN = 238_717;
 const SAFE_PROOF_BALANCE_LAMPORTS = 80_000_000;
 const VAULT_DISCRIMINATOR = crypto.createHash("sha256").update("account:ProtocolVault").digest().subarray(0, 8);
 const STATUS_CACHE_TTL_MS = 15_000;
@@ -201,7 +204,11 @@ async function computeFairXRuntimeStatus(): Promise<FairXRuntimeStatus> {
         base.solana.programDataLength = Math.max(0, bytes.length - 45);
         if (bytes.length >= 12 && bytes.readUInt32LE(0) === 3) base.solana.deployedSlot = Number(bytes.readBigUInt64LE(4));
         base.solana.schemaCurrent = bytes.length >= CURRENT_PROGRAM_DATA_ACCOUNT_MIN;
-        base.solana.schemaLabel = base.solana.schemaCurrent ? "market-config-v2" : "event-hash-v1";
+        base.solana.schemaLabel = base.solana.schemaCurrent
+          ? "settlement-v3"
+          : bytes.length >= MARKET_CONFIG_ACCOUNT_MIN
+            ? "market-config-v2"
+            : "event-hash-v1";
       }
       const latest = signatures[0];
       if (latest) {
@@ -245,7 +252,7 @@ async function computeFairXRuntimeStatus(): Promise<FairXRuntimeStatus> {
       ? "Live TxLINE authentication is unavailable; canonical TxLINE historical evidence remains available."
       : undefined
     : !base.solana.schemaCurrent
-      ? "The deployed program schema does not match MarketConfig v2. Canonical verified proof remains available."
+      ? "The deployed program schema does not match the current settlement schema. Canonical verified proof remains available."
       : !base.operator.configured
         ? "The server operator is not configured; canonical proof is available."
         : base.operator.lowBalance

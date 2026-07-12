@@ -16,7 +16,8 @@
     "txline:capture": "node --env-file-if-exists=.env.local --import tsx scripts/txline-capture.ts",
     "txline:verify-capture": "node --import tsx scripts/txline-verify-capture.ts",
     "txline:validate": "node --env-file-if-exists=.env.local --import tsx scripts/txline-validate.ts",
-    "lineguard:record-proof": "node --import tsx scripts/lineguard-record-proof.ts"
+    "lineguard:record-proof": "node --import tsx scripts/lineguard-record-proof.ts",
+    "lineguard:record-settlement": "node --import tsx scripts/lineguard-record-settlement.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "1.1.2",

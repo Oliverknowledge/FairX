@@ -19,6 +19,7 @@ import {
   type OnChainActionResponse,
   type OnChainApiState,
   type OnChainMode,
+  type OnChainSettlementResult,
   type ParsedOnChainMarket,
   type ParsedOnChainMarketConfig,
   type ParsedOnChainOrder,
@@ -47,6 +48,9 @@ const TOLERANCE_2C = 20_000;
 // On-chain sandbox stake in lamports (0.02 SOL). Kept small because filled orders now
 // finalize into the ProtocolVault; the receipt's display stake ($500) is separate.
 const STAKE_LAMPORTS = 20_000_000;
+// Both sides stake 0.02 SOL in the settlement demo, so the winning side collects the whole
+// 0.04 SOL pool (its 0.02 stake back + 0.02 in winnings) — a clean 2x parimutuel payout.
+const SETTLEMENT_STAKE_LAMPORTS = 20_000_000;
 const CANONICAL_LINEGUARD_PROGRAM_ID = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe";
 const CANONICAL_OPERATOR_PUBLIC_KEY = "ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq";
 
@@ -693,12 +697,17 @@ export async function evaluateOnChainOrder(side: OnChainSide) {
   }
 }
 
-/** Program-data length at/above which the deployed program includes the MarketConfig (v2) schema. */
-const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 238_717;
+/**
+ * Program-data account length at/above which the deployed program includes the settlement-v3
+ * schema (MarketConfig + parimutuel resolution/payout). The v3 program-data account is 270,717
+ * bytes; the prior market-config-v2 account was 238,717. 264,893 = 45-byte metadata header +
+ * the 264,848-byte settlement program, so it cleanly separates v3 from every earlier deploy.
+ */
+const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 264_893;
 const SCHEMA_MISMATCH_REASON =
-  "The deployed program schema does not match MarketConfig v2. Canonical verified proof remains available.";
+  "The deployed program schema does not match the current settlement schema. Canonical verified proof remains available.";
 
-/** True only when the currently deployed program supports initialize_market_config / config-bound evaluation. */
+/** True only when the currently deployed program supports config-bound evaluation and settlement. */
 async function schemaSupportsMarketConfig(connection: Connection, programId: PublicKey): Promise<boolean> {
   try {
     const programAccount = await connection.getAccountInfo(programId, "confirmed");
@@ -841,6 +850,140 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
   return response;
 }
 
+/**
+ * One-call, complete on-chain market lifecycle: initialize an in-sync market, fill YES and NO
+ * into their parimutuel pools, commit the resolved outcome from the genuine final result, then
+ * pay the winning side out of the ProtocolVault. This closes the settlement loop end-to-end.
+ */
+export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
+  const cfg = getLineGuardServerConfig();
+  const programId = cfg.programId.toBase58();
+  const base: OnChainSettlementResult = { ok: false, configured: cfg.configured, cluster: cfg.cluster, programId, signatures: [], explorerUrls: [] };
+  if (!cfg.configured || !cfg.cluster || !cfg.rpcUrl || !cfg.payer) {
+    return { ...base, reason: cfg.reason ?? "Devnet operator not configured." };
+  }
+  if (cfg.programId.toBase58() !== CANONICAL_LINEGUARD_PROGRAM_ID) return { ...base, reason: "Safety stop: configured LineGuard program differs from the approved program." };
+  if (cfg.payer.publicKey.toBase58() !== CANONICAL_OPERATOR_PUBLIC_KEY) return { ...base, reason: "Safety stop: configured fee payer differs from the approved operator." };
+
+  const connection = new Connection(cfg.rpcUrl, "confirmed");
+  if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
+    return { ...base, reason: SCHEMA_MISMATCH_REASON };
+  }
+
+  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  const marketKey = `settlement-${suffix}`;
+  const seed = marketIdSeed(marketKey);
+  const marketPda = deriveMarketPda(programId, seed);
+  const marketConfigPda = deriveMarketConfigPda(programId, marketPda);
+  const signatures: string[] = [];
+
+  try {
+    // 1. Initialize an in-sync market (displayed == fair, materialSeq == pricedAtSeq) so both
+    //    YES and NO evaluate to ALLOWED → Filled and accumulate into their settlement pools.
+    const commitment = buildMarketConfigCommitment({
+      marketType: "MATCH_WINNER",
+      fixtureId: canonicalCapture.fixtureId,
+      marketTitle: "France beat Morocco — settlement",
+      materialityRules: { goals: true, redCards: true, penalties: true, oddsUpdates: true },
+      backedTeam: "France",
+      toleranceMicros: TOLERANCE_2C,
+    });
+    signatures.push(await sendInstruction(connection, cfg, new TransactionInstruction({
+      programId: cfg.programId,
+      keys: [
+        { pubkey: cfg.payer.publicKey, isSigner: true, isWritable: true },
+        { pubkey: marketPda, isSigner: false, isWritable: true },
+        { pubkey: marketConfigPda, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: ixData("initialize_market_config", [
+        Buffer.from(seed), u64(CANONICAL_EVENT_SEQ), u64(CANONICAL_EVENT_SEQ),
+        u64(CANONICAL_FAIR_PRICE), u64(CANONICAL_FAIR_PRICE), u64(TOLERANCE_2C),
+        ...configIxParts(commitment),
+      ]),
+    })));
+
+    const vaultPda = await ensureVault(connection, cfg);
+    const vaultBalanceBeforeLamports = await fetchVaultBalance(connection, vaultPda);
+
+    // 2. YES fills into yes_pool.
+    const yesOrderId = customOrderId(marketKey, "YES");
+    const yesOrderPda = deriveOrderPda(programId, marketPda, yesOrderId);
+    signatures.push(await sendInstruction(connection, cfg, placeOrderInstruction(cfg, marketPda, yesOrderPda, yesOrderId, "YES", SETTLEMENT_STAKE_LAMPORTS)));
+    signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, marketConfigPda, yesOrderPda, vaultPda)));
+
+    // 3. NO fills into no_pool.
+    const noOrderId = customOrderId(marketKey, "NO");
+    const noOrderPda = deriveOrderPda(programId, marketPda, noOrderId);
+    signatures.push(await sendInstruction(connection, cfg, placeOrderInstruction(cfg, marketPda, noOrderPda, noOrderId, "NO", SETTLEMENT_STAKE_LAMPORTS)));
+    signatures.push(await sendInstruction(connection, cfg, evaluateInstruction(cfg, marketPda, marketConfigPda, noOrderPda, vaultPda)));
+
+    // 4. Commit the resolved outcome (YES = France won) with a genuine normalized final-result hash.
+    const resolutionHash = Buffer.from(hashNormalizedEvent({
+      source: "txline",
+      fixtureId: canonicalCapture.fixtureId,
+      seq: CANONICAL_EVENT_SEQ + 1,
+      ts: 0,
+      eventType: "FULL_TIME_RESULT",
+      proofStatus: "onchain_verified",
+    }), "hex");
+    signatures.push(await sendInstruction(connection, cfg, resolveInstruction(cfg, marketPda, 1, resolutionHash)));
+
+    // 5. Settle the winning YES order — parimutuel payout from the vault to the trader.
+    signatures.push(await sendInstruction(connection, cfg, settleInstruction(cfg, marketPda, yesOrderPda, cfg.payer.publicKey, vaultPda)));
+
+    const [finalMarket, yesOrder, noOrder, vaultBalanceAfterLamports] = await Promise.all([
+      fetchMarket(connection, marketPda, cfg.programId),
+      fetchOrder(connection, yesOrderPda, cfg.programId),
+      fetchOrder(connection, noOrderPda, cfg.programId),
+      fetchVaultBalance(connection, vaultPda),
+    ]);
+    const explorerUrls = compact(signatures.map((s) => explorerUrl(cfg.cluster!, s)));
+    const yesPool = finalMarket?.yesPoolLamports ?? 0;
+    const noPool = finalMarket?.noPoolLamports ?? 0;
+    const totalPool = yesPool + noPool;
+    const winnerStake = yesOrder?.stakeLamports ?? SETTLEMENT_STAKE_LAMPORTS;
+    const winnerPayout = yesPool > 0 ? Math.floor((winnerStake * totalPool) / yesPool) : 0;
+
+    return {
+      ...base,
+      ok: true,
+      marketPda: marketPda.toBase58(),
+      marketConfigPda: marketConfigPda.toBase58(),
+      vaultPda: vaultPda.toBase58(),
+      signatures,
+      explorerUrls,
+      proof: {
+        cluster: cfg.cluster,
+        programId,
+        marketPda: marketPda.toBase58(),
+        marketConfigPda: marketConfigPda.toBase58(),
+        vaultPda: vaultPda.toBase58(),
+        resolution: finalMarket?.resolution === "NO_WON" ? "NO_WON" : "YES_WON",
+        resolutionEventHash: finalMarket?.resolutionEventHashHex ?? resolutionHash.toString("hex"),
+        yesPoolLamports: yesPool,
+        noPoolLamports: noPool,
+        totalPoolLamports: totalPool,
+        winningPoolLamports: yesPool,
+        yesOrderPda: yesOrderPda.toBase58(),
+        noOrderPda: noOrderPda.toBase58(),
+        winnerOrderPda: yesOrderPda.toBase58(),
+        winnerSide: "YES",
+        winnerStakeLamports: winnerStake,
+        winnerPayoutLamports: winnerPayout,
+        winnerOrderStatus: yesOrder?.status ?? "Unknown",
+        loserOrderStatus: noOrder?.status ?? "Unknown",
+        vaultBalanceBeforeLamports,
+        vaultBalanceAfterLamports,
+        txSignatures: signatures,
+        explorerUrls,
+      },
+    };
+  } catch (err) {
+    return { ...base, signatures, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function sendAndReturnState(
   side: OnChainSide,
   build: (cfg: ServerConfig, pdas: ReturnType<typeof deriveDefaultPdas>) => TransactionInstruction
@@ -944,7 +1087,7 @@ function assertCanonicalInstruction(
           }
         : {
             keys: [
-              [pdas.marketPda, false, false], [pdas.marketConfigPda, false, false], [pdas.orderEscrowPda, false, true], [cfg.payer.publicKey, false, true], [vaultPda!, false, true],
+              [pdas.marketPda, false, true], [pdas.marketConfigPda, false, false], [pdas.orderEscrowPda, false, true], [cfg.payer.publicKey, false, true], [vaultPda!, false, true],
             ] as const,
             data: ixData("evaluate_order", []),
           };
@@ -986,7 +1129,18 @@ async function fetchMarket(connection: Connection, address: PublicKey, programId
     bump: data[113] ?? 0,
     // source_event_hash is additive at offset 114; older canonical markets predate it → zeros.
     sourceEventHashHex: data.length >= 146 ? data.subarray(114, 146).toString("hex") : "00".repeat(32),
+    // Settlement fields are additive at offset 146 (settlement-v3 schema); older markets → defaults.
+    yesPoolLamports: data.length >= 154 ? Number(readU64(data, 146)) : 0,
+    noPoolLamports: data.length >= 162 ? Number(readU64(data, 154)) : 0,
+    resolutionCode: data.length >= 163 ? data[162] ?? 0 : 0,
+    resolution: marketResolution(data.length >= 163 ? data[162] ?? 0 : 0),
+    resolved: data.length >= 196 ? (data[195] ?? 0) === 1 : false,
+    resolutionEventHashHex: data.length >= 195 ? data.subarray(163, 195).toString("hex") : "00".repeat(32),
   };
+}
+
+function marketResolution(code: number): ParsedOnChainMarket["resolution"] {
+  return code === 0 ? "UNRESOLVED" : code === 1 ? "YES_WON" : code === 2 ? "NO_WON" : "UNKNOWN";
 }
 
 async function fetchMarketConfig(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainMarketConfig | null> {
@@ -1100,18 +1254,59 @@ async function fetchVaultBalance(connection: Connection, vaultPda: PublicKey): P
   }
 }
 
-/** evaluate_order accounts are [market, config, order, trader, vault]. */
+/** evaluate_order accounts are [market(writable), config, order, trader, vault]. market is
+ *  writable because a filled order accumulates its stake into the market's settlement pool. */
 function evaluateInstruction(cfg: ServerConfig, marketPda: PublicKey, marketConfigPda: PublicKey, orderPda: PublicKey, vaultPda: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: cfg.programId,
     keys: [
-      { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: true },
       { pubkey: marketConfigPda, isSigner: false, isWritable: false },
       { pubkey: orderPda, isSigner: false, isWritable: true },
       { pubkey: cfg.payer!.publicKey, isSigner: false, isWritable: true },
       { pubkey: vaultPda, isSigner: false, isWritable: true },
     ],
     data: ixData("evaluate_order", []),
+  });
+}
+
+/** place_order accounts are [trader(signer), market, order, system]. */
+function placeOrderInstruction(cfg: ServerConfig, marketPda: PublicKey, orderPda: PublicKey, orderId: Uint8Array, side: OnChainSide, stakeLamports: number): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: true },
+      { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: orderPda, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: ixData("place_order", [Buffer.from(orderId), Buffer.from([sideCode(side)]), u64(stakeLamports)]),
+  });
+}
+
+/** resolve_market accounts are [authority(signer), market(writable)]. outcome: 1 = YES won, 2 = NO won. */
+function resolveInstruction(cfg: ServerConfig, marketPda: PublicKey, outcome: number, resolutionEventHash: Buffer): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+    ],
+    data: ixData("resolve_market", [Buffer.from([outcome & 0xff]), resolutionEventHash]),
+  });
+}
+
+/** settle_order accounts are [market, order(writable), trader(writable), vault(writable)]. */
+function settleInstruction(cfg: ServerConfig, marketPda: PublicKey, orderPda: PublicKey, trader: PublicKey, vaultPda: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: orderPda, isSigner: false, isWritable: true },
+      { pubkey: trader, isSigner: false, isWritable: true },
+      { pubkey: vaultPda, isSigner: false, isWritable: true },
+    ],
+    data: ixData("settle_order", []),
   });
 }
 
@@ -1160,7 +1355,9 @@ function orderStatus(code: number): ParsedOnChainOrder["status"] {
           ? "Filled"
           : code === 4
             ? "VoidedRefunded"
-            : "Unknown";
+            : code === 5
+              ? "Settled"
+              : "Unknown";
 }
 
 function guardVerdict(code: number): ParsedOnChainOrder["verdict"] {

@@ -6,13 +6,13 @@ FairX
 
 ## 2. One-line description
 
-FairX protects live prediction markets from stale-price exploitation.
+FairX is a complete on-chain prediction market that protects live settlement from stale-price exploitation.
 
 ## 3. Full description
 
-FairX is a Solana devnet prototype for fair execution in live prediction markets. When a material sports event reaches TxLINE before a market reprices, LineGuard evaluates every escrowed order independently. Orders that benefit from the stale quote are refunded, while trades that gain no advantage from the lag are allowed to settle.
+FairX is a Solana devnet prototype that runs the **whole prediction-market settlement loop on-chain**: fill → protect → resolve → pay. Orders escrow into per-market parimutuel pools; when a material sports event reaches TxLINE before a market reprices, LineGuard evaluates every escrowed order independently and refunds only the side exploiting the stale quote; the authority then commits the resolved outcome from the genuine final result, and the winning side is paid its parimutuel share from the ProtocolVault while losers forfeit.
 
-The canonical demo uses genuine France vs Morocco TxLINE fixture, score, and consensus-odds data. FairX preserves and hashes the raw score record, normalizes it deterministically, validates the TxLINE score proof, commits the normalized evidence and market configuration to Solana, escrows two opposite orders, and demonstrates selective refund versus ProtocolVault finalization.
+The canonical demo uses genuine France vs Morocco TxLINE fixture, score, and consensus-odds data. FairX preserves and hashes the raw score record, normalizes it deterministically, validates the TxLINE score proof, commits the normalized evidence and market configuration to Solana, escrows two opposite orders, demonstrates selective refund versus ProtocolVault finalization, and — in a companion run — fills both sides, resolves the outcome, and pays the winner a parimutuel payout on devnet.
 
 ## 4. Problem
 
@@ -23,9 +23,17 @@ Live sports information and market prices do not update atomically. A goal can r
 LineGuard freezes the quote, side, stake, market configuration, and source-event hash inside each OrderEscrow PDA. It compares `materialSeq` with `pricedAtSeq`, calculates the order’s side-specific stale edge, and applies one of two outcomes:
 
 - positive stale edge above tolerance → `VOIDED_REFUNDED` → stake returned to trader
-- no positive stale edge → `STALE_ALLOWED_NO_EDGE` → stake finalized to ProtocolVault
+- no positive stale edge → `STALE_ALLOWED_NO_EDGE` → stake finalized to ProtocolVault and its side pool
 
 This is selective order evaluation, not a market-wide freeze.
+
+**Settlement.** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. The authority commits the resolved outcome with `resolve_market` (bound to a normalized final-result hash), and each winning filled order claims its parimutuel share with `settle_order`:
+
+```
+payout = stake × total_pool ÷ winning_pool     (parimutuel; losers forfeit)
+```
+
+Parimutuel math keeps each market's total payouts equal to its pooled stakes, so the shared ProtocolVault stays solvent.
 
 ## 6. Why TxLINE
 
@@ -60,6 +68,9 @@ TxLINE devnet: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
 - `VOIDED_REFUNDED` trader refund
 - `STALE_ALLOWED_NO_EDGE` ProtocolVault finalization
 - Guard verdict events and settlement-destination state
+- Parimutuel pools (`yes_pool` / `no_pool`) accumulated on fill
+- `resolve_market` resolved-outcome commitment bound to a normalized final-result hash
+- `settle_order` parimutuel payout to the winning side from ProtocolVault, with losing stakes forfeited
 
 ## 11. What is off-chain
 
@@ -75,6 +86,18 @@ FairX fetched the genuine stat-validation payload for fixture `18209181`, sequen
 
 TxLINE validation is performed separately before LineGuard ingestion. Direct TxLINE CPI is not implemented or claimed.
 
+## 12b. Settlement evidence (devnet, verifiable)
+
+A complete resolution + parimutuel payout recorded on devnet — seven finalized transactions. YES and NO each staked `0.02 SOL`; the market resolved `YES_WON`; the winner collected the full `0.04 SOL` pool (2×); the losing order forfeited; the vault netted zero (parimutuel pass-through).
+
+- Program upgrade (settlement-v3): `RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh` (slot `475735558`)
+- Settlement market PDA: `8fXSf5ZE9vd5rSUySoVhK3nwoS3oNYQSKLBWesXrFBN2`
+- Resolve outcome tx (`YES_WON`): `2NcQ6JsCNbGwj8oFw7PhNYFapgADPWBYdGbo6WaxJYUq1PHGzE95qvbYKABhmeNwsJQ7bvToGhuwhyjJZ6Rb5e4Z`
+- Parimutuel payout tx: `44VBmw5w8iuNAprTFpp6WeRHE9UF8FiDDUqVae5xhk8U3oBgsWVZkMgXKnF7FpUgpsjSCRU6AvANESJqMYf5J9RP`
+- ProtocolVault: `HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE`
+
+All seven signatures render with explorer links on `/proof#settlement`. Re-run the full lifecycle in one call: `POST /api/solana/lineguard/full-settlement-demo`. Local proof: `NO_DNA=1 anchor test` includes the parimutuel settlement path (winner paid, loser rejected, double-settle rejected, unauthorized resolve rejected).
+
 ## 13. Business and use-case potential
 
 Any live prediction market, sportsbook-style exchange, fantasy contest, or event-driven trading venue can lose trust when fast actors exploit repricing latency. LineGuard can be integrated as a settlement-policy layer without requiring that product to replace its discovery, pricing, or matching system. Potential models include per-market protection fees, protocol integration fees, or enterprise settlement infrastructure.
@@ -84,8 +107,8 @@ Any live prediction market, sportsbook-style exchange, fantasy contest, or event
 - Solana devnet only; no mainnet deployment or real-money operation
 - Canonical source is genuine historical TxLINE evidence, not a currently active match
 - Direct TxLINE CPI is not implemented
-- Authority-controlled LineGuard ingestion is not a decentralized oracle network
-- No complete AMM, order book, or counterparty matching engine
+- Authority-controlled LineGuard ingestion and resolution is not a decentralized oracle network
+- Settlement is parimutuel (pool-based); there is no continuous AMM or limit-order-book matching engine
 - No independent production security audit
 
 ## 15. TxLINE feedback

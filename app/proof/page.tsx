@@ -5,6 +5,7 @@ import { FairXShell } from "@/components/fairx/FairXShell";
 import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 import { FreshDevnetPanel } from "@/components/fairx-proof/FreshDevnetPanel";
 import { CanonicalReferenceGrid, ProofAuditGrid, ProtocolVaultStatus } from "@/components/fairx-proof/ProofAuditGrid";
+import { SettlementProofPanel } from "@/components/fairx-proof/SettlementProofPanel";
 
 export const metadata: Metadata = {
   title: "On-chain Proof",
@@ -23,6 +24,7 @@ export default function ProofPage() {
         <RuntimeStatusStrip detailed />
         <section className="mt-4"><CanonicalReferenceGrid /></section>
         <section className="mt-4"><ProofAuditGrid /></section>
+        <section id="settlement" className="mt-4 scroll-mt-4"><SettlementProofPanel /></section>
         <section className="mt-4"><ProtocolVaultStatus /></section>
         <section id="fresh-proof" className="mt-4 scroll-mt-4"><FreshDevnetPanel /></section>
       </div>

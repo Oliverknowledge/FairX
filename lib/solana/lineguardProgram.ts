@@ -1,4 +1,4 @@
-import type { OnChainProof } from "@/lib/receipts/types";
+import type { OnChainProof, OnChainSettlementProof } from "@/lib/receipts/types";
 import { LOCAL_LINEGUARD_PROGRAM_ID, type OnChainSide } from "@/lib/solana/pdas";
 
 export type OnChainMode = "devnet" | "localnet" | "not_configured";
@@ -17,6 +17,14 @@ export interface ParsedOnChainMarket {
   bump: number;
   /** sha256 (hex) of the normalized source event bound on-chain (zeros if never ingested). */
   sourceEventHashHex: string;
+  /** Parimutuel settlement pools: filled YES/NO stakes accumulated on-chain (lamports). */
+  yesPoolLamports: number;
+  noPoolLamports: number;
+  resolutionCode: number;
+  resolution: "UNRESOLVED" | "YES_WON" | "NO_WON" | "UNKNOWN";
+  resolved: boolean;
+  /** sha256 (hex) of the normalized final-result event committed at resolution (zeros if unresolved). */
+  resolutionEventHashHex: string;
 }
 
 export interface ParsedOnChainMarketConfig {
@@ -43,7 +51,7 @@ export interface ParsedOnChainOrder {
   fairSidePriceMicros: number;
   edgeMicros: number;
   statusCode: number;
-  status: "Submitted" | "Escrowed" | "Evaluated" | "Filled" | "VoidedRefunded" | "Unknown";
+  status: "Submitted" | "Escrowed" | "Evaluated" | "Filled" | "VoidedRefunded" | "Settled" | "Unknown";
   verdictCode: number;
   verdict: "ALLOWED" | "STALE_ALLOWED_NO_EDGE" | "VOIDED_REFUNDED" | "UNKNOWN";
   bump: number;
@@ -82,6 +90,20 @@ export interface OnChainActionResponse extends OnChainApiState {
   proof?: OnChainProof;
   alreadyInitialized?: boolean;
   demo?: OnChainDemoSummary;
+}
+
+export interface OnChainSettlementResult {
+  ok: boolean;
+  configured: boolean;
+  cluster?: "devnet" | "localnet";
+  programId: string;
+  marketPda?: string;
+  marketConfigPda?: string;
+  vaultPda?: string;
+  signatures: string[];
+  explorerUrls: string[];
+  proof?: OnChainSettlementProof;
+  reason?: string;
 }
 
 export interface OnChainDemoSummary {

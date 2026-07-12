@@ -1,4 +1,5 @@
 import canonicalProofJson from "@/fixtures/lineguard/canonical-proof.json";
+import settlementProofJson from "@/fixtures/lineguard/settlement-proof.json";
 import type { LineGuardReceipt, OnChainProof } from "@/lib/receipts/types";
 
 const CLUSTER = "devnet";
@@ -50,6 +51,34 @@ interface CanonicalProofRecord {
   vaultDeltaLamports: number;
   flows: { yes: CanonicalFlow; no: CanonicalFlow };
 }
+
+interface SettlementProofRecord {
+  programId: string;
+  operator: string;
+  recordedAt: string;
+  resolution: "YES_WON" | "NO_WON";
+  resolutionEventHash: string;
+  marketPda: string;
+  marketConfigPda: string;
+  vaultPda: string;
+  yesOrderPda: string;
+  noOrderPda: string;
+  winnerOrderPda: string;
+  winnerSide: "YES" | "NO";
+  winnerStakeLamports: number;
+  winnerPayoutLamports: number;
+  yesPoolLamports: number;
+  noPoolLamports: number;
+  totalPoolLamports: number;
+  winningPoolLamports: number;
+  winnerOrderStatus: string;
+  loserOrderStatus: string;
+  vaultBalanceBeforeLamports: number;
+  vaultBalanceAfterLamports: number;
+  transactions: Array<ProofTx & { finalized: true; error: null }>;
+}
+
+const settlement = settlementProofJson as unknown as SettlementProofRecord;
 
 const canonical = canonicalProofJson as unknown as CanonicalProofRecord;
 const yesProof = canonical.flows.yes.proof;
@@ -165,15 +194,15 @@ export const proofData = {
     id: canonical.programId,
     deployer: canonical.operator,
     programData: "D6buB3VxXnxX3jXjPX5HCqRAMJqtV4yLzaKuMra17nPT",
-    schemaLabel: "market-config-v2",
-    deploymentTx: "525wYLRJL12h7wg6sb7wYFumZB5kUmp7GiPPw8Voc2gDZWmuVFyNHacxJ89C6LyFcxDM1fA9EfSN9RBRcMZQS9mP",
-    deployedSlot: 475298151,
-    deployedAt: "2026-07-10T13:31:28.000Z",
-    programDataLength: 238_672,
-    previousUpgradeTx: "3z7S9vVxh1CDWw3b3qYap1m7CSxXuciMdDSXujzxLEudP1YP6YyTx4NhKNrH2xfTYUJngENE3y5tR5sKFg92fw49",
+    schemaLabel: "settlement-v3",
+    deploymentTx: "RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh",
+    deployedSlot: 475735558,
+    deployedAt: "2026-07-12T11:29:57.000Z",
+    programDataLength: 270_672,
+    previousUpgradeTx: "525wYLRJL12h7wg6sb7wYFumZB5kUmp7GiPPw8Voc2gDZWmuVFyNHacxJ89C6LyFcxDM1fA9EfSN9RBRcMZQS9mP",
     initialDeploymentTx: "2WWNS16VPEhVPRpVdvURuCh6gvXz6KzMe5QL449fXcrg87dvs1zndc7LAUvXRZSMATMTqPVb1Bqf1XxtAEapZbks",
     explorerUrl: addressUrl(canonical.programId),
-    deploymentTxUrl: txUrl("525wYLRJL12h7wg6sb7wYFumZB5kUmp7GiPPw8Voc2gDZWmuVFyNHacxJ89C6LyFcxDM1fA9EfSN9RBRcMZQS9mP"),
+    deploymentTxUrl: txUrl("RjdKrMf4s1pdeXJkbjp2rpkMmUDGUBnbYxQjfsEkFeGZfwqtULQ8RSEQTJyUiogxGUgb3pgcd5UGZV7UAsLwBgh"),
   },
   vault: {
     pda: canonical.protocolVaultPda,
@@ -187,6 +216,33 @@ export const proofData = {
     lastFinalizationUrl: noTxs.at(-1)!.explorerUrl,
   },
   cases,
+  settlement: {
+    title: "Complete on-chain settlement — resolution + parimutuel payout",
+    claim: "Both sides filled into their pools, the resolved outcome was committed from the genuine final result, and the winning side was paid its parimutuel share from the ProtocolVault — losers forfeit.",
+    resolution: settlement.resolution,
+    resolutionEventHash: settlement.resolutionEventHash,
+    marketPda: settlement.marketPda,
+    marketConfigPda: settlement.marketConfigPda,
+    vaultPda: settlement.vaultPda,
+    vaultExplorerUrl: addressUrl(settlement.vaultPda),
+    winnerSide: settlement.winnerSide,
+    winnerOrderPda: settlement.winnerOrderPda,
+    winnerOrderExplorerUrl: addressUrl(settlement.winnerOrderPda),
+    loserOrderPda: settlement.winnerSide === "YES" ? settlement.noOrderPda : settlement.yesOrderPda,
+    winnerStakeLamports: settlement.winnerStakeLamports,
+    winnerPayoutLamports: settlement.winnerPayoutLamports,
+    yesPoolLamports: settlement.yesPoolLamports,
+    noPoolLamports: settlement.noPoolLamports,
+    totalPoolLamports: settlement.totalPoolLamports,
+    winningPoolLamports: settlement.winningPoolLamports,
+    winnerOrderStatus: settlement.winnerOrderStatus,
+    loserOrderStatus: settlement.loserOrderStatus,
+    payoutMultiple: settlement.winnerStakeLamports > 0 ? settlement.winnerPayoutLamports / settlement.winnerStakeLamports : 0,
+    recordedAt: settlement.recordedAt,
+    resolveTx: settlement.transactions[5],
+    settleTx: settlement.transactions[6],
+    txs: settlement.transactions,
+  },
   custom: {
     title: "Custom guided market settled on devnet",
     marketPda: customProof.marketPda,

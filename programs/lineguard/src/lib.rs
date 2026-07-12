@@ -4,9 +4,11 @@ use anchor_lang::system_program::{transfer, Transfer};
 declare_id!("6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe");
 
 const MICROS_ONE: u64 = 1_000_000;
-// MarketState grew by 32 bytes (source_event_hash) at the end. Additive: existing
-// accounts keep their layout; only newly-initialized markets allocate the larger size.
-const MARKET_SPACE: usize = 8 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 32;
+// MarketState grew by 32 bytes (source_event_hash), then by 50 bytes for the settlement
+// fields (yes_pool, no_pool, resolution, resolution_event_hash, resolved) at the end.
+// Additive: existing accounts keep their layout; only newly-initialized markets allocate
+// the larger size, and the new program only ever loads freshly-initialized markets.
+const MARKET_SPACE: usize = 8 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 32 + 8 + 8 + 1 + 32 + 1;
 const MARKET_CONFIG_SPACE: usize = 8 + 1 + 32 + 32 + 32 + 32 + 32 + 8;
 // The original 140-byte layout is preserved through `bump`. New proof fields
 // are additive so previously-recorded order offsets remain stable.
@@ -51,6 +53,11 @@ pub mod lineguard {
         };
         market.bump = ctx.bumps.market;
         market.source_event_hash = [0u8; 32];
+        market.yes_pool_lamports = 0;
+        market.no_pool_lamports = 0;
+        market.resolution = 0;
+        market.resolution_event_hash = [0u8; 32];
+        market.resolved = false;
         Ok(())
     }
 
@@ -113,6 +120,11 @@ pub mod lineguard {
         };
         market.bump = ctx.bumps.market;
         market.source_event_hash = [0u8; 32];
+        market.yes_pool_lamports = 0;
+        market.no_pool_lamports = 0;
+        market.resolution = 0;
+        market.resolution_event_hash = [0u8; 32];
+        market.resolved = false;
 
         let config = &mut ctx.accounts.market_config;
         config.market_type = market_type;
@@ -325,9 +337,17 @@ pub mod lineguard {
         }
 
         if matches!(destination, SettlementDestination::Vault) {
+            let side_is_yes = ctx.accounts.order.side == OrderSide::Yes;
             let vault = &mut ctx.accounts.vault;
             vault.total_finalized = vault.total_finalized.saturating_add(stake);
             vault.fill_count = vault.fill_count.saturating_add(1);
+            // Accumulate the filled stake into its side's settlement pool.
+            let market = &mut ctx.accounts.market;
+            if side_is_yes {
+                market.yes_pool_lamports = market.yes_pool_lamports.saturating_add(stake);
+            } else {
+                market.no_pool_lamports = market.no_pool_lamports.saturating_add(stake);
+            }
         }
 
         let market_key = ctx.accounts.market.key();
@@ -367,6 +387,90 @@ pub mod lineguard {
             settlement_destination: destination.code(),
         });
 
+        Ok(())
+    }
+
+    /// The market authority commits the resolved outcome (from a genuine TxLINE final
+    /// score) on-chain. Winning filled orders can then claim a parimutuel payout.
+    pub fn resolve_market(
+        ctx: Context<ResolveMarket>,
+        outcome: u8,
+        resolution_event_hash: [u8; 32],
+    ) -> Result<()> {
+        require!(!ctx.accounts.market.resolved, LineGuardError::MarketAlreadyResolved);
+        require!(outcome == 1 || outcome == 2, LineGuardError::InvalidResolution);
+        require!(!is_zero_hash(&resolution_event_hash), LineGuardError::ZeroEventHash);
+
+        let market = &mut ctx.accounts.market;
+        market.resolution = outcome;
+        market.resolution_event_hash = resolution_event_hash;
+        market.resolved = true;
+
+        emit!(MarketResolvedEvent {
+            market: market.key(),
+            market_id: market.market_id,
+            resolution: outcome,
+            yes_pool_lamports: market.yes_pool_lamports,
+            no_pool_lamports: market.no_pool_lamports,
+            resolution_event_hash,
+        });
+        Ok(())
+    }
+
+    /// A filled order on the winning side claims its parimutuel share of the pool
+    /// (stake * total_pool / winning_pool) from the ProtocolVault. Losing filled orders
+    /// forfeit their stake, which remains in the vault.
+    pub fn settle_order(ctx: Context<SettleOrder>) -> Result<()> {
+        require!(ctx.accounts.market.resolved, LineGuardError::MarketNotResolved);
+        require!(
+            ctx.accounts.order.status == OrderStatus::Filled,
+            LineGuardError::OrderNotFilled
+        );
+
+        let winning_side = ctx.accounts.market.resolution; // 1 = Yes, 2 = No
+        let order_side_code = ctx.accounts.order.side.code(); // 0 = Yes, 1 = No
+        let order_won = (winning_side == 1 && order_side_code == 0)
+            || (winning_side == 2 && order_side_code == 1);
+        require!(order_won, LineGuardError::OrderDidNotWin);
+
+        let yes_pool = ctx.accounts.market.yes_pool_lamports as u128;
+        let no_pool = ctx.accounts.market.no_pool_lamports as u128;
+        let total_pool = yes_pool + no_pool;
+        let winning_pool = if winning_side == 1 { yes_pool } else { no_pool };
+        require!(winning_pool > 0, LineGuardError::WinningPoolEmpty);
+
+        let stake = ctx.accounts.order.stake_lamports as u128;
+        let payout = stake
+            .checked_mul(total_pool)
+            .ok_or(LineGuardError::MathOverflow)?
+            / winning_pool;
+        let payout = payout as u64;
+
+        // Move the payout from the shared vault to the trader. Parimutuel math keeps a
+        // market's total winner payouts equal to its pooled stakes, so the vault stays solvent.
+        let vault_info = ctx.accounts.vault.to_account_info();
+        require!(
+            **vault_info.lamports.borrow() >= payout,
+            LineGuardError::InsufficientVault
+        );
+        let trader_info = ctx.accounts.trader.to_account_info();
+        **vault_info.try_borrow_mut_lamports()? -= payout;
+        **trader_info.try_borrow_mut_lamports()? += payout;
+
+        let market_key = ctx.accounts.market.key();
+        let order = &mut ctx.accounts.order;
+        order.status = OrderStatus::Settled;
+
+        emit!(SettleEvent {
+            market: market_key,
+            order: order.key(),
+            trader: order.trader,
+            side: order_side_code,
+            stake_lamports: order.stake_lamports,
+            payout_lamports: payout,
+            winning_pool_lamports: winning_pool as u64,
+            total_pool_lamports: total_pool as u64,
+        });
         Ok(())
     }
 }
@@ -487,6 +591,7 @@ pub struct PlaceOrder<'info> {
 #[derive(Accounts)]
 pub struct EvaluateOrder<'info> {
     #[account(
+        mut,
         seeds = [b"market", market.market_id.as_ref()],
         bump = market.bump
     )]
@@ -497,6 +602,39 @@ pub struct EvaluateOrder<'info> {
         constraint = market_config.authority == market.authority @ LineGuardError::InvalidAuthority
     )]
     pub market_config: Account<'info, MarketConfig>,
+    #[account(
+        mut,
+        has_one = market @ LineGuardError::InvalidMarket,
+        has_one = trader @ LineGuardError::InvalidTrader,
+        seeds = [b"order", market.key().as_ref(), order.order_id.as_ref()],
+        bump = order.bump
+    )]
+    pub order: Account<'info, OrderEscrow>,
+    #[account(mut)]
+    pub trader: SystemAccount<'info>,
+    #[account(mut, seeds = [b"vault"], bump = vault.bump)]
+    pub vault: Account<'info, ProtocolVault>,
+}
+
+#[derive(Accounts)]
+pub struct ResolveMarket<'info> {
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        has_one = authority @ LineGuardError::InvalidAuthority,
+        seeds = [b"market", market.market_id.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, MarketState>,
+}
+
+#[derive(Accounts)]
+pub struct SettleOrder<'info> {
+    #[account(
+        seeds = [b"market", market.market_id.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, MarketState>,
     #[account(
         mut,
         has_one = market @ LineGuardError::InvalidMarket,
@@ -523,6 +661,13 @@ pub struct MarketState {
     pub status: MarketStatus,
     pub bump: u8,
     pub source_event_hash: [u8; 32],
+    // Settlement (parimutuel): filled stakes accumulate per side, then a resolved
+    // outcome pays the winning side out of the shared ProtocolVault.
+    pub yes_pool_lamports: u64,
+    pub no_pool_lamports: u64,
+    pub resolution: u8, // 0 = Unresolved, 1 = YesWon, 2 = NoWon
+    pub resolution_event_hash: [u8; 32],
+    pub resolved: bool,
 }
 
 #[account]
@@ -624,6 +769,7 @@ pub enum OrderStatus {
     Evaluated,
     Filled,
     VoidedRefunded,
+    Settled,
 }
 
 impl OrderStatus {
@@ -634,6 +780,7 @@ impl OrderStatus {
             Self::Evaluated => 2,
             Self::Filled => 3,
             Self::VoidedRefunded => 4,
+            Self::Settled => 5,
         }
     }
 }
@@ -676,6 +823,28 @@ pub struct GuardVerdictEvent {
     pub settlement_destination: u8,
 }
 
+#[event]
+pub struct MarketResolvedEvent {
+    pub market: Pubkey,
+    pub market_id: [u8; 32],
+    pub resolution: u8,
+    pub yes_pool_lamports: u64,
+    pub no_pool_lamports: u64,
+    pub resolution_event_hash: [u8; 32],
+}
+
+#[event]
+pub struct SettleEvent {
+    pub market: Pubkey,
+    pub order: Pubkey,
+    pub trader: Pubkey,
+    pub side: u8,
+    pub stake_lamports: u64,
+    pub payout_lamports: u64,
+    pub winning_pool_lamports: u64,
+    pub total_pool_lamports: u64,
+}
+
 #[error_code]
 pub enum LineGuardError {
     #[msg("Only the configured market authority may update this market")]
@@ -704,4 +873,20 @@ pub enum LineGuardError {
     ZeroEventHash,
     #[msg("An evaluated order must settle to the trader or protocol vault")]
     InvalidSettlementDestination,
+    #[msg("Market has already been resolved")]
+    MarketAlreadyResolved,
+    #[msg("Market must be resolved before orders can be settled")]
+    MarketNotResolved,
+    #[msg("Resolution outcome must be 1 (YES won) or 2 (NO won)")]
+    InvalidResolution,
+    #[msg("Only a filled order can be settled")]
+    OrderNotFilled,
+    #[msg("Order is not on the winning side")]
+    OrderDidNotWin,
+    #[msg("Winning side has no pooled stake to distribute")]
+    WinningPoolEmpty,
+    #[msg("Vault has insufficient lamports for the parimutuel payout")]
+    InsufficientVault,
+    #[msg("Arithmetic overflow while computing the payout")]
+    MathOverflow,
 }

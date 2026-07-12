@@ -134,3 +134,36 @@ export interface OnChainProof {
   /** ProtocolVault PDA that received a finalized (filled) stake. */
   vaultPda?: string;
 }
+
+/**
+ * Evidence for a complete on-chain market resolution + parimutuel payout: both sides fill
+ * into their pools, the authority commits the resolved outcome, and the winning side claims
+ * its parimutuel share (stake * total_pool / winning_pool) from the ProtocolVault.
+ */
+export interface OnChainSettlementProof {
+  cluster: "devnet" | "localnet";
+  programId: string;
+  marketPda: string;
+  marketConfigPda: string;
+  vaultPda: string;
+  resolution: "YES_WON" | "NO_WON";
+  /** sha256 (hex) of the normalized final-result event committed on-chain at resolution. */
+  resolutionEventHash: string;
+  yesPoolLamports: number;
+  noPoolLamports: number;
+  totalPoolLamports: number;
+  winningPoolLamports: number;
+  yesOrderPda: string;
+  noOrderPda: string;
+  winnerOrderPda: string;
+  winnerSide: "YES" | "NO";
+  winnerStakeLamports: number;
+  winnerPayoutLamports: number;
+  /** OrderEscrow status after settlement: winner "Settled", loser still "Filled" (forfeited). */
+  winnerOrderStatus: string;
+  loserOrderStatus: string;
+  vaultBalanceBeforeLamports: number;
+  vaultBalanceAfterLamports: number;
+  txSignatures: string[];
+  explorerUrls: string[];
+}

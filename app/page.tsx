@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, CheckCircle2, CircleDollarSign, FileCheck2, Hash, Radio, ShieldCheck, Target, Vault, Workflow } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, CheckCircle2, CircleDollarSign, Coins, FileCheck2, Gavel, HandCoins, Hash, Radio, ShieldCheck, Target, Vault, Workflow } from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
 import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 import { TxLineProvenance } from "@/components/fairx/TxLineProvenance";
@@ -15,6 +15,8 @@ export const metadata: Metadata = {
 
 const yesCase = proofData.cases.find((proof) => proof.id === "yes")!;
 const noCase = proofData.cases.find((proof) => proof.id === "no")!;
+const settlement = proofData.settlement;
+const payoutMultiple = Math.round(settlement.payoutMultiple);
 const displayed = canonicalCapture.odds.displayedPricingInput.impliedProbability;
 const fair = canonicalCapture.odds.normalizedPricingInput.impliedProbability;
 const edge = fair - displayed;
@@ -49,6 +51,7 @@ export default function HomePage() {
                 "orders escrowed in PDAs",
                 "selective refund / finalize verdicts",
                 "ProtocolVault finalization",
+                "resolution + parimutuel payout",
               ].map((item) => <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-[#d5deeb]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#65d6aa]" />{item}</li>)}
             </ul>
             <div className="mt-6 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-[#9fb0c9]">Devnet and sandbox funds only. No real-money settlement. The UI and TxLINE transport remain off-chain.</div>
@@ -98,6 +101,23 @@ export default function HomePage() {
               ["05", "LineGuard calculates edge", "Fair side price minus observed price is evaluated."],
               ["06", "Refund or finalize", "Exploitative orders refund; safe orders reach ProtocolVault."],
             ].map(([n, title, body]) => <article key={n} className="rounded-xl border border-(--border) bg-[#fafbfc] p-3.5"><span className="mono text-[9px] font-bold text-(--blue)">{n}</span><h3 className="mt-2 text-[11.5px] font-bold text-(--ink)">{title}</h3><p className="mt-1 text-[9.5px] leading-relaxed text-(--ink-3)">{body}</p></article>)}
+          </div>
+        </section>
+
+        <section className="mt-10 rounded-2xl border border-(--green)/25 bg-[#f7fdfa] p-5 sm:p-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="section-label text-(--green)">A complete market, not just a guard</p>
+              <h2 className="mt-2 text-[27px] font-extrabold tracking-[-0.045em] text-(--ink) sm:text-[32px]">Fill → protect → resolve → pay.</h2>
+              <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">FairX closes the whole loop on-chain. Orders fill into parimutuel pools, LineGuard refunds stale-price exploits, the resolved outcome is committed from the genuine final result, and the winning side is paid its share from the ProtocolVault. Losers forfeit.</p>
+            </div>
+            <Link href="/proof#settlement" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-(--green)/30 bg-white px-4 text-[11px] font-bold text-(--green) hover:border-(--green)/50">See the settlement proof <ArrowUpRight className="h-4 w-4" /></Link>
+          </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <LifecycleStep n="01" icon={Coins} title="Both sides fill" body="YES and NO stakes escrow into their on-chain parimutuel pools." />
+            <LifecycleStep n="02" icon={ShieldCheck} title="LineGuard protects" body="Stale positive-edge orders are refunded; safe orders finalize to the vault." />
+            <LifecycleStep n="03" icon={Gavel} title="Outcome resolved" body="The authority commits the genuine final result on-chain, once." />
+            <LifecycleStep n="04" icon={HandCoins} title="Winners paid" body={`Winning side collects its parimutuel share — a ${payoutMultiple}× payout in the recorded devnet run.`} />
           </div>
         </section>
 
@@ -171,4 +191,14 @@ function Evidence({ label, value, href }: { label: string; value: string; href: 
 function CanonicalMetric({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "blue" | "red" }) {
   const color = tone === "red" ? "text-(--red)" : tone === "blue" ? "text-(--blue)" : "text-(--ink)";
   return <div className="rounded-xl border border-(--border) bg-white px-3.5 py-3"><p className="text-[9.5px] font-bold text-(--ink-3)">{label}</p><p className={`num mt-1 text-[20px] font-extrabold ${color}`}>{value}</p></div>;
+}
+
+function LifecycleStep({ n, icon: Icon, title, body }: { n: string; icon: typeof Coins; title: string; body: string }) {
+  return (
+    <article className="rounded-xl border border-(--green)/20 bg-white p-3.5">
+      <div className="flex items-center justify-between"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-(--green-bg) text-(--green)"><Icon className="h-3.5 w-3.5" /></span><span className="mono text-[9px] font-bold text-(--green)">{n}</span></div>
+      <h3 className="mt-2.5 text-[11.5px] font-bold text-(--ink)">{title}</h3>
+      <p className="mt-1 text-[9.5px] leading-relaxed text-(--ink-3)">{body}</p>
+    </article>
+  );
 }

@@ -259,4 +259,113 @@ describe("lineguard on-chain settlement guard", () => {
     expect(enumName(evaluated.verdict)).to.equal("staleAllowedNoEdge");
     expect(enumName(evaluated.status)).to.equal("filled");
   });
+
+  const RESOLUTION_HASH = Array.from(Buffer.alloc(32, 9));
+
+  async function evaluate(market: anchor.web3.PublicKey, marketConfig: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
+    await program.methods.evaluateOrder().accountsPartial({ market, marketConfig, order, trader, vault: pdaVault() }).rpc();
+  }
+
+  async function resolveMarket(market: anchor.web3.PublicKey, outcome: number, hash = RESOLUTION_HASH) {
+    await program.methods.resolveMarket(outcome, hash).accountsPartial({ authority: trader, market }).rpc();
+  }
+
+  async function settleOrder(market: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
+    await program.methods.settleOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
+  }
+
+  it("resolves a market and pays the winning side parimutuel", async () => {
+    // An in-sync market: both YES and NO fill into the vault and their pools.
+    const { market, marketConfig } = await initializeMarket("settle-parimutuel");
+    const { order: yesOrder } = await placeOrder("settle-yes", market, 0);
+    await evaluate(market, marketConfig, yesOrder);
+    const { order: noOrder } = await placeOrder("settle-no", market, 1);
+    await evaluate(market, marketConfig, noOrder);
+
+    const pooled = await program.account.marketState.fetch(market);
+    expect(pooled.yesPoolLamports.toNumber()).to.equal(STAKE_LAMPORTS);
+    expect(pooled.noPoolLamports.toNumber()).to.equal(STAKE_LAMPORTS);
+    expect(pooled.resolved).to.equal(false);
+
+    // Authority commits the resolved outcome (YES won) from the genuine final score.
+    await resolveMarket(market, 1);
+    const resolved = await program.account.marketState.fetch(market);
+    expect(resolved.resolved).to.equal(true);
+    expect(resolved.resolution).to.equal(1);
+    expect(Buffer.from(resolved.resolutionEventHash).equals(Buffer.alloc(32, 9))).to.equal(true);
+
+    // The winning YES order claims the entire pool: 0.5 stake back + 0.5 winnings.
+    const vaultBefore = await provider.connection.getBalance(pdaVault());
+    await settleOrder(market, yesOrder);
+    const vaultAfter = await provider.connection.getBalance(pdaVault());
+    const settled = await program.account.orderEscrow.fetch(yesOrder);
+    expect(enumName(settled.status)).to.equal("settled");
+    expect(vaultBefore - vaultAfter).to.equal(2 * STAKE_LAMPORTS);
+
+    // The losing NO order forfeits; it cannot settle.
+    try {
+      await settleOrder(market, noOrder);
+      expect.fail("losing order should not settle");
+    } catch (error) {
+      expect(String(error)).to.match(/Order is not on the winning side|OrderDidNotWin/);
+    }
+
+    // A winning order cannot double-settle.
+    try {
+      await settleOrder(market, yesOrder);
+      expect.fail("double settle should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Only a filled order can be settled|OrderNotFilled/);
+    }
+  });
+
+  it("rejects unauthorized resolve, settle-before-resolve, and double resolve", async () => {
+    const { market, marketConfig } = await initializeMarket("settle-guards");
+    const { order } = await placeOrder("settle-guards-order", market, 0);
+    await evaluate(market, marketConfig, order);
+
+    // Cannot settle before the market resolves.
+    try {
+      await settleOrder(market, order);
+      expect.fail("settle before resolve should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Market must be resolved|MarketNotResolved/);
+    }
+
+    // Unauthorized signer cannot resolve.
+    const outsider = anchor.web3.Keypair.generate();
+    const airdrop = await provider.connection.requestAirdrop(outsider.publicKey, 10_000_000);
+    await provider.connection.confirmTransaction(airdrop, "confirmed");
+    try {
+      await program.methods.resolveMarket(1, RESOLUTION_HASH).accountsPartial({ authority: outsider.publicKey, market }).signers([outsider]).rpc();
+      expect.fail("unauthorized resolve should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Only the configured market authority|InvalidAuthority|has one|ConstraintHasOne/);
+    }
+
+    // Resolution outcome must be 1 or 2.
+    try {
+      await program.methods.resolveMarket(3, RESOLUTION_HASH).accountsPartial({ authority: trader, market }).rpc();
+      expect.fail("invalid resolution should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Resolution outcome must be|InvalidResolution/);
+    }
+
+    // Resolution hash cannot be zero.
+    try {
+      await program.methods.resolveMarket(1, Array.from(Buffer.alloc(32))).accountsPartial({ authority: trader, market }).rpc();
+      expect.fail("zero resolution hash should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/Source event hash must be nonzero|ZeroEventHash/);
+    }
+
+    // A valid resolution succeeds, then a second resolve is rejected.
+    await resolveMarket(market, 1);
+    try {
+      await resolveMarket(market, 2);
+      expect.fail("double resolve should fail");
+    } catch (error) {
+      expect(String(error)).to.match(/already been resolved|MarketAlreadyResolved/);
+    }
+  });
 });

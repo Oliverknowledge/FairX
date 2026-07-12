@@ -12,11 +12,24 @@ describe("proof page", () => {
       "Source event hash committed", "YES stake escrowed", "YES refunded", "NO stake escrowed",
       "NO finalized to ProtocolVault", "Receipt integrity verified",
     ]) expect(html).toContain(title);
-    expect(html).toContain("market-config-v2 · 475298151");
+    expect(html).toContain("settlement-v3 · 475735558");
     expect(html).toContain(proofData.txline.programId);
     expect(html).toContain(proofData.txline.rootPda);
     expect(html).toContain(proofData.receipt.noReceipt.receiptHash);
     expect((html.match(/<a /g) ?? []).length).toBeGreaterThanOrEqual(18);
+  });
+
+  it("renders the on-chain settlement (resolution + parimutuel payout) evidence", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    expect(html).toContain("parimutuel payout");
+    expect(proofData.settlement.resolution).toBe("YES_WON");
+    expect(proofData.settlement.winnerOrderStatus).toBe("Settled");
+    expect(proofData.settlement.loserOrderStatus).toBe("Filled");
+    // Parimutuel invariant: winner payout = stake * total_pool / winning_pool.
+    const expectedPayout = Math.floor((proofData.settlement.winnerStakeLamports * proofData.settlement.totalPoolLamports) / proofData.settlement.winningPoolLamports);
+    expect(proofData.settlement.winnerPayoutLamports).toBe(expectedPayout);
+    // Every settlement transaction signature is surfaced as evidence.
+    for (const tx of proofData.settlement.txs) expect(html).toContain(tx.signature);
   });
 
   it("publishes stable valid routes for both canonical receipts", () => {
