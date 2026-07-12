@@ -21,7 +21,7 @@ export function ProofPanel({ state }: { state: TerminalState }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Fingerprint className="h-4 w-4 text-(--ink-2)" />
-          <Label>TxLINE proof / on-chain validation</Label>
+          <Label>TxLINE proof validated separately</Label>
         </div>
         <span
           className={cn(

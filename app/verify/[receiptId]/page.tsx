@@ -193,6 +193,7 @@ export default function VerifyPage() {
                     {verification.normalizedEventVerified !== null && <ScopeCheck ok={verification.normalizedEventVerified} label="Normalized event verified" />}
                     {verification.onChainSourceEventHashMatches !== null && <ScopeCheck ok={verification.onChainSourceEventHashMatches} label="On-chain source event hash matches" />}
                     {verification.fixtureCommitmentMatches !== null && <ScopeCheck ok={verification.fixtureCommitmentMatches} label="Fixture commitment matches" />}
+                    {verification.pricingVerified !== null && <ScopeCheck ok={verification.pricingVerified} label="TxLINE odds → fair price → edge recomputed" />}
                     <ScopeCheck ok={idMatchesRoute} label="Receipt ID matches page URL" />
                     <ScopeCheck ok={Boolean(load.receipt.onChain)} label="On-chain proof attached" muted={!load.receipt.onChain} />
                     {load.receipt.onChain && <ScopeCheck ok={verdictMatchesProof} label="Verdict agrees with proof code" />}

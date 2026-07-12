@@ -96,3 +96,16 @@ export async function proxyTxLineJson(path: string): Promise<Response> {
     );
   }
 }
+
+/** Server-only JSON fetch for routes that must validate and transform TxLINE evidence. */
+export async function fetchTxLineJson(path: string): Promise<unknown> {
+  const cfg = getTxLineServerConfig();
+  if (!hasTxLineCredentials(cfg)) throw new Error("TxLINE credentials unavailable");
+  const response = await fetch(txLineUrl(cfg, path), {
+    headers: { ...txLineAuthHeaders(cfg), Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!response.ok) throw new Error(`TxLINE request failed (${response.status})`);
+  return response.json();
+}

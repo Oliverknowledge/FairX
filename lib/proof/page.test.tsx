@@ -5,6 +5,12 @@ import { proofData } from "@/lib/proof/staticProofData";
 import { verifyReceipt } from "@/lib/receipts/verify";
 
 describe("proof page", () => {
+  it("renders the honest settlement limitation and committed YES meaning", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    expect(html).toContain("Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.");
+    expect(html).toContain("France/home team wins");
+    expect(html).toContain("TxLINE proof validated separately");
+  });
   it("renders the ten canonical TxLINE and settlement proof stages", () => {
     const html = renderToStaticMarkup(<ProofPage />);
     for (const title of [
@@ -21,7 +27,7 @@ describe("proof page", () => {
 
   it("renders the unified lifecycle (protection + TxLINE resolution + payout) evidence", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("TxLINE resolution");
+    expect(html).toContain("root-bound resolution");
     const s = proofData.settlement;
     expect(s.resolution).toBe("YES_WON");
     expect(s.winnerOrderStatus).toBe("Settled");
@@ -30,7 +36,7 @@ describe("proof page", () => {
     expect(s.protectionRefunded).toBe(true);
     expect(s.protectionVerdict).toBe("VOIDED_REFUNDED");
     expect(s.txs.length).toBe(13);
-    // The outcome is derived from the proven score, never chosen: home 1 - 0 away => YES.
+    // The committed rule maps the submitted 1-0 score to YES.
     expect(s.derivedOutcome).toBe(s.homeScore > s.awayScore ? 1 : 2);
     expect(s.derivedOutcome).toBe(1);
     // The genuine on-chain TxLINE daily-scores root is bound.

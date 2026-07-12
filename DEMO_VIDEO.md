@@ -37,7 +37,7 @@ Clicks:
 
 Narration:
 
-> This is genuine TxLINE historical evidence, not generated sports data. FairX selected France versus Morocco from the fixture snapshot, preserved score sequence 739, and hashed the raw response before normalization. TxLINE StablePrice moved France from 52.274 percent to 86.505 percent. The score proof passed validateStatV2 against the TxLINE devnet program. Validation happens separately before LineGuard ingestion; direct CPI is not claimed.
+> This is genuine TxLINE historical evidence, not generated sports data. FairX selected France versus Morocco from the fixture snapshot, preserved score sequence 739, and hashed the raw response before normalization. TxLINE StablePrice moved France from 52.274 percent to 86.505 percent. The score proof passed validateStatV2 separately. Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.
 
 ### 1:15–2:00 — YES exploit
 

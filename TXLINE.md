@@ -104,7 +104,9 @@ FairX fetched the genuine stat proof for fixture `18209181`, sequence `739`, and
 - Validation payload hash: `a16b46dbdc5f80a62fa102460b9826386fa130e25db2076303ab4a018bd6f809`
 - Result: `true` through an on-chain view/simulation against the real TxLINE devnet program
 
-The safe validation record is stored in `fixtures/txline/canonical.validation.json`. Direct CPI was not added to LineGuard: validation is a separately verified step and its fixture, sequence, root, method, stat keys, and payload hash are sealed into the receipt. A direct `ingest_verified_txline_event` CPI remains planned only after a dedicated compute/account-safety review.
+The safe validation record is stored in `fixtures/txline/canonical.validation.json`. The deployed legacy/canonical path still treats `validateStatV2` as a separate verified step and receives operator-submitted scores. The deployment-pending v2 path adds direct CPI: LineGuard serializes the official `StatValidationInput`, constructs equality predicates for both committed stat leaves, invokes the fixed TxLINE devnet program, requires its boolean return value to be true, then derives the outcome internally. `NO_DNA=1 anchor test --validator legacy` exercises this against a cloned genuine TxLINE executable and root account.
+
+The canonical `MarketConfig` commits `HOME_TEAM_WINS`, France/home stat key `1`, Morocco/away stat key `2`, and team hashes. The caller cannot supply alternate stat keys to `submit_txline_validation`.
 
 ## Runtime and fallback
 

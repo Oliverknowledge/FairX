@@ -10,11 +10,11 @@ export function SettlementProofPanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="section-label text-(--green)">Unified lifecycle · one market</p>
-          <h2 className="mt-1 text-[18px] font-extrabold tracking-[-0.03em] text-(--ink)">Protection → reprice → fill → TxLINE resolution → payout.</h2>
+          <h2 className="mt-1 text-[18px] font-extrabold tracking-[-0.03em] text-(--ink)">Protection → reprice → fill → root-bound resolution → payout.</h2>
           <p className="mt-1 max-w-2xl text-[10.5px] leading-relaxed text-(--ink-2)">
             One market, {s.txs.length} finalized devnet transactions: LineGuard refunds a stale exploit, the market
-            reprices, valid orders fill both pools, the outcome is <strong>derived from a genuine on-chain-bound TxLINE
-            result</strong> (the operator never chooses it), and the winner is paid parimutuel from the ProtocolVault.
+            reprices, valid orders fill both pools, and the outcome is deterministically derived on-chain from submitted
+            scores bound to a genuine TxLINE root account. The winner is paid parimutuel from the ProtocolVault.
           </p>
         </div>
         <span className="rounded-full border border-(--green)/25 bg-white px-2.5 py-1 text-[9px] font-bold text-(--green)">DEVNET · {s.payoutMultiple.toFixed(0)}× WINNER PAYOUT</span>
@@ -42,8 +42,23 @@ export function SettlementProofPanel() {
 
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <Evidence label="Protection — stale exploit refunded" value={`${s.protectionVerdict} · +${(s.protectionEdgeMicros / 10_000).toFixed(3)}¢ edge`} href={s.protectionTx.explorerUrl} icon={ShieldCheck} />
-        <Evidence label="TxLINE outcome (derived, not chosen)" value={`${s.homeScore}–${s.awayScore} ⇒ ${s.derivedOutcome === 1 ? "YES" : "NO"} · genuine root`} href={s.validationRootExplorerUrl} icon={Gavel} />
+        <Evidence label="Root-bound, operator-submitted scores" value={`${s.homeScore}–${s.awayScore} ⇒ ${s.derivedOutcome === 1 ? "YES" : s.derivedOutcome === 2 ? "NO" : "VOID"} · genuine root`} href={s.validationRootExplorerUrl} icon={Gavel} />
         <Evidence label="Parimutuel payout tx" value={s.settleTx.signature} href={s.settleTx.explorerUrl} icon={HandCoins} />
+      </div>
+
+      <div className="mt-3 rounded-xl border border-(--border) bg-white p-3 text-[10px] leading-relaxed text-(--ink-2)">
+        <p className="font-extrabold text-(--ink)">Settlement-v5 machine-readable semantics · {s.ruleBindingDeployment === "DEPLOYED" ? "committed on-chain" : "upgrade pending"}</p>
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+          <p><span className="font-bold">YES meaning:</span> {s.yesMeaning}</p>
+          <p><span className="font-bold">Market type:</span> {s.marketType}</p>
+          <p><span className="font-bold">Resolution rule:</span> {s.resolutionRule} ({s.resolutionRuleCode})</p>
+          <p><span className="font-bold">Home:</span> {s.homeTeam} · stat key {s.homeStatKey}</p>
+          <p><span className="font-bold">Away:</span> {s.awayTeam} · stat key {s.awayStatKey}</p>
+          <p><span className="font-bold">Submitted score:</span> {s.homeScore}–{s.awayScore}</p>
+          <p><span className="font-bold">TxLINE proof validated separately:</span> {s.validateStatV2Passed ? "validateStatV2 passed" : "not validated"}</p>
+        </div>
+        <p className="mt-2 rounded-md border border-[#f0d39a] bg-(--amber-bg) p-2 font-semibold text-(--amber)">Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.</p>
+        {s.ruleBindingDeployment !== "DEPLOYED" && <p className="mt-2 text-[9.5px] text-(--ink-3)">The 13-transaction devnet record below is settlement-v4 evidence and predates these new config fields. Source tests verify the v5 bindings; the runtime gate remains closed until an approved upgrade.</p>}
       </div>
 
       <div className="mt-3 rounded-xl border border-(--border) bg-white p-3">

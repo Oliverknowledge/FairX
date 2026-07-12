@@ -2,6 +2,9 @@ import canonicalCapture from "@/fixtures/txline/canonical.json";
 import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
 import { createReceipt } from "@/lib/receipts/create";
 import type { LineGuardReceipt, OnChainProof, TxlineProof } from "@/lib/receipts/types";
+import { sha256 } from "js-sha256";
+import { canonicalize } from "@/lib/receipts/create";
+import { TXLINE_PRICING_MODEL_V1 } from "@/lib/txline/pricing";
 import type { OnChainSide } from "@/lib/solana/pdas";
 
 function verdictFromCode(code: number): string {
@@ -85,6 +88,18 @@ export function buildFreshDevnetReceipt(side: OnChainSide, proof: OnChainProof, 
     rawEventHash: canonicalCapture.rawPayloadHash,
     normalizedEventHash: canonicalCapture.normalizedEventHash,
     txlineProof,
+    pricingProof: {
+      source: "txline",
+      mode: "historical",
+      fixtureId: canonicalCapture.fixtureId,
+      homeSelection: "part1",
+      displayedRawPayload: canonicalCapture.odds.previousRawPayload,
+      displayedPayloadHash: canonicalCapture.odds.previousRawPayloadHash,
+      fairRawPayload: canonicalCapture.odds.rawPayload,
+      fairPayloadHash: canonicalCapture.odds.rawPayloadHash,
+      pricingModelVersion: 1,
+      pricingModelHash: sha256(canonicalize(TXLINE_PRICING_MODEL_V1)),
+    },
     settlementDestination: proof.settlementDestination ?? (verdict === "VOIDED_REFUNDED" ? "REFUNDED_TO_TRADER" : "FINALIZED_TO_VAULT"),
     proofStatus: canonicalValidation.simulationPassed ? "txline_validateStatV2_passed+lineguard_onchain" : "lineguard_onchain",
     createdAt,

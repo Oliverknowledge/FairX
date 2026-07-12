@@ -57,11 +57,15 @@ interface SettlementProofRecord {
   operator: string;
   recordedAt: string;
   fixtureId: number;
+  fixtureIdHash: string;
   sequence: number;
   resolution: "YES_WON" | "NO_WON";
   resolutionEventHash: string;
   marketPda: string;
+  receiptMarketPda: string;
   marketConfigPda: string;
+  marketType: "MATCH_WINNER_HOME";
+  ruleBindingDeployment: "UPGRADE_PENDING" | "DEPLOYED";
   vaultPda: string;
   yesOrderPda: string;
   noOrderPda: string;
@@ -77,7 +81,7 @@ interface SettlementProofRecord {
   loserOrderStatus: string;
   vaultBalanceBeforeLamports: number;
   vaultBalanceAfterLamports: number;
-  // Unified lifecycle: protection leg + TxLINE resolution binding + per-market accounting.
+  // Unified lifecycle: protection + root-bound score receipt + per-market accounting.
   protectionOrderPda: string;
   protectionVerdict: string;
   protectionRefunded: boolean;
@@ -88,6 +92,17 @@ interface SettlementProofRecord {
   homeScore: number;
   awayScore: number;
   derivedOutcome: number;
+  resolutionRule: "HOME_TEAM_WINS";
+  resolutionRuleCode: number;
+  yesMeaning: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamHash: string;
+  awayTeamHash: string;
+  homeStatKey: number;
+  awayStatKey: number;
+  validateStatV2Passed: boolean;
+  inProgramMerkleVerification: boolean;
   marketTotalInLamports: number;
   marketTotalPaidLamports: number;
   marketTotalRefundedLamports: number;
@@ -113,7 +128,7 @@ function addressUrl(address: string): string {
 }
 
 // A separate historical custom-market proof remains available in the operator catalogue;
-// it is not presented as TxLINE-backed canonical evidence.
+// it is not presented as canonical TxLINE evidence.
 const customProof: OnChainProof = {
   cluster: "devnet",
   programId: canonical.programId,
@@ -233,12 +248,16 @@ export const proofData = {
   },
   cases,
   settlement: {
-    title: "Unified lifecycle — LineGuard protection, then TxLINE-backed settlement",
-    claim: "On one market: a stale exploit is refunded, the market reprices, valid orders fill both pools, the outcome is derived from a genuine on-chain-bound TxLINE result, and the winner is paid parimutuel from the ProtocolVault — the operator never chooses the outcome.",
+    title: "Unified lifecycle — LineGuard protection, then root-bound settlement",
+    claim: "This recorded settlement-v4 market proves protection, pools, root-bound submitted scores, payout, and accounting. Settlement-v5 adds machine-readable rule/team/stat-key binding and confirmation; that devnet upgrade remains pending.",
     resolution: settlement.resolution,
     resolutionEventHash: settlement.resolutionEventHash,
     fixtureId: settlement.fixtureId,
+    fixtureIdHash: settlement.fixtureIdHash,
     sequence: settlement.sequence,
+    receiptMarketPda: settlement.receiptMarketPda,
+    marketType: settlement.marketType,
+    ruleBindingDeployment: settlement.ruleBindingDeployment,
     marketPda: settlement.marketPda,
     marketConfigPda: settlement.marketConfigPda,
     vaultPda: settlement.vaultPda,
@@ -263,10 +282,21 @@ export const proofData = {
     protectionVerdict: settlement.protectionVerdict,
     protectionRefunded: settlement.protectionRefunded,
     protectionEdgeMicros: settlement.protectionEdgeMicros,
-    // TxLINE resolution binding.
+    // Root-bound score receipt; TxLINE proof validation is separate.
     validationRootPda: settlement.validationRootPda,
     validationRootExplorerUrl: addressUrl(settlement.validationRootPda),
     validationPayloadHash: settlement.validationPayloadHash,
+    validateStatV2Passed: settlement.validateStatV2Passed,
+    inProgramMerkleVerification: settlement.inProgramMerkleVerification,
+    resolutionRule: settlement.resolutionRule,
+    resolutionRuleCode: settlement.resolutionRuleCode,
+    yesMeaning: settlement.yesMeaning,
+    homeTeam: settlement.homeTeam,
+    awayTeam: settlement.awayTeam,
+    homeTeamHash: settlement.homeTeamHash,
+    awayTeamHash: settlement.awayTeamHash,
+    homeStatKey: settlement.homeStatKey,
+    awayStatKey: settlement.awayStatKey,
     homeScore: settlement.homeScore,
     awayScore: settlement.awayScore,
     derivedOutcome: settlement.derivedOutcome,
@@ -300,7 +330,7 @@ export const proofData = {
     includesTxSignatures: true,
     verifierTxCount: 4,
     tamperTest: "Change any TxLINE field, sealed hash, verdict, fixture, sequence, or endpoint → verification fails",
-    status: "TXLINE + ON-CHAIN INTEGRITY VERIFIED",
+    status: "TXLINE PROOF VALIDATED SEPARATELY · ON-CHAIN RECEIPT INTEGRITY VERIFIED",
     verifierHref: `/verify/${yesReceipt.receiptId}`,
     noVerifierHref: `/verify/${noReceipt.receiptId}`,
     receipt: yesReceipt,

@@ -19,7 +19,7 @@ export interface FairXRuntimeStatus {
     deploymentSignature?: string;
     deploymentTime?: string;
     schemaCurrent: boolean;
-    schemaLabel: "settlement-v4" | "settlement-v3" | "market-config-v2" | "event-hash-v1" | "unknown";
+    schemaLabel: "settlement-v5" | "settlement-v4" | "settlement-v3" | "market-config-v2" | "event-hash-v1" | "unknown";
   };
   operator: {
     configured: boolean;

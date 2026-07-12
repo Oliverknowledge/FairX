@@ -1,5 +1,24 @@
 # Production deployment handoff
 
+## LineGuard v2 upgrade gate
+
+No program upgrade was performed in this sprint. Read-only checks on 12 July 2026 found:
+
+- built program size: `532,232` bytes
+- current ProgramData capacity: `316,672` bytes
+- current raw ProgramData length: `316,717` bytes, including the 45-byte loader header
+- required raw ProgramData length: `532,277` bytes
+- exact required extension: `215,560` bytes (upgrade must stop until capacity is extended deliberately)
+- exact additional rent at the audited devnet rate: `1.5002976 SOL`
+- current reviewed artifact SHA-256: `76c2fd8e386d20e47af77b883175a26c5069b72e9c256413dea3f29ce06f3dd8`
+- rejected vulnerable artifact: `ba42231f41fc2f01c6fcd406adf11fe6132c80d9bc844211b313d34c8c5a7962` must never be deployed; it allowed unauthorized one-time v2 initialization
+- configured wallet / upgrade authority: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq` (match)
+- authority wallet devnet balance: `10.531445351 SOL`
+- local simulation: `NO_DNA=1 anchor test --validator legacy` passes 30 tests, including direct CPI against the cloned genuine TxLINE executable, user-owned Position PDAs, per-market vault isolation, threshold resolution, refund, claim, and double-claim rejection
+- unresolved authority separation: the configured web/operator wallet remains the program upgrade authority during verification; the separately generated future authority must not receive upgrade authority until the post-upgrade verification report is explicitly approved
+
+Before any approved upgrade, re-run these checks, extend capacity safely, rebuild, verify the final binary size, and simulate every canonical instruction using the final artifact. Never send settlement-v5 instructions while `/api/status` reports the deployed `settlement-v4` schema.
+
 The repository is Vercel-ready as a standard Next.js application. No Vercel project metadata or authenticated Vercel CLI was available during the release audit, so production configuration and deployment must be completed by the project owner. Do not treat production as verified until every check below passes.
 
 ## Required production environment variables

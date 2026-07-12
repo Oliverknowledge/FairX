@@ -3,6 +3,9 @@ import { hashMarketText } from "@/lib/markets/marketConfig";
 import { hashNormalizedEvent, hashRawEvent } from "@/lib/proof/eventHash";
 import { captureNormalizedHashInput } from "@/lib/txline/captureFormat";
 import type { LineGuardReceipt, ReceiptVerification } from "@/lib/receipts/types";
+import { deriveMatchWinnerHomePrice, TXLINE_PRICING_MODEL_V1 } from "@/lib/txline/pricing";
+import { sha256 } from "js-sha256";
+import { canonicalize } from "@/lib/receipts/create";
 
 /**
  * Receipt verification = recompute the canonical hash from the fields and
@@ -18,6 +21,7 @@ export function verifyReceipt(receipt: LineGuardReceipt, checkedAt: number): Rec
   let normalizedEventVerified: boolean | null = null;
   let onChainSourceEventHashMatches: boolean | null = null;
   let fixtureCommitmentMatches: boolean | null = null;
+  let pricingVerified: boolean | null = null;
 
   if (receipt.txlineProof) {
     const proof = receipt.txlineProof;
@@ -44,6 +48,32 @@ export function verifyReceipt(receipt: LineGuardReceipt, checkedAt: number): Rec
     if (!fixtureCommitmentMatches) errors.push("fixture commitment mismatch");
     if (proof.validation && !proof.validation.passed) errors.push("TxLINE validation did not pass");
   }
+  if (receipt.pricingProof) {
+    const pricing = receipt.pricingProof;
+    try {
+      const displayed = deriveMatchWinnerHomePrice(pricing.displayedRawPayload, receipt.fixtureId);
+      const fair = deriveMatchWinnerHomePrice(pricing.fairRawPayload, receipt.fixtureId);
+      const expectedModelHash = sha256(canonicalize(TXLINE_PRICING_MODEL_V1));
+      const observedSide = receipt.side === "YES" ? displayed.impliedProbability : 1 - displayed.impliedProbability;
+      const fairSide = receipt.side === "YES" ? fair.impliedProbability : 1 - fair.impliedProbability;
+      const recomputedEdge = Math.round((fairSide - observedSide) * 1_000_000) / 1_000_000;
+      pricingVerified = Boolean(
+        pricing.source === "txline"
+        && pricing.fixtureId === receipt.fixtureId
+        && pricing.homeSelection === "part1"
+        && pricing.pricingModelVersion === 1
+        && pricing.pricingModelHash === expectedModelHash
+        && hashRawEvent(pricing.displayedRawPayload) === pricing.displayedPayloadHash
+        && hashRawEvent(pricing.fairRawPayload) === pricing.fairPayloadHash
+        && displayed.fairPriceMicros === Math.round((receipt.side === "YES" ? receipt.observedPrice : 1 - receipt.observedPrice) * 1_000_000)
+        && fair.fairPriceMicros === Math.round(receipt.fairYes * 1_000_000)
+        && recomputedEdge === Math.round(receipt.edge * 1_000_000) / 1_000_000
+      );
+    } catch {
+      pricingVerified = false;
+    }
+    if (!pricingVerified) errors.push("TxLINE pricing derivation mismatch");
+  }
   if (!receiptSealVerified) errors.push("receipt seal mismatch");
   return {
     valid: errors.length === 0,
@@ -55,6 +85,7 @@ export function verifyReceipt(receipt: LineGuardReceipt, checkedAt: number): Rec
     normalizedEventVerified,
     onChainSourceEventHashMatches,
     fixtureCommitmentMatches,
+    pricingVerified,
     errors,
   };
 }

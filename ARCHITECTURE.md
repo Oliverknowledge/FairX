@@ -11,6 +11,8 @@ source event hash
    ↓
 LineGuard MarketState + MarketConfig
    ↓
+validation draft → authority confirmation
+   ↓
 OrderEscrow
    ↓
 evaluate_order
@@ -32,6 +34,10 @@ receipt / verifier UI
 - ProtocolVault finalization for safe/no-edge orders
 - `GuardVerdict` event evidence
 - MarketConfig hashes and OrderEscrow config/event snapshots
+- `MATCH_WINNER_HOME` resolution rule, home/away team hashes, and stat keys
+- genuine TxLINE root account identity check
+- deterministic score mapping: home win → YES, away win → NO, draw → void
+- replaceable validation draft before confirmation; immutable after confirmation/resolution
 
 ## Off-chain
 
@@ -47,8 +53,8 @@ The UI does not custody devnet order funds. Server-only routes create and sign o
 
 ## Trust model
 
-The current LineGuard ingestion path is authority controlled. `ingest_material_event` authorizes the market authority, requires a non-zero hash, validates price bounds, and advances freshness. TxLINE `validateStatV2` passed separately against the real devnet program and its metadata is sealed into the receipt; direct CPI is not implemented or claimed.
+The deployed legacy ingestion and score-submission paths are authority controlled. `ingest_material_event` authorizes the market authority, requires a non-zero hash, validates price bounds, and advances freshness. Its TxLINE `validateStatV2` proof is checked separately, while scores remain operator-submitted. The deployment-pending v2 resolver instead CPIs into the fixed TxLINE devnet program with the exact committed payload, requires a true return value, derives the outcome internally, and requires threshold approval.
 
 ## Not included
 
-FairX does not implement a full exchange, matching engine, AMM/order book, mainnet/real-money betting, decentralized oracle network, or audited production custody stack.
+FairX does not implement a full exchange, matching engine, AMM/order book, mainnet/real-money betting, decentralized oracle network, or audited production custody stack. The settlement engine currently supports only `MATCH_WINNER_HOME`; totals, next-goal, and custom propositions are not settlement-enabled.

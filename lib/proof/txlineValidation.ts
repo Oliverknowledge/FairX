@@ -28,8 +28,8 @@ export function summarizeProof(event: NormalizedTxLineEvent | null, liveConnecte
     case "onchain_verified":
       return {
         status: "onchain_verified",
-        label: "On-chain verified",
-        detail: "Event validated against an on-chain TxLINE stat proof.",
+        label: "TxLINE proof validated separately",
+        detail: "validateStatV2 passed separately; LineGuard does not re-verify the Merkle proof in-program.",
         tone: "green",
       };
     case "api_verified":

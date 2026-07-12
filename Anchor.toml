@@ -18,10 +18,16 @@ wallet = "~/.config/solana/id.json"
 # Inject the genuine TxLINE daily-scores root account (owned by the TxLINE program) into the
 # local validator so submit_txline_validation's on-chain root binding can be tested end-to-end.
 [test.validator]
+url = "https://api.devnet.solana.com"
 
 [[test.validator.account]]
 address = "EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr"
 filename = "fixtures/txline/daily-scores-root-account.json"
+
+# Clone the genuine executable TxLINE devnet program so v2 direct-CPI resolution
+# is exercised locally against the official validateStatV2 implementation.
+[[test.validator.clone]]
+address = "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"
 
 [scripts]
 test = "npm exec -- ts-mocha -p ./tsconfig.anchor.json -t 1000000 \"tests/**/*.ts\""

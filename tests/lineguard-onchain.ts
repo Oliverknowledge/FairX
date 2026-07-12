@@ -1,6 +1,7 @@
 import * as anchor from "@anchor-lang/core";
 import { expect } from "chai";
 import { Program } from "@anchor-lang/core";
+import { createHash } from "node:crypto";
 import { Lineguard } from "../target/types/lineguard";
 
 const MICROS_ONE = 1_000_000;
@@ -32,6 +33,10 @@ describe("lineguard on-chain settlement guard", () => {
     return out;
   }
 
+  function hash32(value: string): number[] {
+    return Array.from(createHash("sha256").update(value).digest());
+  }
+
   function pdaMarket(marketId: Buffer): anchor.web3.PublicKey {
     return anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("market"), marketId], program.programId)[0];
   }
@@ -53,7 +58,11 @@ describe("lineguard on-chain settlement guard", () => {
 
   async function initializeMarket(
     label: string,
-    opts: { materialSeq?: number; pricedAtSeq?: number; displayed?: number; fair?: number; tolerance?: number; fixtureId?: number; closeTime?: number } = {}
+    opts: {
+      materialSeq?: number; pricedAtSeq?: number; displayed?: number; fair?: number;
+      tolerance?: number; fixtureId?: number; closeTime?: number; marketType?: number;
+      homeStatKey?: number; awayStatKey?: number;
+    } = {}
   ) {
     const marketId = id32(label);
     const market = pdaMarket(marketId);
@@ -66,13 +75,18 @@ describe("lineguard on-chain settlement guard", () => {
         new anchor.BN(opts.displayed ?? DISPLAYED_40),
         new anchor.BN(opts.fair ?? DISPLAYED_40),
         new anchor.BN(opts.tolerance ?? TOLERANCE_2C),
-        0,
-        Array.from(Buffer.alloc(32, 1)),
+        opts.marketType ?? 0,
+        hash32(String(opts.fixtureId ?? FIXTURE_ID)),
         Array.from(Buffer.alloc(32, 2)),
         Array.from(Buffer.alloc(32, 3)),
         Array.from(Buffer.alloc(32, 4)),
         new anchor.BN(opts.fixtureId ?? FIXTURE_ID),
-        new anchor.BN(opts.closeTime ?? 0)
+        new anchor.BN(opts.closeTime ?? 0),
+        0,
+        opts.homeStatKey ?? STAT_KEY_HOME,
+        opts.awayStatKey ?? STAT_KEY_AWAY,
+        hash32("France"),
+        hash32("Morocco")
       )
       .accountsPartial({ authority: trader, market, marketConfig })
       .rpc();
@@ -101,28 +115,44 @@ describe("lineguard on-chain settlement guard", () => {
   }
   async function submitValidation(
     market: anchor.web3.PublicKey,
-    opts: { fixtureId?: number; sequence?: number; home?: number; away?: number; root?: anchor.web3.PublicKey; payloadHash?: number[]; eventRoot?: number[] } = {}
+    opts: {
+      fixtureId?: number; sequence?: number; home?: number; away?: number;
+      root?: anchor.web3.PublicKey; payloadHash?: number[]; eventRoot?: number[]; confirm?: boolean;
+    } = {}
   ) {
+    const marketConfig = pdaConfig(market);
     await program.methods
       .submitTxlineValidation(
         new anchor.BN(opts.fixtureId ?? FIXTURE_ID),
         new anchor.BN(opts.sequence ?? SEQUENCE),
-        STAT_KEY_HOME,
-        STAT_KEY_AWAY,
         ROOT_EPOCH_DAY,
         opts.home ?? 1,
         opts.away ?? 0,
         opts.payloadHash ?? VALIDATION_PAYLOAD_HASH,
         opts.eventRoot ?? EVENT_STAT_ROOT
       )
-      .accountsPartial({ authority: trader, market, txlineRoot: opts.root ?? TXLINE_ROOT, receipt: pdaReceipt(market) })
+      .accountsPartial({ authority: trader, market, marketConfig, txlineRoot: opts.root ?? TXLINE_ROOT, receipt: pdaReceipt(market) })
       .rpc();
+    if (opts.confirm !== false) await confirmValidation(market);
+  }
+  async function confirmValidation(market: anchor.web3.PublicKey) {
+    await program.methods.confirmValidation().accountsPartial({
+      authority: trader,
+      market,
+      marketConfig: pdaConfig(market),
+      receipt: pdaReceipt(market),
+    }).rpc();
   }
   async function closeMarket(market: anchor.web3.PublicKey) {
     await program.methods.closeMarket().accountsPartial({ closer: trader, market }).rpc();
   }
   async function resolveFromTxline(market: anchor.web3.PublicKey) {
-    await program.methods.resolveMarketFromTxline().accountsPartial({ authority: trader, market, receipt: pdaReceipt(market) }).rpc();
+    await program.methods.resolveMarketFromTxline().accountsPartial({
+      authority: trader,
+      market,
+      marketConfig: pdaConfig(market),
+      receipt: pdaReceipt(market),
+    }).rpc();
   }
   async function settleOrder(market: anchor.web3.PublicKey, order: anchor.web3.PublicKey) {
     await program.methods.settleOrder().accountsPartial({ market, order, trader, vault: pdaVault() }).rpc();
@@ -180,19 +210,39 @@ describe("lineguard on-chain settlement guard", () => {
 
   // ---- TxLINE-bound resolution ----
 
+  it("does not expose caller-supplied outcome or stat-key arguments", () => {
+    const instruction = program.idl.instructions.find((item) => item.name === "submitTxlineValidation");
+    expect(instruction?.args.map((arg) => arg.name)).to.deep.equal([
+      "fixtureId",
+      "sequence",
+      "rootEpochDay",
+      "homeScore",
+      "awayScore",
+      "validationPayloadHash",
+      "eventStatRoot",
+    ]);
+  });
+
   it("submit_txline_validation binds the genuine root and derives the outcome from the score", async () => {
-    const { market } = await initializeMarket("bind-outcome");
+    const { market } = await initializeMarket("bind-outcome", { homeStatKey: 11, awayStatKey: 12 });
+    await closeMarket(market);
     await submitValidation(market, { home: 1, away: 0 });
     const receipt = await program.account.txlineValidationReceipt.fetch(pdaReceipt(market));
     expect(receipt.fixtureId.toNumber()).to.equal(FIXTURE_ID);
     expect(receipt.sequence.toNumber()).to.equal(SEQUENCE);
     expect(receipt.validationRootPda.toBase58()).to.equal(TXLINE_ROOT.toBase58());
+    expect(receipt.homeStatKey).to.equal(11);
+    expect(receipt.awayStatKey).to.equal(12);
+    expect(receipt.resolutionRule).to.equal(0);
     expect(receipt.derivedOutcome).to.equal(1); // home > away => YES
+    expect(receipt.confirmed).to.equal(true);
   });
 
   it("resolution is deterministic: identical scores derive an identical outcome", async () => {
     const { market: a } = await initializeMarket("determ-a");
     const { market: b } = await initializeMarket("determ-b");
+    await closeMarket(a);
+    await closeMarket(b);
     await submitValidation(a, { home: 1, away: 0 });
     await submitValidation(b, { home: 1, away: 0 });
     const ra = await program.account.txlineValidationReceipt.fetch(pdaReceipt(a));
@@ -200,7 +250,7 @@ describe("lineguard on-chain settlement guard", () => {
     expect(ra.derivedOutcome).to.equal(rb.derivedOutcome);
   });
 
-  it("an away-team win derives NO (operator cannot choose the outcome)", async () => {
+  it("an away-team win derives NO without accepting an outcome argument", async () => {
     const { market, marketConfig } = await initializeMarket("away-win");
     const yes = await fill("away-yes", market, marketConfig, 0);
     await fill("away-no", market, marketConfig, 1);
@@ -219,6 +269,7 @@ describe("lineguard on-chain settlement guard", () => {
 
   it("rejects a fixture mismatch", async () => {
     const { market } = await initializeMarket("fixture-mismatch");
+    await closeMarket(market);
     try {
       await submitValidation(market, { fixtureId: 99_999_999 });
       expect.fail("wrong fixture should be rejected");
@@ -229,6 +280,7 @@ describe("lineguard on-chain settlement guard", () => {
 
   it("rejects a root account not owned by the TxLINE program", async () => {
     const { market } = await initializeMarket("wrong-root");
+    await closeMarket(market);
     const fake = anchor.web3.Keypair.generate().publicKey; // non-existent => system-owned
     try {
       await submitValidation(market, { root: fake });
@@ -238,15 +290,73 @@ describe("lineguard on-chain settlement guard", () => {
     }
   });
 
-  it("rejects resolution before trading closes", async () => {
-    const { market, marketConfig } = await initializeMarket("resolve-before-close");
-    await fill("rbc-yes", market, marketConfig, 0);
-    await submitValidation(market);
+  it("rejects validation before trading closes", async () => {
+    const { market } = await initializeMarket("validate-before-close");
     try {
-      await resolveFromTxline(market);
-      expect.fail("resolve before close should fail");
+      await submitValidation(market);
+      expect.fail("validation before close should fail");
     } catch (e) {
       expect(String(e)).to.match(/Trading must be closed|MarketNotClosed/);
+    }
+  });
+
+  it("rejects unsupported settlement market types", async () => {
+    for (const marketType of [1, 2, 3]) {
+      try {
+        await initializeMarket(`unsupported-${marketType}`, { marketType });
+        expect.fail(`market type ${marketType} should be rejected`);
+      } catch (e) {
+        expect(String(e)).to.match(/MATCH_WINNER_HOME|UnsupportedSettlementMarketType/);
+      }
+    }
+  });
+
+  it("allows a draft replacement, then freezes it at confirmation", async () => {
+    const { market } = await initializeMarket("draft-replace");
+    await closeMarket(market);
+    await submitValidation(market, { home: 1, away: 0, confirm: false });
+    await submitValidation(market, { home: 0, away: 2, confirm: false });
+    let receipt = await program.account.txlineValidationReceipt.fetch(pdaReceipt(market));
+    expect(receipt.derivedOutcome).to.equal(2);
+    await confirmValidation(market);
+    try {
+      await submitValidation(market, { home: 3, away: 0, confirm: false });
+      expect.fail("confirmed validation should be immutable");
+    } catch (e) {
+      expect(String(e)).to.match(/already confirmed|ValidationAlreadyConfirmed/);
+    }
+    receipt = await program.account.txlineValidationReceipt.fetch(pdaReceipt(market));
+    expect(receipt.homeScore).to.equal(0);
+    expect(receipt.awayScore).to.equal(2);
+  });
+
+  it("rejects zero validation hashes and out-of-bounds scores", async () => {
+    const { market } = await initializeMarket("invalid-validation");
+    await closeMarket(market);
+    try {
+      await submitValidation(market, { payloadHash: Array(32).fill(0), confirm: false });
+      expect.fail("zero validation hash should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/must be nonzero|ZeroValidationPayloadHash/);
+    }
+    try {
+      await submitValidation(market, { home: 100, confirm: false });
+      expect.fail("score above the bound should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/between 0 and 99|InvalidScore/);
+    }
+  });
+
+  it("does not resolve from an unconfirmed validation", async () => {
+    const { market, marketConfig } = await initializeMarket("unconfirmed");
+    await fill("unconfirmed-yes", market, marketConfig, 0);
+    await closeMarket(market);
+    await submitValidation(market, { confirm: false });
+    try {
+      await resolveFromTxline(market);
+      expect.fail("unconfirmed validation should not resolve");
+    } catch (e) {
+      expect(String(e)).to.match(/must be confirmed|ValidationNotConfirmed/);
     }
   });
 
@@ -267,6 +377,56 @@ describe("lineguard on-chain settlement guard", () => {
     try {
       await resolveFromTxline(market);
       expect.fail("double resolution should fail");
+    } catch (e) {
+      expect(String(e)).to.match(/already been resolved|MarketAlreadyResolved/);
+    }
+  });
+
+  it("voids a draw safely and allows exact refunds", async () => {
+    const { market, marketConfig } = await initializeMarket("draw-void");
+    const yes = await fill("draw-yes", market, marketConfig, 0, 100_000_000);
+    const no = await fill("draw-no", market, marketConfig, 1, 100_000_000);
+    await closeMarket(market);
+    await submitValidation(market, { home: 2, away: 2 });
+    const receipt = await program.account.txlineValidationReceipt.fetch(pdaReceipt(market));
+    expect(receipt.derivedOutcome).to.equal(3);
+    await resolveFromTxline(market);
+    expect((await program.account.marketState.fetch(market)).resolution).to.equal(3);
+    await refundVoided(market, yes);
+    await refundVoided(market, no);
+  });
+
+  it("rejects a receipt PDA from another market", async () => {
+    const { market: a, marketConfig: ca } = await initializeMarket("receipt-market-a");
+    const { market: b, marketConfig: cb } = await initializeMarket("receipt-market-b");
+    await fill("receipt-a-yes", a, ca, 0, 1_000_000);
+    await fill("receipt-b-yes", b, cb, 0, 1_000_000);
+    await closeMarket(a);
+    await closeMarket(b);
+    await submitValidation(a);
+    await submitValidation(b);
+    try {
+      await program.methods.resolveMarketFromTxline().accountsPartial({
+        authority: trader,
+        market: b,
+        marketConfig: pdaConfig(b),
+        receipt: pdaReceipt(a),
+      }).rpc();
+      expect.fail("receipt from market A should not resolve market B");
+    } catch (e) {
+      expect(String(e)).to.match(/does not belong to this market|InvalidMarket|ConstraintSeeds/);
+    }
+  });
+
+  it("cannot change validation after resolution", async () => {
+    const { market, marketConfig } = await initializeMarket("immutable-resolved");
+    await fill("immutable-yes", market, marketConfig, 0, 1_000_000);
+    await closeMarket(market);
+    await submitValidation(market);
+    await resolveFromTxline(market);
+    try {
+      await submitValidation(market, { home: 0, away: 1, confirm: false });
+      expect.fail("resolved validation should be immutable");
     } catch (e) {
       expect(String(e)).to.match(/already been resolved|MarketAlreadyResolved/);
     }

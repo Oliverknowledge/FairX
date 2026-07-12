@@ -6,8 +6,8 @@ import { simulateAttackWave, type AttackLabResult } from "@/lib/attack/simulate"
 
 const PRESETS = [100, 250, 500] as const;
 
-function usd(value: number): string {
-  return `$${Math.round(value).toLocaleString("en-US")}`;
+function sandbox(value: number): string {
+  return `${Math.round(value).toLocaleString("en-US")} sandbox units`;
 }
 
 export function AttackLab() {
@@ -104,9 +104,9 @@ export function AttackLab() {
             <div className="rounded-xl border border-[#f0c5c5] bg-gradient-to-br from-[#fff6f6] to-white p-4">
               <div className="flex items-center gap-2 text-(--red)">
                 <TrendingDown className="h-4 w-4" />
-                <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]">Stale profit denied</p>
+                <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]">Modeled stale edge denied</p>
               </div>
-              <p className="num mt-1 text-[40px] font-extrabold leading-none tracking-[-0.04em] text-(--red)">{usd(deniedNow)}</p>
+              <p className="num mt-1 text-[32px] font-extrabold leading-none tracking-[-0.04em] text-(--red)">{sandbox(deniedNow)}</p>
               <p className="mt-1.5 text-[10.5px] leading-relaxed text-(--ink-2)">
                 Unfair edge that would have leaked to latency bots at frozen prices — refunded instead of filled.
               </p>
@@ -115,21 +115,21 @@ export function AttackLab() {
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label="Bots run" value={revealed} tone="neutral" />
               <Stat label="Attacks refunded" value={refundedNow} tone="red" />
-              <Stat label="Safe trades filled" value={allowedNow} tone="green" />
-              <Stat label="Protected volume" value={usd(volumeNow)} tone="blue" isText />
+              <Stat label="Safe previews allowed" value={allowedNow} tone="green" />
+              <Stat label="Modeled stakes" value={sandbox(volumeNow)} tone="blue" isText />
             </div>
 
             <div className="mt-3 rounded-lg border border-(--border) bg-[#fafbfc] p-3">
               <div className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5 font-semibold text-(--ink-2)"><ShieldAlert className="h-3.5 w-3.5 text-(--red)" /> Without LineGuard</span>
-                <span className="num font-bold text-(--red)">{usd(result?.leakedWithoutGuard ?? 0)} leaked</span>
+                <span className="num font-bold text-(--red)">{sandbox(result?.leakedWithoutGuard ?? 0)} modeled edge</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#fdecec]">
                 <div className="h-full rounded-full bg-(--red)" style={{ width: "100%" }} />
               </div>
               <div className="mt-3 flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5 font-semibold text-(--ink-2)"><ShieldCheck className="h-3.5 w-3.5 text-(--green)" /> With LineGuard</span>
-                <span className="num font-bold text-(--green)">$0 leaked</span>
+                <span className="num font-bold text-(--green)">0 sandbox units modeled</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e9f7f0]">
                 <div className="h-full rounded-full bg-(--green) transition-[width] duration-500" style={{ width: `${(1 - progress) * 0 + 2}%` }} />

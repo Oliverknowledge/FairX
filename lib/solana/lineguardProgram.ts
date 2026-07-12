@@ -40,9 +40,11 @@ export interface ParsedOnChainReceipt {
   address: string;
   market: string;
   fixtureId: number;
+  fixtureIdHashHex: string;
   sequence: number;
-  statKeyHome: number;
-  statKeyAway: number;
+  homeStatKey: number;
+  awayStatKey: number;
+  resolutionRuleCode: number;
   rootEpochDay: number;
   validationRootPdaBase58: string;
   validationPayloadHashHex: string;
@@ -50,6 +52,9 @@ export interface ParsedOnChainReceipt {
   homeScore: number;
   awayScore: number;
   derivedOutcome: number;
+  confirmed: boolean;
+  updatedAt: number;
+  confirmedAt: number;
 }
 
 export interface ParsedOnChainMarketConfig {
@@ -62,6 +67,11 @@ export interface ParsedOnChainMarketConfig {
   settlementConfigHashHex: string;
   authority: string;
   createdAtSlot: number;
+  resolutionRuleCode: number;
+  homeStatKey: number;
+  awayStatKey: number;
+  homeTeamHashHex: string;
+  awayTeamHashHex: string;
 }
 
 export interface ParsedOnChainOrder {

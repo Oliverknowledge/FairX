@@ -24,7 +24,7 @@ export default function AttackLabPage() {
               <h1 className="mt-1 text-[27px] font-extrabold tracking-[-0.04em] text-(--ink)">Attack Lab</h1>
               <p className="mt-2 max-w-2xl text-[12.5px] leading-relaxed text-(--ink-2)">
                 One market and one bot proves the mechanism. This runs hundreds of latency bots through the exact same guard so you can
-                see, in bulk, how much stale-price profit is denied and how safe liquidity is left untouched.
+                inspect the deterministic local guard decision at scale. Values are sandbox units, never volume, liquidity, or user profit.
               </p>
             </div>
           </div>

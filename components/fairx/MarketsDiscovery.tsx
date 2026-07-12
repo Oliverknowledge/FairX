@@ -14,7 +14,7 @@ const filters: Array<{ id: DiscoveryFilter; label: string }> = [
   { id: "ALL", label: "All markets" },
   { id: "LIVE", label: "Live" },
   { id: "STALE", label: "Stale" },
-  { id: "PROTECTED", label: "Protected" },
+  { id: "PROTECTED", label: "Local synchronized" },
   { id: "SETTLED", label: "Settled" },
   { id: "CREATOR", label: "Creator markets" },
 ];
@@ -107,9 +107,9 @@ export function MarketsDiscovery() {
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label={liveConnected && summary.live > 0 ? "Live TxLINE" : "TxLINE connection"} value={summary.live} detail={liveConnected && summary.live > 0 ? "connected markets" : liveConnected ? "connected · no live market payload" : "not connected"} icon={Activity} tone="blue" onClick={() => setActiveFilter("LIVE")} />
         <SummaryCard
-          label="Protected"
+          label="Local previews"
           value={summary.protected}
-          detail="in sync"
+          detail="synchronized"
           icon={CircleCheckBig}
           tone="green"
           onClick={() => setActiveFilter("PROTECTED")}

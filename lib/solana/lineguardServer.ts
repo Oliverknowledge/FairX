@@ -46,8 +46,7 @@ const CANONICAL_DISPLAYED_PRICE = canonicalCapture.odds.displayedPricingInput.fa
 const CANONICAL_FAIR_PRICE = canonicalCapture.odds.normalizedPricingInput.fairPriceMicros;
 const CANONICAL_EVENT_SEQ = canonicalCapture.normalizedEvent.seq;
 const CANONICAL_INITIAL_SEQ = CANONICAL_EVENT_SEQ - 1;
-// Genuine TxLINE fixture (France vs Morocco, 18209181) bound into markets for TxLINE-verified
-// resolution. Custom sandbox markets bind fixture 0 (protection-only, never TxLINE-resolved).
+// Genuine TxLINE fixture (France vs Morocco, 18209181) used by the canonical root-bound flow.
 const CANONICAL_FIXTURE_ID = Number(canonicalCapture.fixtureId);
 // Root epoch day + stat keys + genuine validation evidence for the France 1-0 final result.
 const CANONICAL_ROOT_EPOCH_DAY = 20_643;
@@ -85,6 +84,7 @@ const CANONICAL_CONFIG_COMMITMENT = buildMarketConfigCommitment({
   marketTitle: "France wins",
   materialityRules: { goals: true, redCards: true, penalties: true, oddsUpdates: true },
   backedTeam: "France",
+  awayTeam: "Morocco",
   toleranceMicros: TOLERANCE_2C,
 });
 
@@ -223,6 +223,7 @@ export interface CustomInitInput {
   marketTitle: string;
   materialityRules: MaterialityRules;
   backedTeam?: string;
+  awayTeam?: string;
   targetSide?: string;
   displayedPriceMicros: number;
   fairPriceMicros: number;
@@ -239,6 +240,16 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
   const base: CustomInitResult = { ok: false, configured: cfg.configured, cluster: cfg.cluster, programId, marketId: input.marketId };
   if (!cfg.configured || !cfg.cluster || !cfg.rpcUrl || !cfg.payer) {
     return { ...base, reason: cfg.reason ?? "Devnet signer not configured." };
+  }
+  if (input.marketType !== "MATCH_WINNER") {
+    return { ...base, reason: `${input.marketType} is UNSUPPORTED_FOR_SETTLEMENT; only MATCH_WINNER_HOME may be initialized on-chain.` };
+  }
+  if (!input.backedTeam?.trim() || !input.awayTeam?.trim()) {
+    return { ...base, reason: "MATCH_WINNER_HOME requires committed home and away teams." };
+  }
+  const fixtureId = Number(input.fixtureId);
+  if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
+    return { ...base, reason: "MATCH_WINNER_HOME requires a positive numeric TxLINE fixture ID." };
   }
 
   const seed = marketIdSeed(input.marketId);
@@ -270,7 +281,7 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
           { pubkey: marketConfigPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-        data: ixData("attach_market_config", configIxParts(commitment)),
+        data: ixData("attach_market_config", [...configIxParts(commitment), ...resolutionIxParts(commitment)]),
       })
       : new TransactionInstruction({
         programId: cfg.programId,
@@ -288,8 +299,9 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
           u64(clampMicros(input.fairPriceMicros)),
           u64(clampMicros(input.toleranceMicros)),
           ...configIxParts(commitment),
-          u64(0),
+          u64(fixtureId),
           i64(0),
+          ...resolutionIxParts(commitment),
         ]),
       });
     const signature = await sendInstruction(connection, cfg, instruction);
@@ -299,16 +311,27 @@ export async function initializeCustomOnChainMarket(input: CustomInitInput): Pro
   }
 }
 
-function configCommitment(input: Pick<CustomInitInput, "marketType" | "fixtureId" | "marketTitle" | "materialityRules" | "backedTeam" | "targetSide" | "toleranceMicros">): MarketConfigCommitment {
+function configCommitment(input: Pick<CustomInitInput, "marketType" | "fixtureId" | "marketTitle" | "materialityRules" | "backedTeam" | "awayTeam" | "targetSide" | "toleranceMicros">): MarketConfigCommitment {
   return buildMarketConfigCommitment({
     marketType: input.marketType,
     fixtureId: input.fixtureId,
     marketTitle: input.marketTitle,
     materialityRules: input.materialityRules,
     backedTeam: input.backedTeam,
+    awayTeam: input.awayTeam,
     targetSide: input.targetSide,
     toleranceMicros: clampMicros(input.toleranceMicros),
   });
+}
+
+function resolutionIxParts(commitment: MarketConfigCommitment): Buffer[] {
+  return [
+    Buffer.from([commitment.resolutionRuleCode]),
+    u16(commitment.homeStatKey),
+    u16(commitment.awayStatKey),
+    Buffer.from(commitment.homeTeamHash, "hex"),
+    Buffer.from(commitment.awayTeamHash, "hex"),
+  ];
 }
 
 function configIxParts(commitment: MarketConfigCommitment): Buffer[] {
@@ -355,7 +378,12 @@ function configMatches(config: ParsedOnChainMarketConfig, commitment: MarketConf
     && config.fixtureIdHashHex === commitment.fixtureIdHash
     && config.marketTitleHashHex === commitment.marketTitleHash
     && config.materialityConfigHashHex === commitment.materialityConfigHash
-    && config.settlementConfigHashHex === commitment.settlementConfigHash;
+    && config.settlementConfigHashHex === commitment.settlementConfigHash
+    && config.resolutionRuleCode === commitment.resolutionRuleCode
+    && config.homeStatKey === commitment.homeStatKey
+    && config.awayStatKey === commitment.awayStatKey
+    && config.homeTeamHashHex === commitment.homeTeamHash
+    && config.awayTeamHashHex === commitment.awayTeamHash;
 }
 
 /** Small sandbox stake (0.01 SOL) for custom devnet orders — filled stakes finalize into the vault. */
@@ -408,6 +436,10 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
   if (!cfg.configured || !cfg.cluster || !cfg.rpcUrl || !cfg.payer) {
     return { ...base, reason: cfg.reason ?? "Devnet operator not configured." };
   }
+  if (input.marketType !== "MATCH_WINNER") return { ...base, reason: `${input.marketType} is UNSUPPORTED_FOR_SETTLEMENT.` };
+  if (!input.backedTeam?.trim() || !input.awayTeam?.trim()) return { ...base, reason: "MATCH_WINNER_HOME requires committed home and away teams." };
+  const fixtureId = Number(input.fixtureId);
+  if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) return { ...base, reason: "MATCH_WINNER_HOME requires a positive numeric TxLINE fixture ID." };
 
   const connection = new Connection(cfg.rpcUrl, "confirmed");
   if (!(await schemaSupportsMarketConfig(connection, cfg.programId))) {
@@ -445,8 +477,9 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
               u64(clampMicros(input.fairPriceMicros ?? displayed)),
               u64(tolerance),
               ...configIxParts(commitment),
-              u64(0),
+              u64(fixtureId),
               i64(0),
+              ...resolutionIxParts(commitment),
             ]),
           })
         )
@@ -463,7 +496,7 @@ export async function runCustomOnChainOrder(input: CustomOrderInput): Promise<Cu
             { pubkey: marketConfigPda, isSigner: false, isWritable: true },
             { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           ],
-          data: ixData("attach_market_config", configIxParts(commitment)),
+          data: ixData("attach_market_config", [...configIxParts(commitment), ...resolutionIxParts(commitment)]),
         }))
       );
       marketConfig = await fetchMarketConfig(connection, marketConfigPda, cfg.programId);
@@ -637,7 +670,7 @@ export async function initializeOnChainMarket() {
           { pubkey: pdas.marketConfigPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-          data: ixData("attach_market_config", configIxParts(CANONICAL_CONFIG_COMMITMENT)),
+          data: ixData("attach_market_config", [...configIxParts(CANONICAL_CONFIG_COMMITMENT), ...resolutionIxParts(CANONICAL_CONFIG_COMMITMENT)]),
       })
       : new TransactionInstruction({
         programId: cfg.programId,
@@ -652,6 +685,7 @@ export async function initializeOnChainMarket() {
           ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
           u64(CANONICAL_FIXTURE_ID),
           i64(0),
+          ...resolutionIxParts(CANONICAL_CONFIG_COMMITMENT),
         ]),
       });
     const signature = await sendInstruction(connection, cfg, instruction);
@@ -723,12 +757,11 @@ export async function evaluateOnChainOrder(side: OnChainSide) {
 }
 
 /**
- * Program-data account length at/above which the deployed program includes the settlement-v3
- * schema (MarketConfig + parimutuel resolution/payout). The v3 program-data account is 270,717
- * bytes; the prior market-config-v2 account was 238,717. 264,893 = 45-byte metadata header +
- * the 264,848-byte settlement program, so it cleanly separates v3 from every earlier deploy.
+ * Root-bound settlement-v5 program-data account size: 340,376 byte program + 45 byte header.
+ * Keeping this above the deployed settlement-v4 size prevents new instructions from being sent
+ * to the older incompatible account schema before an explicitly approved upgrade.
  */
-const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 311_317;
+const CONFIG_SCHEMA_PROGRAM_DATA_MIN = 340_421;
 const SCHEMA_MISMATCH_REASON =
   "The deployed program schema does not match the current settlement schema. Canonical verified proof remains available.";
 
@@ -782,6 +815,7 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
           ...configIxParts(CANONICAL_CONFIG_COMMITMENT),
           u64(CANONICAL_FIXTURE_ID),
           i64(0),
+          ...resolutionIxParts(CANONICAL_CONFIG_COMMITMENT),
         ]),
       });
   assertCanonicalInstruction("initialize", side, cfg, pdas, undefined, initializeInstruction);
@@ -879,7 +913,7 @@ export async function runFullOnChainDemo(side: OnChainSide): Promise<OnChainActi
 
 /**
  * One-call, complete on-chain market lifecycle: initialize an in-sync market, fill YES and NO
- * into their parimutuel pools, commit the resolved outcome from the genuine final result, then
+ * into their parimutuel pools, derive the outcome from root-bound submitted scores, then
  * pay the winning side out of the ProtocolVault. This closes the settlement loop end-to-end.
  */
 export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
@@ -930,6 +964,7 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
       marketTitle: "France beat Morocco — full lifecycle",
       materialityRules: { goals: true, redCards: true, penalties: true, oddsUpdates: true },
       backedTeam: "France",
+      awayTeam: "Morocco",
       toleranceMicros: TOLERANCE_2C,
     });
     signatures.push(await sendInstruction(connection, cfg, new TransactionInstruction({
@@ -943,7 +978,7 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
       data: ixData("initialize_market_config", [
         Buffer.from(seed), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ),
         u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C),
-        ...configIxParts(commitment), u64(CANONICAL_FIXTURE_ID), i64(0),
+        ...configIxParts(commitment), u64(CANONICAL_FIXTURE_ID), i64(0), ...resolutionIxParts(commitment),
       ]),
     })));
 
@@ -976,11 +1011,9 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
     signatures.push(await sendInstruction(connection, cfg, closeMarketInstruction(cfg, marketPda)));
 
     // 7. The genuine TxLINE final result is bound on-chain; the outcome is derived from the score.
-    signatures.push(await sendInstruction(connection, cfg, submitTxlineValidationInstruction(cfg, marketPda, receiptPda, {
+    signatures.push(await sendInstruction(connection, cfg, submitTxlineValidationInstruction(cfg, marketPda, marketConfigPda, receiptPda, {
       fixtureId: CANONICAL_FIXTURE_ID,
       sequence: CANONICAL_EVENT_SEQ,
-      statKeyHome: CANONICAL_STAT_KEY_HOME,
-      statKeyAway: CANONICAL_STAT_KEY_AWAY,
       rootEpochDay: CANONICAL_ROOT_EPOCH_DAY,
       homeScore: CANONICAL_HOME_SCORE,
       awayScore: CANONICAL_AWAY_SCORE,
@@ -988,10 +1021,13 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
       eventStatRoot: CANONICAL_EVENT_STAT_ROOT,
     })));
 
-    // 8. Resolution consumes the receipt (operator cannot choose the outcome).
-    signatures.push(await sendInstruction(connection, cfg, resolveFromTxlineInstruction(cfg, marketPda, receiptPda)));
+    // 8. Confirmation freezes the validation draft; only confirmed receipts can resolve.
+    signatures.push(await sendInstruction(connection, cfg, confirmValidationInstruction(cfg, marketPda, marketConfigPda, receiptPda)));
 
-    // 9. The winning YES order claims its parimutuel payout from the vault.
+    // 9. Resolution consumes the receipt and has no arbitrary outcome argument.
+    signatures.push(await sendInstruction(connection, cfg, resolveFromTxlineInstruction(cfg, marketPda, marketConfigPda, receiptPda)));
+
+    // 10. The winning YES order claims its parimutuel payout from the vault.
     signatures.push(await sendInstruction(connection, cfg, settleInstruction(cfg, marketPda, yesOrderPda, cfg.payer.publicKey, vaultPda)));
 
     const [finalMarket, exploitOrder, yesOrder, noOrder, receipt, vaultBalanceAfterLamports] = await Promise.all([
@@ -1047,6 +1083,7 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
         protectionEdgeMicros: exploitOrder?.edgeMicros ?? 0,
         protectionEventHash: finalMarket?.sourceEventHashHex,
         fixtureId: CANONICAL_FIXTURE_ID,
+        fixtureIdHash: commitment.fixtureIdHash,
         sequence: CANONICAL_EVENT_SEQ,
         validationRootPda: receipt?.validationRootPdaBase58 ?? CANONICAL_TXLINE_ROOT_PDA.toBase58(),
         validationPayloadHash: receipt?.validationPayloadHashHex ?? CANONICAL_VALIDATION_PAYLOAD_HASH.toString("hex"),
@@ -1054,6 +1091,18 @@ export async function runSettlementDemo(): Promise<OnChainSettlementResult> {
         homeScore: receipt?.homeScore ?? CANONICAL_HOME_SCORE,
         awayScore: receipt?.awayScore ?? CANONICAL_AWAY_SCORE,
         derivedOutcome: receipt?.derivedOutcome ?? 1,
+        resolutionRule: "HOME_TEAM_WINS",
+        resolutionRuleCode: receipt?.resolutionRuleCode ?? commitment.resolutionRuleCode,
+        yesMeaning: "France/home team wins",
+        homeTeam: "France",
+        awayTeam: "Morocco",
+        homeTeamHash: commitment.homeTeamHash,
+        awayTeamHash: commitment.awayTeamHash,
+        homeStatKey: receipt?.homeStatKey ?? commitment.homeStatKey,
+        awayStatKey: receipt?.awayStatKey ?? commitment.awayStatKey,
+        validationConfirmed: receipt?.confirmed ?? false,
+        validateStatV2Passed: canonicalValidation.simulationPassed,
+        inProgramMerkleVerification: false,
         marketTotalInLamports: finalMarket?.marketTotalInLamports ?? totalPool,
         marketTotalPaidLamports: finalMarket?.marketTotalPaidLamports ?? winnerPayout,
         marketTotalRefundedLamports: finalMarket?.marketTotalRefundedLamports ?? 0,
@@ -1150,7 +1199,7 @@ function assertCanonicalInstruction(
           [cfg.payer.publicKey, true, true], [pdas.marketPda, false, true], [pdas.marketConfigPda, false, true], [SystemProgram.programId, false, false],
         ] as const,
         data: ixData("initialize_market_config", [
-          Buffer.from(pdas.marketId), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C), ...configIxParts(CANONICAL_CONFIG_COMMITMENT), u64(CANONICAL_FIXTURE_ID), i64(0),
+          Buffer.from(pdas.marketId), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_INITIAL_SEQ), u64(CANONICAL_DISPLAYED_PRICE), u64(CANONICAL_DISPLAYED_PRICE), u64(TOLERANCE_2C), ...configIxParts(CANONICAL_CONFIG_COMMITMENT), u64(CANONICAL_FIXTURE_ID), i64(0), ...resolutionIxParts(CANONICAL_CONFIG_COMMITMENT),
         ]),
       }
     : stage === "ingest"
@@ -1234,31 +1283,33 @@ function marketResolution(code: number): ParsedOnChainMarket["resolution"] {
 
 async function fetchReceipt(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainReceipt | null> {
   const info = await connection.getAccountInfo(address, "confirmed");
-  if (!info || !info.owner.equals(programId) || info.data.length < 194) return null;
+  if (!info || !info.owner.equals(programId) || info.data.length < 246) return null;
   const data = Buffer.from(info.data);
-  // Layout after 8-byte discriminator: market(32) authority(32) fixture_id(8) sequence(8)
-  // stat_key_home(1) stat_key_away(1) root_epoch_day(2) validation_root_pda(32)
-  // validation_payload_hash(32) event_stat_root(32) home_score(2) away_score(2) derived_outcome(1)
   return {
     address: address.toBase58(),
     market: new PublicKey(data.subarray(8, 40)).toBase58(),
     fixtureId: Number(readU64(data, 72)),
-    sequence: Number(readU64(data, 80)),
-    statKeyHome: data[88] ?? 0,
-    statKeyAway: data[89] ?? 0,
-    rootEpochDay: data.readUInt16LE(90),
-    validationRootPdaBase58: new PublicKey(data.subarray(92, 124)).toBase58(),
-    validationPayloadHashHex: data.subarray(124, 156).toString("hex"),
-    eventStatRootHex: data.subarray(156, 188).toString("hex"),
-    homeScore: data.readUInt16LE(188),
-    awayScore: data.readUInt16LE(190),
-    derivedOutcome: data[192] ?? 0,
+    fixtureIdHashHex: data.subarray(80, 112).toString("hex"),
+    sequence: Number(readU64(data, 112)),
+    homeStatKey: data.readUInt16LE(120),
+    awayStatKey: data.readUInt16LE(122),
+    resolutionRuleCode: data[124] ?? 255,
+    rootEpochDay: data.readUInt16LE(125),
+    validationRootPdaBase58: new PublicKey(data.subarray(127, 159)).toBase58(),
+    validationPayloadHashHex: data.subarray(159, 191).toString("hex"),
+    eventStatRootHex: data.subarray(191, 223).toString("hex"),
+    homeScore: data.readUInt16LE(223),
+    awayScore: data.readUInt16LE(225),
+    derivedOutcome: data[227] ?? 0,
+    confirmed: (data[228] ?? 0) === 1,
+    updatedAt: Number(readI64(data, 229)),
+    confirmedAt: Number(readI64(data, 237)),
   };
 }
 
 async function fetchMarketConfig(connection: Connection, address: PublicKey, programId: PublicKey): Promise<ParsedOnChainMarketConfig | null> {
   const info = await connection.getAccountInfo(address, "confirmed");
-  if (!info || !info.owner.equals(programId) || info.data.length < 177) return null;
+  if (!info || !info.owner.equals(programId) || info.data.length < 246) return null;
   const data = Buffer.from(info.data);
   if (!data.subarray(0, 8).equals(MARKET_CONFIG_DISCRIMINATOR)) return null;
   const marketTypeCode = data[8] ?? 255;
@@ -1272,6 +1323,11 @@ async function fetchMarketConfig(connection: Connection, address: PublicKey, pro
     settlementConfigHashHex: data.subarray(105, 137).toString("hex"),
     authority: new PublicKey(data.subarray(137, 169)).toBase58(),
     createdAtSlot: Number(readU64(data, 169)),
+    resolutionRuleCode: data[177] ?? 255,
+    homeStatKey: data.readUInt16LE(178),
+    awayStatKey: data.readUInt16LE(180),
+    homeTeamHashHex: data.subarray(182, 214).toString("hex"),
+    awayTeamHashHex: data.subarray(214, 246).toString("hex"),
   };
 }
 
@@ -1416,8 +1472,6 @@ function closeMarketInstruction(cfg: ServerConfig, marketPda: PublicKey): Transa
 interface TxlineValidationParams {
   fixtureId: number;
   sequence: number;
-  statKeyHome: number;
-  statKeyAway: number;
   rootEpochDay: number;
   homeScore: number;
   awayScore: number;
@@ -1425,13 +1479,14 @@ interface TxlineValidationParams {
   eventStatRoot: Buffer;
 }
 
-/** submit_txline_validation accounts are [authority(signer,writable), market, txline_root, receipt(writable), system]. */
-function submitTxlineValidationInstruction(cfg: ServerConfig, marketPda: PublicKey, receiptPda: PublicKey, params: TxlineValidationParams): TransactionInstruction {
+/** submit_txline_validation reads stat keys/rule from MarketConfig and stores a mutable draft. */
+function submitTxlineValidationInstruction(cfg: ServerConfig, marketPda: PublicKey, marketConfigPda: PublicKey, receiptPda: PublicKey, params: TxlineValidationParams): TransactionInstruction {
   return new TransactionInstruction({
     programId: cfg.programId,
     keys: [
       { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: true },
       { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: marketConfigPda, isSigner: false, isWritable: false },
       { pubkey: CANONICAL_TXLINE_ROOT_PDA, isSigner: false, isWritable: false },
       { pubkey: receiptPda, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
@@ -1439,8 +1494,6 @@ function submitTxlineValidationInstruction(cfg: ServerConfig, marketPda: PublicK
     data: ixData("submit_txline_validation", [
       u64(params.fixtureId),
       u64(params.sequence),
-      Buffer.from([params.statKeyHome]),
-      Buffer.from([params.statKeyAway]),
       u16(params.rootEpochDay),
       u16(params.homeScore),
       u16(params.awayScore),
@@ -1450,13 +1503,27 @@ function submitTxlineValidationInstruction(cfg: ServerConfig, marketPda: PublicK
   });
 }
 
-/** resolve_market_from_txline accounts are [authority(signer), market(writable), receipt]. */
-function resolveFromTxlineInstruction(cfg: ServerConfig, marketPda: PublicKey, receiptPda: PublicKey): TransactionInstruction {
+function confirmValidationInstruction(cfg: ServerConfig, marketPda: PublicKey, marketConfigPda: PublicKey, receiptPda: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: cfg.programId,
+    keys: [
+      { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
+      { pubkey: marketPda, isSigner: false, isWritable: false },
+      { pubkey: marketConfigPda, isSigner: false, isWritable: false },
+      { pubkey: receiptPda, isSigner: false, isWritable: true },
+    ],
+    data: ixData("confirm_validation", []),
+  });
+}
+
+/** resolve_market_from_txline consumes only a confirmed receipt. */
+function resolveFromTxlineInstruction(cfg: ServerConfig, marketPda: PublicKey, marketConfigPda: PublicKey, receiptPda: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: cfg.programId,
     keys: [
       { pubkey: cfg.payer!.publicKey, isSigner: true, isWritable: false },
       { pubkey: marketPda, isSigner: false, isWritable: true },
+      { pubkey: marketConfigPda, isSigner: false, isWritable: false },
       { pubkey: receiptPda, isSigner: false, isWritable: false },
     ],
     data: ixData("resolve_market_from_txline", []),

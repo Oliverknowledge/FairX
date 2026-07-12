@@ -33,28 +33,28 @@ export default function HomePage() {
               <span className="rounded-full border border-(--blue)/20 bg-(--blue-bg) px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-[0.12em] text-(--blue)">FairX · powered by LineGuard</span>
               <span className="rounded-full border border-(--green)/20 bg-(--green-bg) px-2.5 py-1 text-[9.5px] font-bold text-(--green)">Solana devnet</span>
             </div>
-            <h1 className="mt-6 max-w-4xl text-[38px] font-extrabold leading-[0.98] tracking-[-0.065em] text-(--ink) sm:text-[58px]">Fair settlement for live prediction markets.</h1>
-            <p className="mt-5 max-w-3xl text-[15px] font-medium leading-relaxed text-(--ink-2) sm:text-[17px]">When TxLINE sees a goal before the market reprices, LineGuard refunds only the orders exploiting the stale price.</p>
-            <p className="mt-3 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-3)">FairX is a devnet-backed prediction-market prototype powered by an on-chain settlement guard. It evaluates each trade independently—selective protection, not a market-wide freeze.</p>
+            <h1 className="mt-6 max-w-4xl text-[38px] font-extrabold leading-[0.98] tracking-[-0.065em] text-(--ink) sm:text-[58px]">Polymarket for live football, with LineGuard protection on every order.</h1>
+            <p className="mt-5 max-w-3xl text-[15px] font-medium leading-relaxed text-(--ink-2) sm:text-[17px]">When genuine TxLINE evidence moves before the market reprices, LineGuard refunds only the orders exploiting the stale price.</p>
+            <p className="mt-3 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-3)">FairX is designed to prevent stale-price exploitation and make every market decision independently auditable. Devnet SOL only.</p>
             <div className="mt-7 flex flex-wrap gap-2">
               <Link href="/walkthrough" className="inline-flex h-11 items-center gap-2 rounded-lg bg-(--ink) px-4 text-[11.5px] font-bold text-white hover:bg-[#273244]">Run the proof walkthrough <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/markets/france-morocco-france-win" className="inline-flex h-11 items-center gap-2 rounded-lg bg-(--blue) px-4 text-[11.5px] font-bold text-white">Open the market <ArrowRight className="h-4 w-4" /></Link>
               <Link href="/proof" className="inline-flex h-11 items-center gap-2 rounded-lg border border-(--blue)/25 bg-(--blue-bg) px-4 text-[11.5px] font-bold text-(--blue) hover:border-(--blue)/45">Inspect on-chain proof <FileCheck2 className="h-4 w-4" /></Link>
             </div>
           </div>
 
           <aside className="rounded-2xl border border-[#283448] bg-[#0b1220] p-5 text-white sm:p-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8fa7cc]">What is genuinely on-chain</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8fa7cc]">Product truth</p>
             <ul className="mt-4 space-y-3">
               {[
-                "Solana devnet program deployed",
-                "market freshness and event hash",
-                "orders escrowed in PDAs",
-                "selective refund / finalize verdicts",
-                "ProtocolVault finalization",
-                "resolution + parimutuel payout",
+                "Legacy Solana devnet program + canonical proof deployed",
+                "Genuine TxLINE historical event, odds, and validateStatV2 evidence",
+                "Canonical operator-signed escrow/refund/payout transactions",
+                "v2 user-wallet, Position, isolated-vault, and direct-CPI code tested locally",
+                "v2 devnet upgrade and public wallet market not deployed yet",
               ].map((item) => <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-[#d5deeb]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#65d6aa]" />{item}</li>)}
             </ul>
-            <div className="mt-6 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-[#9fb0c9]">Devnet and sandbox funds only. No real-money settlement. The UI and TxLINE transport remain off-chain.</div>
+            <div className="mt-6 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-[#9fb0c9]">Historical canonical evidence used the legacy shared vault and separate TxLINE validation. The market ticket stays disabled until the reviewed v2 upgrade is deployed. Devnet SOL only.</div>
           </aside>
         </section>
 
@@ -109,14 +109,14 @@ export default function HomePage() {
             <div>
               <p className="section-label text-(--green)">A complete market, not just a guard</p>
               <h2 className="mt-2 text-[27px] font-extrabold tracking-[-0.045em] text-(--ink) sm:text-[32px]">Fill → protect → resolve → pay.</h2>
-              <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">FairX closes the whole loop on-chain. Orders fill into parimutuel pools, LineGuard refunds stale-price exploits, the resolved outcome is committed from the genuine final result, and the winning side is paid its share from the ProtocolVault. Losers forfeit.</p>
+              <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">The historical canonical run proves the legacy operator flow. The reviewed v2 path adds user-signed orders, wallet-owned positions, isolated market vaults, direct validateStatV2 CPI, threshold resolution, and owner-signed claims; it remains deployment-pending.</p>
             </div>
             <Link href="/proof#settlement" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-(--green)/30 bg-white px-4 text-[11px] font-bold text-(--green) hover:border-(--green)/50">See the settlement proof <ArrowUpRight className="h-4 w-4" /></Link>
           </div>
           <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <LifecycleStep n="01" icon={Coins} title="Both sides fill" body="YES and NO stakes escrow into their on-chain parimutuel pools." />
             <LifecycleStep n="02" icon={ShieldCheck} title="LineGuard protects" body="Stale positive-edge orders are refunded; safe orders finalize to the vault." />
-            <LifecycleStep n="03" icon={Gavel} title="Outcome resolved" body="The authority commits the genuine final result on-chain, once." />
+            <LifecycleStep n="03" icon={Gavel} title="Outcome resolved" body="A confirmed score receipt maps deterministically through the committed home-win rule; draws void." />
             <LifecycleStep n="04" icon={HandCoins} title="Winners paid" body={`Winning side collects its parimutuel share — a ${payoutMultiple}× payout in the recorded devnet run.`} />
           </div>
         </section>

@@ -49,6 +49,7 @@ export default function WalkthroughPage() {
 
       <div className="mb-5">
         <TxLineProvenance mode="historical" endpoint={canonicalCapture.endpoint} fixtureId={canonicalCapture.fixtureId} eventType={canonicalCapture.normalizedEvent.eventType} sequence={canonicalCapture.normalizedEvent.seq} receivedAt={canonicalCapture.receivedAt} rawEventHash={canonicalCapture.rawPayloadHash} normalizedEventHash={canonicalCapture.normalizedEventHash} proofState={canonicalValidation.simulationPassed ? "TxLINE validateStatV2 passed" : "TxLINE validation unavailable"} trace={canonicalCapture.normalizedEvent.trace} />
+        <p className="mt-2 rounded-lg border border-[#f0d39a] bg-(--amber-bg) p-3 text-[10px] font-semibold leading-relaxed text-(--amber)">TxLINE proof validated separately. Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.</p>
       </div>
 
       <DemoSequence />

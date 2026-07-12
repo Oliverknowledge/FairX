@@ -2,9 +2,9 @@
 
 ## What FairX does
 
-**FairX is a complete on-chain prediction market that protects live settlement from stale-price exploitation.**
+**FairX is a devnet prediction-market prototype designed to prevent stale-price exploitation and make every market decision independently auditable. Devnet SOL only.**
 
-The full lifecycle runs on Solana: orders fill into parimutuel pools, LineGuard refunds only the orders exploiting a stale price, the resolved outcome is committed from the genuine final result, and the winning side is paid its parimutuel share from the ProtocolVault. Losers forfeit.
+The recorded canonical lifecycle runs through the legacy operator path on Solana devnet. The new v2 path adds atomic user-wallet orders, wallet-owned Position PDAs, isolated per-market vaults, deterministic TxLINE odds commitments, direct `validateStatV2` CPI, 2-of-3 resolution approval, and owner-signed claims. V2 is locally verified and deployment-pending; it is not represented as already live on devnet.
 
 ```text
 fill (YES + NO pools) → protect (selective refund) → resolve (committed outcome) → pay (parimutuel payout)
@@ -22,16 +22,20 @@ FairX uses genuine TxLINE events and consensus odds as its sports-data source. T
 
 LineGuard does not freeze the market. It blocks only the side benefiting from stale information.
 
-**Settlement (TxLINE-bound, trust-minimized).** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. Resolution is two-step and the operator can never choose the outcome:
+**Settlement (root-bound, operator-submitted scores).** Filled orders accumulate into on-chain `yes_pool` / `no_pool` registers. `MarketConfig` commits `HOME_TEAM_WINS`, home/away stat keys, and team hashes. For the canonical market, YES means France/the home team wins; stat keys are `1` (home) and `2` (away).
 
-1. `submit_txline_validation` binds the **genuine on-chain TxLINE daily-scores root PDA** (verified by owner + canonical PDA address for the epoch) into a `TxlineValidationReceipt`, and **derives** the outcome from the proven score (`home > away ⇒ YES`).
-2. `resolve_market_from_txline` consumes that receipt and sets the market outcome from the derived result — it takes no outcome argument.
+1. `submit_txline_validation` stores a replaceable draft using the stat keys and rule from `MarketConfig`; it verifies the genuine TxLINE daily-scores root account identity, validates score bounds and hashes, and derives `YES_WON`, `NO_WON`, or `VOIDED_DRAW` from submitted scores.
+2. `confirm_validation` freezes the draft. `resolve_market_from_txline` accepts only a confirmed receipt and takes no outcome argument.
 
 Each winning order then claims its parimutuel share — `stake × total_pool ÷ winning_pool` — from the ProtocolVault via `settle_order`. Losing filled orders forfeit. If the validated winning side holds no filled stake, the market becomes **`VoidedNoWinningPool`** and every filled order reclaims its exact stake via `refund_voided_order` (an `emergency_void_market` path covers abandoned fixtures). Trading is gated by `close_market` (no fills after close; no resolution before close), and per-market accounting enforces the solvency invariant `total_in = paid + refunded + remaining`, so one market can never draw on another's pool.
 
-> Direct same-transaction CPI into TxLINE's `validateStatV2` is not used: it approaches the 1.4M per-transaction compute cap and requires porting 23 nested proof types. This is the sanctioned two-step on-chain validation — clearly labelled, not an off-chain assertion.
+> Historical canonical evidence uses the legacy root-bound path: scores are operator-submitted and `validateStatV2` is separate. The v2 `prove_resolution_with_txline_v2` instruction CPIs into the fixed TxLINE devnet program, supplies equality predicates for the committed stat leaves, requires a true return value, derives the outcome internally, and still requires the configured threshold before execution. V2 is not deployed yet.
+
+The complete surface-by-surface classification is in [`PRODUCT_TRUTH.md`](./PRODUCT_TRUTH.md).
 
 ## Canonical proof
+
+The recorded 13-transaction devnet settlement is `settlement-v4` evidence. The rule/team/stat-key binding and confirmation lifecycle in this repository are `settlement-v5` source changes pending an explicitly approved program upgrade; the runtime gate will not send v5 instructions to v4.
 
 | Evidence | Verified value |
 | --- | --- |
@@ -41,7 +45,7 @@ Each winning order then claims its parimutuel share — `stake × total_pool ÷ 
 | YES result | `+34.231¢` → `VOIDED_REFUNDED` → trader |
 | NO result | `−34.231¢` → `STALE_ALLOWED_NO_EDGE` → ProtocolVault |
 | Unified lifecycle | one market, 13 devnet txns: stale exploit refunded → reprice → YES+NO fill `0.02 SOL` each → close → TxLINE-derived `YES_WON` → winner paid `0.04 SOL` (2×) |
-| Resolution binding | genuine on-chain TxLINE root `EUCbk9…TZ9Zr`; outcome derived from proven score `1–0`, never operator-chosen |
+| Resolution binding | genuine on-chain TxLINE root `EUCbk9…TZ9Zr`; root-bound, operator-submitted `1–0`; TxLINE proof validated separately |
 | LineGuard program | `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe` |
 | Schema / deployment slot | `settlement-v4` / `475793035` |
 
@@ -79,8 +83,9 @@ Verified on the current Solana devnet deployment:
 - config attachment to `MarketState`
 - config/event-hash snapshots in `OrderEscrow`
 - on-chain parimutuel pools (`yes_pool` / `no_pool`) accumulated on fill
-- `submit_txline_validation` binding of the genuine on-chain TxLINE root + score-derived outcome (`TxlineValidationReceipt`)
-- `resolve_market_from_txline` outcome consumption (no operator-chosen outcome parameter)
+- machine-readable `HOME_TEAM_WINS` rule, home/away team hashes, and stat-key commitments in `MarketConfig` (source upgrade pending deployment)
+- replaceable validation draft + immutable confirmation lifecycle; genuine-root identity checks and score-derived outcome (`TxlineValidationReceipt`)
+- `resolve_market_from_txline` consumes only a confirmed receipt and accepts no arbitrary outcome input
 - `settle_order` parimutuel payout to the winning side from `ProtocolVault`, with losing stakes forfeited
 - `VoidedNoWinningPool` handling + `refund_voided_order` exact-stake reclaim + `emergency_void_market`
 - `close_market` trading-close gating and per-market accounting (`total_in = paid + refunded + remaining`)
@@ -100,8 +105,10 @@ if not stale          → ALLOWED               → fill → vault + side pool
 else if edge > tol    → VOIDED_REFUNDED        → refund trader
 else                  → STALE_ALLOWED_NO_EDGE  → fill → vault + side pool
 
-# Settlement (resolve_market → settle_order)
-resolve:  authority commits outcome ∈ {YES_WON, NO_WON} + final-result hash
+# Settlement (submit draft → confirm → resolve → settle_order)
+draft:    authority submits bounded scores; rule + stat keys come from MarketConfig
+confirm:  authority freezes the receipt
+resolve:  program derives {YES_WON, NO_WON, VOIDED_DRAW}; no outcome argument
 settle:   require order filled on the winning side
           payout = stake × total_pool ÷ winning_pool      (parimutuel)
           transfer payout: ProtocolVault → trader; losing filled stakes forfeit

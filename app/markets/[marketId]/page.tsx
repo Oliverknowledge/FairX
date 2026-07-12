@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, PlusCircle } from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
 import { MarketWorkspace } from "@/components/fairx/MarketWorkspace";
+import { DevnetMarket } from "@/components/fairx/DevnetMarket";
 import { getMarketById } from "@/lib/markets/catalog";
 import { useFairXStore } from "@/lib/markets/store";
 
@@ -31,6 +32,10 @@ export default function MarketDetailPage() {
   }
 
   const marketOrders = orders.filter((order) => order.marketId === market.id);
+
+  if (market.id === "france-morocco-france-win") {
+    return <FairXShell><DevnetMarket /></FairXShell>;
+  }
 
   return (
     <FairXShell>

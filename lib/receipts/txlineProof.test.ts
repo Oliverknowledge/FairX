@@ -47,6 +47,7 @@ describe("receipt TxLINE provenance verification", () => {
     expect(result.normalizedEventVerified).toBe(true);
     expect(result.onChainSourceEventHashMatches).toBe(true);
     expect(result.fixtureCommitmentMatches).toBe(true);
+    expect(result.pricingVerified).toBe(true);
   });
 
   it.each(["endpoint", "fixtureId", "seq"] as const)("rejects a resealed tampered %s", (field) => {
@@ -69,5 +70,15 @@ describe("receipt TxLINE provenance verification", () => {
     const receipt = buildFreshDevnetReceipt("YES", proof, 1);
     const onChain = { ...receipt.onChain!, sourceEventHash: "0".repeat(64) };
     expect(verifyReceipt(reseal({ ...receipt, onChain }), 2).errors).toContain("on-chain source event hash mismatch");
+  });
+
+  it("rejects resealed odds or fair-price tampering by recomputing the pricing pipeline", () => {
+    const receipt = buildFreshDevnetReceipt("YES", proof, 1);
+    const pricingProof = structuredClone(receipt.pricingProof!);
+    (pricingProof.fairRawPayload as any).Pct[0] = "50.000";
+    expect(verifyReceipt(reseal({ ...receipt, pricingProof }), 2).errors).toContain("TxLINE pricing derivation mismatch");
+
+    const changedFair = reseal({ ...receipt, fairYes: 0.5, fairSidePrice: 0.5, edge: -0.02274 });
+    expect(verifyReceipt(changedFair, 2).errors).toContain("TxLINE pricing derivation mismatch");
   });
 });

@@ -37,6 +37,8 @@ export interface LineGuardReceipt {
   normalizedEventHash?: string;
   /** Self-contained TxLINE evidence required to recompute both provenance hashes. */
   txlineProof?: TxlineProof;
+  /** Self-contained odds evidence used to recompute observed price, fair price, and edge. */
+  pricingProof?: TxlinePricingProof;
   /** Where the stake ended up. Refund and vault finalization are both enforced by the on-chain guard. */
   settlementDestination?: SettlementDestination;
   proofStatus: string;
@@ -75,7 +77,21 @@ export interface ReceiptVerification {
   normalizedEventVerified: boolean | null;
   onChainSourceEventHashMatches: boolean | null;
   fixtureCommitmentMatches: boolean | null;
+  pricingVerified: boolean | null;
   errors: string[];
+}
+
+export interface TxlinePricingProof {
+  source: "txline";
+  mode: "live" | "historical";
+  fixtureId: string;
+  homeSelection: "part1";
+  displayedRawPayload: unknown;
+  displayedPayloadHash: string;
+  fairRawPayload: unknown;
+  fairPayloadHash: string;
+  pricingModelVersion: 1;
+  pricingModelHash: string;
 }
 
 export interface TxlineProof {
@@ -172,8 +188,9 @@ export interface OnChainSettlementProof {
   protectionRefunded?: boolean;
   protectionEdgeMicros?: number;
   protectionEventHash?: string;
-  // TxLINE resolution binding: the outcome is derived from the proven score, not chosen.
+  // Root-bound resolution: submitted scores map through committed config; TxLINE proof is separate.
   fixtureId?: number;
+  fixtureIdHash?: string;
   sequence?: number;
   validationRootPda?: string;
   validationPayloadHash?: string;
@@ -181,6 +198,18 @@ export interface OnChainSettlementProof {
   homeScore?: number;
   awayScore?: number;
   derivedOutcome?: number;
+  resolutionRule?: "HOME_TEAM_WINS";
+  resolutionRuleCode?: number;
+  yesMeaning?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeTeamHash?: string;
+  awayTeamHash?: string;
+  homeStatKey?: number;
+  awayStatKey?: number;
+  validationConfirmed?: boolean;
+  validateStatV2Passed?: boolean;
+  inProgramMerkleVerification?: boolean;
   // Per-market accounting (solvency invariant: totalIn == paid + refunded + remaining).
   marketTotalInLamports?: number;
   marketTotalPaidLamports?: number;

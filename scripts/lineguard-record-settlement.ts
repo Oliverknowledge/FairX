@@ -11,7 +11,7 @@ const EXPECTED_VAULT = "HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE";
 const EXPECTED_OPERATOR = "ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq";
 const EXPECTED_ROOT = "EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr";
 
-// The unified lifecycle: one market shows LineGuard protection AND TxLINE-backed settlement.
+// The unified lifecycle: LineGuard protection plus root-bound, operator-submitted scores.
 const TX_LABELS = [
   "Initialize market + config (bound to fixture 18209181)",
   "Ingest genuine TxLINE material event (stale window opens)",
@@ -23,8 +23,9 @@ const TX_LABELS = [
   "Place valid post-reprice NO order",
   "Evaluate NO → filled into no_pool",
   "Close trading",
-  "Submit TxLINE validation (binds genuine on-chain root)",
-  "Resolve from TxLINE (outcome derived from proven score)",
+  "Submit validation draft (root-bound submitted scores)",
+  "Confirm validation (receipt becomes immutable)",
+  "Resolve from committed rule + submitted scores",
   "Settle YES → parimutuel payout from vault",
 ];
 
@@ -115,12 +116,16 @@ async function main() {
     programId: EXPECTED_PROGRAM,
     operator: EXPECTED_OPERATOR,
     fixtureId: p.fixtureId ?? 18209181,
+    fixtureIdHash: p.fixtureIdHash,
     sequence: p.sequence ?? 739,
     recordedAt: txs.at(-1)!.blockTime,
     resolution: p.resolution,
     resolutionEventHash: p.resolutionEventHash,
     marketPda: p.marketPda,
+    receiptMarketPda: p.marketPda,
     marketConfigPda: p.marketConfigPda,
+    marketType: "MATCH_WINNER_HOME" as const,
+    ruleBindingDeployment: "DEPLOYED" as const,
     vaultPda: p.vaultPda,
     // Protection leg (same market).
     protectionOrderPda: p.protectionOrderPda,
@@ -128,13 +133,25 @@ async function main() {
     protectionRefunded: p.protectionRefunded,
     protectionEdgeMicros: p.protectionEdgeMicros,
     protectionEventHash: p.protectionEventHash,
-    // TxLINE resolution binding.
+    // Root-bound score receipt; TxLINE proof validation is separate.
     validationRootPda: p.validationRootPda,
     validationPayloadHash: p.validationPayloadHash,
     eventStatRoot: p.eventStatRoot,
     homeScore: p.homeScore,
     awayScore: p.awayScore,
     derivedOutcome: p.derivedOutcome,
+    resolutionRule: p.resolutionRule,
+    resolutionRuleCode: p.resolutionRuleCode,
+    yesMeaning: p.yesMeaning,
+    homeTeam: p.homeTeam,
+    awayTeam: p.awayTeam,
+    homeTeamHash: p.homeTeamHash,
+    awayTeamHash: p.awayTeamHash,
+    homeStatKey: p.homeStatKey,
+    awayStatKey: p.awayStatKey,
+    validationConfirmed: p.validationConfirmed,
+    validateStatV2Passed: p.validateStatV2Passed,
+    inProgramMerkleVerification: p.inProgramMerkleVerification,
     // Settlement + accounting.
     yesOrderPda: p.yesOrderPda,
     noOrderPda: p.noOrderPda,

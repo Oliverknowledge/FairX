@@ -14,7 +14,9 @@ Recorded 10 July 2026 from genuine France vs Morocco TxLINE evidence.
 - Operator: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`
 - Stake: `0.02 SOL` per flow
 
-`validateStatV2` returned true against TxLINE devnet using daily root PDA `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`. Direct CPI is not claimed.
+`validateStatV2` returned true separately against TxLINE devnet using daily root PDA `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`. Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.
+
+The settlement verifier also checks the committed canonical meaning: `HOME_TEAM_WINS`, YES means France/home wins, France is home stat key `1`, and Morocco is away stat key `2`. It rejects tampered rules, team mappings, stat keys, scores, or derived outcomes.
 
 ## YES — voided and refunded
 

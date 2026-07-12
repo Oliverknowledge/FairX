@@ -9,6 +9,7 @@ const navigation = [
   { href: "/walkthrough", label: "Proof Walkthrough" },
   { href: "/proof", label: "Proof" },
   { href: "/markets", label: "Markets" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/create", label: "Create Market" },
   { href: "/attack-lab", label: "Attack Lab" },
   { href: "/integrate", label: "Integrate" },

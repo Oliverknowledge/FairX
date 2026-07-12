@@ -24,13 +24,13 @@ Show the "A complete market, not just a guard" lifecycle band (Fill → Protect 
 
 **0:48–1:12 — On-chain settlement evidence (/proof#settlement)**
 
-> "Here's a real devnet run. Both sides staked 0.02 SOL into their parimutuel pools. The outcome was resolved from the genuine final result and committed on-chain. The winning side collected the full 0.04 SOL pool — a 2× payout — straight from the ProtocolVault. The loser forfeits."
+> "Here's a real devnet run. Both sides staked 0.02 SOL into their parimutuel pools. LineGuard derived the outcome from operator-submitted scores bound to the genuine TxLINE root account. The separate validateStatV2 check passed. The winning side collected the full 0.04 SOL pool — a 2× payout — from the ProtocolVault."
 
 Show the settlement panel: pools, 2× winner payout, winner `Settled`, loser `Filled`. Click the **Resolve** and **Settle** transactions — open them in Solana Explorer to show they're finalized.
 
 **1:12–1:24 — Verifiable, honest**
 
-> "Every claim links to an explorer transaction. Receipts are tamper-evident — change any field and verification fails. And we're explicit about scope: devnet, authority-resolved, parimutuel settlement."
+> "Every claim links to evidence. Receipts are tamper-evident — change the rule, team mapping, stat keys, score, or outcome and verification fails. The limitation is explicit: the TxLINE Merkle proof is validated separately, not inside LineGuard."
 
 Show the runtime status strip (`settlement-v3`, `fresh proof available`) and a receipt verify link.
 

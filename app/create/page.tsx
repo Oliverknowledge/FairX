@@ -14,6 +14,7 @@ type FormState = {
   fixtureId: string;
   type: FairXMarketType;
   backedTeam: string;
+  awayTeam: string;
   targetSide: string;
   displayedPrice: string;
   tolerance: string;
@@ -25,17 +26,18 @@ const defaultForm: FormState = {
   fixtureId: "",
   type: "MATCH_WINNER",
   backedTeam: "",
+  awayTeam: "",
   targetSide: "",
   displayedPrice: "0.50",
   tolerance: "0.02",
   materialityRules: { goals: true, redCards: true, penalties: false, oddsUpdates: true },
 };
 
-const typeOptions: Array<{ value: FairXMarketType; label: string; detail: string }> = [
-  { value: "MATCH_WINNER", label: "Match winner", detail: "YES backs a team to win." },
-  { value: "TOTAL_GOALS", label: "Total goals", detail: "YES backs the selected total." },
-  { value: "NEXT_GOAL", label: "Next goal", detail: "YES backs the selected team to score next." },
-  { value: "CUSTOM_YES_NO", label: "Custom yes/no", detail: "Controlled sandbox proposition." },
+const typeOptions: Array<{ value: FairXMarketType; label: string; detail: string; settlement: boolean }> = [
+  { value: "MATCH_WINNER", label: "Match winner (home)", detail: "YES means the committed home team wins. Settlement-enabled.", settlement: true },
+  { value: "TOTAL_GOALS", label: "Total goals", detail: "Local scenario only · unsupported for settlement.", settlement: false },
+  { value: "NEXT_GOAL", label: "Next goal", detail: "Local scenario only · unsupported for settlement.", settlement: false },
+  { value: "CUSTOM_YES_NO", label: "Custom yes/no", detail: "Local sandbox only · unsupported for settlement.", settlement: false },
 ];
 
 export default function CreateMarketPage() {
@@ -50,6 +52,7 @@ export default function CreateMarketPage() {
       fixtureId: form.fixtureId || undefined,
       type: form.type,
       backedTeam: form.backedTeam || undefined,
+      awayTeam: form.awayTeam || undefined,
       targetSide: form.targetSide || undefined,
       displayedPrice: Number(form.displayedPrice),
       tolerance: Number(form.tolerance),
@@ -68,10 +71,12 @@ export default function CreateMarketPage() {
     marketTitle: form.title || "Untitled protected market",
     materialityRules: form.materialityRules,
     backedTeam: form.backedTeam || undefined,
+    awayTeam: form.awayTeam || undefined,
     targetSide: form.targetSide || undefined,
     toleranceMicros: Math.round((Number(form.tolerance) || 0) * 1_000_000),
   }), [form]);
   const yesPrice = Number(form.displayedPrice);
+  const settlementSupported = form.type === "MATCH_WINNER";
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -134,7 +139,8 @@ export default function CreateMarketPage() {
               </fieldset>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {needsTeam && <Field label="Backed team / YES side" error={errors.backedTeam}><input value={form.backedTeam} onChange={(event) => change("backedTeam", event.target.value)} placeholder="England" className={inputClass(errors.backedTeam)} /></Field>}
+                {needsTeam && <Field label={form.type === "MATCH_WINNER" ? "Home team / YES side" : "Backed team / YES side"} error={errors.backedTeam}><input value={form.backedTeam} onChange={(event) => change("backedTeam", event.target.value)} placeholder="England" className={inputClass(errors.backedTeam)} /></Field>}
+                {form.type === "MATCH_WINNER" && <Field label="Away team" error={errors.awayTeam}><input value={form.awayTeam} onChange={(event) => change("awayTeam", event.target.value)} placeholder="France" className={inputClass(errors.awayTeam)} /></Field>}
                 {needsTarget && <Field label={form.type === "TOTAL_GOALS" ? "Target total" : "What YES means"} error={errors.targetSide}><input value={form.targetSide} onChange={(event) => change("targetSide", event.target.value)} placeholder={form.type === "TOTAL_GOALS" ? "Over 2.5 goals" : "Extra time occurs"} className={inputClass(errors.targetSide)} /></Field>}
                 {!needsTeam && !needsTarget && <div />}
                 <Field label="Initial displayed YES price" error={errors.initialDisplayedPrice} hint="0.01 to 0.99">
@@ -163,12 +169,15 @@ export default function CreateMarketPage() {
               <p className="mt-2 text-[10.5px] leading-relaxed text-(--ink-2)">Long strings stay off-chain. These deterministic hashes are the values the current MarketConfig-capable program commits.</p>
               <div className="mt-3 space-y-2 text-[10px]">
                 <CommitmentRow label="Market type" value={`${configCommitment.marketType} (${configCommitment.marketTypeCode})`} />
+                <CommitmentRow label="Settlement support" value={settlementSupported ? "MATCH_WINNER_HOME · supported" : "UNSUPPORTED_FOR_SETTLEMENT · local scenario only"} />
+                {settlementSupported && <CommitmentRow label="Resolution rule / stat keys" value={`${configCommitment.resolutionRule} · home ${configCommitment.homeStatKey} · away ${configCommitment.awayStatKey}`} />}
+                {settlementSupported && <CommitmentRow label="Home / away team hashes" value={`${configCommitment.homeTeamHash} / ${configCommitment.awayTeamHash}`} />}
                 <CommitmentRow label="Fixture ID hash" value={configCommitment.fixtureIdHash} />
                 <CommitmentRow label="Title hash" value={configCommitment.marketTitleHash} />
                 <CommitmentRow label="Materiality config hash" value={configCommitment.materialityConfigHash} />
                 <CommitmentRow label="Settlement config hash" value={configCommitment.settlementConfigHash} />
               </div>
-              <p className="mt-3 rounded-md border border-[#dce6f7] bg-[#f8fbff] p-2.5 text-[9.5px] leading-relaxed text-[#3d5e95]">5 · Initialize on devnet → 6 · Submit protected test order → 7 · Verify receipt. Those steps continue on the market detail page and are enabled only when runtime readiness checks pass.</p>
+              <p className="mt-3 rounded-md border border-[#dce6f7] bg-[#f8fbff] p-2.5 text-[9.5px] leading-relaxed text-[#3d5e95]">{settlementSupported ? "MATCH_WINNER_HOME may continue to on-chain initialization after its home/away mapping is committed." : "This type remains available only as a clearly labelled local scenario; the current on-chain settlement initializer rejects it."}</p>
             </section>
 
             <section className="rounded-lg border border-[#f0d39a] bg-(--amber-bg) p-4 text-[10.5px] leading-relaxed text-[#9b650d]">

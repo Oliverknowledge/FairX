@@ -31,6 +31,7 @@ export async function POST(req: Request): Promise<Response> {
     fixtureId,
     materialityRules: parseMaterialityRules(body.materialityRules),
     backedTeam: typeof body.backedTeam === "string" ? body.backedTeam : undefined,
+    awayTeam: typeof body.awayTeam === "string" ? body.awayTeam : undefined,
     targetSide: typeof body.targetSide === "string" ? body.targetSide : undefined,
     displayedPriceMicros: toMicros(body.displayedPriceMicros, 500_000),
     fairPriceMicros: toMicros(body.fairPriceMicros, 500_000),

@@ -88,6 +88,7 @@ export interface FairXMarket {
   onChain?: FairXOnChainMarket;
   /** Optional metadata used by cards and the market-detail explanation. */
   backedTeam?: string;
+  awayTeam?: string;
   targetSide?: string;
   resolutionNote?: string;
   liquidity?: number;

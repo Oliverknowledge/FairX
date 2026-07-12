@@ -14,14 +14,22 @@ const instructions = `// Current Anchor instruction names in programs/lineguard/
 initialize_vault()
 initialize_market(market_id, material_seq, priced_at_seq,
                   displayed_price_micros, fair_price_micros, tolerance_micros)
-initialize_market_config(market_type, fixture_id_hash, market_title_hash,
-                         materiality_config_hash, settlement_config_hash)
+initialize_market_config(..., market_type = MATCH_WINNER_HOME,
+                         resolution_rule = HOME_TEAM_WINS,
+                         home_stat_key, away_stat_key,
+                         home_team_hash, away_team_hash)
 attach_market_config()
 ingest_material_event(new_material_seq, new_fair_price_micros,
                       source_event_hash)
 reprice_market(new_priced_at_seq, new_displayed_price_micros)
 place_order(order_id, side, stake)
 evaluate_order()
+close_market()
+submit_txline_validation(fixture_id, sequence, root_epoch_day,
+                         home_score, away_score, validation_payload_hash,
+                         event_stat_root) // no outcome/stat-key inputs
+confirm_validation()
+resolve_market_from_txline()
 
 // evaluate_order emits GuardVerdict and transfers escrow to either:
 // REFUNDED_TO_TRADER | FINALIZED_TO_VAULT`;
@@ -98,7 +106,7 @@ export default function IntegratePage() {
 
         <section className="rounded-xl border border-[#d9e6fc] bg-[#f7faff] p-4 text-[10.5px] leading-relaxed text-[#3d5e95]">
           <p className="flex items-center gap-2 font-bold"><Radio className="h-4 w-4" />TxLINE boundary</p>
-          <p className="mt-1.5">TxLINE HTTP/SSE transport and normalization remain off-chain. The authority commits the normalized event evidence hash on-chain. FairX does not claim a decentralized production oracle or a direct TxLINE CPI today.</p>
+          <p className="mt-1.5">Only <span className="mono">MATCH_WINNER_HOME</span> is settlement-enabled. <span className="mono">TOTAL_GOALS</span>, <span className="mono">NEXT_GOAL</span>, and <span className="mono">CUSTOM_YES_NO</span> are rejected by the on-chain settlement initializer. Scores are operator-submitted; the TxLINE Merkle proof is validated separately and is not re-verified inside LineGuard.</p>
         </section>
       </div>
     </FairXShell>

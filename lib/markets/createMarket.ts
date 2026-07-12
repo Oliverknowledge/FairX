@@ -16,6 +16,7 @@ export interface CreateFairXMarketInput {
   /** Friendly alias for form clients that name this field `marketType`. */
   marketType?: FairXMarketType;
   backedTeam?: string;
+  awayTeam?: string;
   targetSide?: string;
   resolutionNote?: string;
   /** The YES quote shown when the market is created. */
@@ -53,6 +54,7 @@ interface NormalizedCreateFairXMarketInput {
   fixtureId?: string;
   type: FairXMarketType;
   backedTeam?: string;
+  awayTeam?: string;
   targetSide?: string;
   resolutionNote?: string;
   displayedPrice: number;
@@ -105,6 +107,7 @@ export function validateFairXMarketInput(input: CreateFairXMarketInput): MarketC
   const title = compactText(input.title);
   const fixtureId = compactText(input.fixtureId);
   const backedTeam = compactText(input.backedTeam);
+  const awayTeam = compactText(input.awayTeam);
   const targetSide = compactText(input.targetSide);
   const resolutionNote = compactText(input.resolutionNote);
   const type = input.marketType ?? input.type;
@@ -122,6 +125,7 @@ export function validateFairXMarketInput(input: CreateFairXMarketInput): MarketC
   if ((type === "MATCH_WINNER" || type === "NEXT_GOAL") && !backedTeam) {
     errors.backedTeam = "Name the team or target side backed by YES.";
   }
+  if (type === "MATCH_WINNER" && !awayTeam) errors.awayTeam = "Name the committed away team.";
   if (type === "TOTAL_GOALS" && !targetSide && !resolutionNote) {
     errors.targetSide = "Describe the total-goals threshold backed by YES.";
   }
@@ -154,6 +158,7 @@ export function validateFairXMarketInput(input: CreateFairXMarketInput): MarketC
       fixtureId,
       type,
       backedTeam,
+      awayTeam,
       targetSide: targetSide ?? backedTeam,
       resolutionNote,
       displayedPrice: clampFairXPrice(displayedPrice!),
@@ -213,6 +218,7 @@ export function createFairXMarket(input: CreateFairXMarketInput, options: Create
     materialityRules: { ...value.materialityRules },
     createdBy: value.createdBy,
     backedTeam: value.backedTeam,
+    awayTeam: value.awayTeam,
     targetSide: value.targetSide,
     resolutionNote:
       value.resolutionNote ??

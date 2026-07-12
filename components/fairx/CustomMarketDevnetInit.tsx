@@ -58,6 +58,7 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
   const initialized = market.onChain?.initialized === true && market.onChain.cluster === "devnet" && Boolean(market.onChain.marketConfigPda);
   const mode: CustomMode = orders.length > 0 ? "devnet_settled" : initialized ? "devnet_initialized" : "local_simulation";
   const devnetReady = runtime?.freshProofAvailable === true;
+  const settlementSupported = market.type === "MATCH_WINNER";
 
   const initialize = async () => {
     if (busy) return;
@@ -74,6 +75,7 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
           fixtureId: market.fixtureId ?? `custom:${market.id}`,
           materialityRules: market.materialityRules,
           backedTeam: market.backedTeam,
+          awayTeam: market.awayTeam,
           targetSide: market.targetSide,
           displayedPriceMicros: Math.round(market.displayedPrice * 1_000_000),
           fairPriceMicros: Math.round(market.fairPrice * 1_000_000),
@@ -124,6 +126,7 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
           fixtureId: market.fixtureId ?? `custom:${market.id}`,
           materialityRules: market.materialityRules,
           backedTeam: market.backedTeam,
+          awayTeam: market.awayTeam,
           targetSide: market.targetSide,
           displayedPriceMicros: Math.round(market.displayedPrice * 1_000_000),
           toleranceMicros: Math.round(market.tolerance * 1_000_000),
@@ -174,17 +177,18 @@ export function CustomMarketDevnetInit({ market, onMarketUpdate }: { market: Fai
       {!initialized ? (
         <div className="mt-3 space-y-2.5">
           <p className="text-[10.5px] leading-relaxed text-(--ink-2)">
-            Create this market&rsquo;s <span className="mono">MarketState</span> and config commitment on Solana devnet. The title, fixture,
-            materiality rules, settlement rules, tolerance, and allowed sides are committed without storing long strings.
+            {settlementSupported
+              ? <>Create this <span className="mono">MATCH_WINNER_HOME</span> market&rsquo;s state and config commitment on Solana devnet.</>
+              : <>This market type is <span className="mono">UNSUPPORTED_FOR_SETTLEMENT</span>. It remains a local scenario and cannot enter the current on-chain settlement path.</>}
           </p>
           <button
             type="button"
             onClick={initialize}
-            disabled={busy || !devnetReady}
+            disabled={busy || !devnetReady || !settlementSupported}
             className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-(--ink) px-3 text-[11px] font-bold text-white transition-colors hover:bg-[#273244] disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            {busy ? "Initializing on devnet…" : "Initialize on devnet"}
+            {busy ? "Initializing on devnet…" : settlementSupported ? "Initialize on devnet" : "Unsupported for settlement"}
           </button>
           {!devnetReady && <p className="rounded-md border border-[#f1d59b] bg-(--amber-bg) p-2 text-[9.5px] leading-relaxed text-(--amber)">{runtime?.reason ?? "Checking devnet readiness…"} Canonical evidence remains available on the Proof page.</p>}
           <p className="text-[9px] leading-relaxed text-(--ink-3)">Modes: <span className="mono">local_simulation</span> → <span className="mono">devnet_initialized</span> → <span className="mono">devnet_settled</span>.</p>

@@ -15,18 +15,25 @@ describe("settlement proof verifier", () => {
     expect(result.valid).to.equal(true);
   });
 
-  it("derives the outcome purely from the proven score", () => {
+  it("derives the outcome from the committed rule and submitted scores", () => {
     expect(deriveOutcome(1, 0)).to.equal(1); // home win => YES
     expect(deriveOutcome(0, 2)).to.equal(2); // away win => NO
-    expect(deriveOutcome(1, 1)).to.equal(2); // draw => NO (backed side did not win)
+    expect(deriveOutcome(1, 1)).to.equal(3); // draw => void
   });
 
   it("detects tampering with the validated result / winning side", () => {
     expect(verifySettlementProof(tampered({ resolution: "NO_WON" })).valid).to.equal(false);
     expect(verifySettlementProof(tampered({ winnerSide: "NO" })).valid).to.equal(false);
     expect(verifySettlementProof(tampered({ derivedOutcome: 2 })).valid).to.equal(false);
-    // Flipping the proven score without flipping the outcome is rejected.
+    // Flipping the submitted score without flipping the outcome is rejected.
     expect(verifySettlementProof(tampered({ homeScore: 0, awayScore: 3 })).valid).to.equal(false);
+  });
+
+  it("detects tampering with rules, stat keys, scores, and derived outcome", () => {
+    expect(verifySettlementProof(tampered({ resolutionRuleCode: 7 })).valid).to.equal(false);
+    expect(verifySettlementProof(tampered({ homeStatKey: 2, awayStatKey: 1 })).valid).to.equal(false);
+    expect(verifySettlementProof(tampered({ homeScore: 4 })).valid).to.equal(false);
+    expect(verifySettlementProof(tampered({ derivedOutcome: 2 })).valid).to.equal(false);
   });
 
   it("detects tampering with the payout amount", () => {

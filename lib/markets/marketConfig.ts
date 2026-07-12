@@ -17,6 +17,7 @@ export interface MarketConfigCommitmentInput {
   marketTitle: string;
   materialityRules: MaterialityRules;
   backedTeam?: string;
+  awayTeam?: string;
   targetSide?: string;
   toleranceMicros: number;
 }
@@ -28,6 +29,12 @@ export interface MarketConfigCommitment {
   marketTitleHash: string;
   materialityConfigHash: string;
   settlementConfigHash: string;
+  resolutionRule: "HOME_TEAM_WINS";
+  resolutionRuleCode: 0;
+  homeStatKey: 1;
+  awayStatKey: 2;
+  homeTeamHash: string;
+  awayTeamHash: string;
 }
 
 function normalizedText(value: string | undefined): string | null {
@@ -80,5 +87,11 @@ export function buildMarketConfigCommitment(input: MarketConfigCommitmentInput):
     marketTitleHash: hashMarketText(input.marketTitle),
     materialityConfigHash: hashMaterialityConfig(input),
     settlementConfigHash: hashSettlementConfig(input.toleranceMicros),
+    resolutionRule: "HOME_TEAM_WINS",
+    resolutionRuleCode: 0,
+    homeStatKey: 1,
+    awayStatKey: 2,
+    homeTeamHash: hashMarketText(input.backedTeam ?? ""),
+    awayTeamHash: hashMarketText(input.awayTeam ?? ""),
   };
 }

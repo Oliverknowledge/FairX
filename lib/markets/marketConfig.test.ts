@@ -23,6 +23,7 @@ describe("market config commitments", () => {
       marketTitle: "England wins",
       materialityRules: rules,
       backedTeam: "England",
+      awayTeam: "France",
       toleranceMicros: 20_000,
     });
     expect(config.marketTypeCode).toBe(0);
@@ -30,5 +31,9 @@ describe("market config commitments", () => {
     expect(config.marketTitleHash).toMatch(/^[0-9a-f]{64}$/);
     expect(config.materialityConfigHash).toMatch(/^[0-9a-f]{64}$/);
     expect(config.settlementConfigHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(config.resolutionRule).toBe("HOME_TEAM_WINS");
+    expect(config.homeStatKey).toBe(1);
+    expect(config.awayStatKey).toBe(2);
+    expect(config.homeTeamHash).not.toBe(config.awayTeamHash);
   });
 });

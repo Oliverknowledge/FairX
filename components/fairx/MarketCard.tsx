@@ -22,6 +22,14 @@ function marketKindLabel(market: FairXMarket) {
 
 export function MarketCard({ market, liveConnected = false }: { market: FairXMarket; liveConnected?: boolean }) {
   const guardLabel = guardLabelForStatus(market.status);
+  const canonicalHistorical = market.id === "france-morocco-france-win";
+  const executionLabel = canonicalHistorical
+    ? "Historical proof · v2 pending"
+    : market.onChain?.settled
+      ? "Devnet settled"
+      : market.onChain?.initialized
+        ? "Devnet initialized"
+        : "Local preview";
 
   return (
     <article className="card relative flex min-h-[292px] flex-col overflow-hidden p-4 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[#c7d5ea] hover:shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
@@ -40,7 +48,7 @@ export function MarketCard({ market, liveConnected = false }: { market: FairXMar
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="rounded-lg border border-[#dbe7fb] bg-[#f7faff] px-3 py-2.5">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-(--ink-3)">YES price</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-(--ink-3)">{canonicalHistorical ? "TxLINE historical" : "Local YES preview"}</p>
           <p className="mt-0.5 text-[20px] font-bold leading-none tracking-[-0.045em] text-(--blue)">{cents(market.displayedPrice)}</p>
         </div>
         <div className="rounded-lg border border-(--border) bg-[#fbfcfd] px-3 py-2.5">
@@ -59,10 +67,12 @@ export function MarketCard({ market, liveConnected = false }: { market: FairXMar
         <div>
           <p className="text-(--ink-3)">Execution</p>
           <p className="mt-0.5 truncate font-semibold text-(--ink)">
-            {market.onChain?.settled ? "Devnet settled" : market.onChain?.initialized ? "Devnet initialized" : "Local simulation"}
+            {executionLabel}
           </p>
         </div>
       </div>
+
+      {market.type !== "MATCH_WINNER" && <p className="mt-2 text-[9px] font-semibold text-(--amber)">Not yet supported for on-chain resolution</p>}
 
       <div className="mt-3 flex items-center justify-between gap-2">
         <span

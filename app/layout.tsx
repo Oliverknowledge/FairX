@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import "@solana/wallet-adapter-react-ui/styles.css";
 import "./globals.css";
+import { SolanaWalletProvider } from "@/components/solana/WalletProvider";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
   ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined)
@@ -30,7 +32,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased"><SolanaWalletProvider>{children}</SolanaWalletProvider></body>
     </html>
   );
 }
