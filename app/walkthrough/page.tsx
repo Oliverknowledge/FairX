@@ -12,7 +12,7 @@ import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
 
 export const metadata: Metadata = {
   title: "Proof Walkthrough",
-  description: "A 60-second walkthrough of TxLINE event evidence, stale-order escrow, selective refunds, ProtocolVault finalization, and receipt verification.",
+  description: "The continuous FairX v2 devnet lifecycle: TxLINE evidence, refund, Position, direct CPI, threshold resolution, payout, and vault conservation.",
 };
 
 export default function WalkthroughPage() {
@@ -32,7 +32,7 @@ export default function WalkthroughPage() {
               <p className="mono text-[10px] font-semibold uppercase tracking-[0.16em] text-(--ink-3)">FairX powered by LineGuard</p>
               <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.035em] text-(--ink)">Watch selective settlement in 60 seconds.</h1>
               <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-(--ink-2)">
-                One genuine TxLINE event, one stale window, two opposite orders. LineGuard refunds only the order exploiting the lag and finalizes the safe side.
+                One genuine TxLINE event, one market, one exact stale refund, one accepted Position, direct CPI, threshold resolution and owner claim.
               </p>
             </div>
           </div>
@@ -48,19 +48,23 @@ export default function WalkthroughPage() {
       <div className="mb-4"><RuntimeStatusStrip detailed /></div>
 
       <div className="mb-5">
-        <TxLineProvenance mode="historical" endpoint={canonicalCapture.endpoint} fixtureId={canonicalCapture.fixtureId} eventType={canonicalCapture.normalizedEvent.eventType} sequence={canonicalCapture.normalizedEvent.seq} receivedAt={canonicalCapture.receivedAt} rawEventHash={canonicalCapture.rawPayloadHash} normalizedEventHash={canonicalCapture.normalizedEventHash} proofState={canonicalValidation.simulationPassed ? "TxLINE validateStatV2 passed" : "TxLINE validation unavailable"} trace={canonicalCapture.normalizedEvent.trace} />
-        <p className="mt-2 rounded-lg border border-[#f0d39a] bg-(--amber-bg) p-3 text-[10px] font-semibold leading-relaxed text-(--amber)">TxLINE proof validated separately. Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.</p>
+        <TxLineProvenance mode="historical" endpoint={canonicalCapture.endpoint} fixtureId={canonicalCapture.fixtureId} eventType={canonicalCapture.normalizedEvent.eventType} sequence={canonicalCapture.normalizedEvent.seq} receivedAt={canonicalCapture.receivedAt} rawEventHash={canonicalCapture.rawPayloadHash} normalizedEventHash={canonicalCapture.normalizedEventHash} proofState={canonicalValidation.simulationPassed ? "Direct TxLINE ValidateStatV2 CPI verified" : "TxLINE validation unavailable"} trace={canonicalCapture.normalizedEvent.trace} />
+        <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-[10px] font-semibold leading-relaxed text-emerald-900">LineGuard reconstructed the exact Borsh payload, invoked TxLINE on devnet, required success, and derived YES from the validated 1–0 score.</p>
       </div>
 
-      <DemoSequence />
-
-      <div className="mt-5">
-        <div className="mb-2 flex items-center gap-2">
-          <span className="section-label">Fresh devnet execution when runtime-ready</span>
-          <span className="h-px flex-1 bg-(--border)" />
-        </div>
-        <FreshDevnetPanel />
-      </div>
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label="Canonical v2 lifecycle steps">{[
+        "Genuine TxLINE event",
+        "Stale exploit refunded",
+        "Market repriced",
+        "Accepted Position created",
+        "Market closed",
+        "Direct TxLINE CPI",
+        "Two approvals",
+        "YES derived",
+        "User payout claimed",
+        "Conservation verified",
+      ].map((label, index) => <article key={label} className="rounded-xl border border-(--border) bg-white p-3"><span className="mono text-[9px] font-bold text-(--blue)">{String(index + 1).padStart(2, "0")}</span><p className="mt-2 text-[11px] font-bold text-(--ink)">{label}</p></article>)}</section>
+      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-[12px] font-bold text-emerald-950">FairX protected entry, verified the result and paid the winning position from the same isolated market vault. <Link href="/verify/v2-france-morocco" className="ml-1 text-(--blue) underline">Verify all 12 checks.</Link></div>
 
       <section className="card mt-5 p-4 sm:p-5">
         <div className="flex items-center gap-2">
@@ -86,9 +90,10 @@ export default function WalkthroughPage() {
         <Link href="/terminal" className="mt-3 inline-flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">
           Inspect the technical ingestion and normalizer trace <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
-        <details className="mt-4 rounded-lg border border-(--amber)/25 bg-(--amber-bg) p-3">
-          <summary className="cursor-pointer text-[10.5px] font-bold text-(--amber)">Use offline fallback</summary>
-          <p className="mt-2 text-[10px] leading-relaxed text-(--ink-2)">The terminal&apos;s guided scenario is generated by FairX, uses sandbox values, and is never presented as genuine TxLINE data.</p>
+        <details className="mt-4 rounded-lg border border-(--border) bg-[#f8fafc] p-3">
+          <summary className="cursor-pointer text-[10.5px] font-bold text-(--ink-2)">Historical protocol versions</summary>
+          <p className="mt-2 text-[10px] leading-relaxed text-(--ink-2)">Legacy shared-vault and separate-validation proofs are retained for audit history and are not the current canonical story.</p>
+          <div className="mt-3"><DemoSequence /></div><div className="mt-3"><FreshDevnetPanel /></div>
         </details>
       </section>
       </div>

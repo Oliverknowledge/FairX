@@ -4,24 +4,21 @@ import { ArrowDown, ArrowRight, ArrowUpRight, CheckCircle2, CircleDollarSign, Co
 import { FairXShell } from "@/components/fairx/FairXShell";
 import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
 import { TxLineProvenance } from "@/components/fairx/TxLineProvenance";
-import { proofData } from "@/lib/proof/staticProofData";
 import canonicalCapture from "@/fixtures/txline/canonical.json";
 import canonicalValidation from "@/fixtures/txline/canonical.validation.json";
+import { canonicalV2Lifecycle } from "@/lib/proof/v2Lifecycle";
 
 export const metadata: Metadata = {
   title: "Fair settlement for live prediction markets",
   description: "FairX uses LineGuard and TxLINE event evidence to refund stale-price exploits and finalize safe trades on Solana devnet.",
 };
 
-const yesCase = proofData.cases.find((proof) => proof.id === "yes")!;
-const noCase = proofData.cases.find((proof) => proof.id === "no")!;
-const settlement = proofData.settlement;
-const payoutMultiple = Math.round(settlement.payoutMultiple);
 const displayed = canonicalCapture.odds.displayedPricingInput.impliedProbability;
 const fair = canonicalCapture.odds.normalizedPricingInput.impliedProbability;
 const edge = fair - displayed;
 const price = (value: number) => `${(value * 100).toFixed(3)}¢`;
 const probability = (value: number) => `${(value * 100).toFixed(3)}%`;
+const v2 = canonicalV2Lifecycle;
 
 export default function HomePage() {
   return (
@@ -47,14 +44,14 @@ export default function HomePage() {
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8fa7cc]">Product truth</p>
             <ul className="mt-4 space-y-3">
               {[
-                "Legacy Solana devnet program + canonical proof deployed",
-                "Genuine TxLINE historical event, odds, and validateStatV2 evidence",
-                "Canonical operator-signed escrow/refund/payout transactions",
-                "v2 user-wallet, Position, isolated-vault, and direct-CPI code tested locally",
-                "v2 devnet upgrade and public wallet market not deployed yet",
+                "FairX v2 deployed on Solana devnet · slot 475831626",
+                "Direct TxLINE ValidateStatV2 CPI verified",
+                "2-of-3 threshold resolution executed",
+                "Wallet-owned Position and isolated market vault verified",
+                "User-owned devnet wallet lifecycle · refund, position and claim",
               ].map((item) => <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-[#d5deeb]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#65d6aa]" />{item}</li>)}
             </ul>
-            <div className="mt-6 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-[#9fb0c9]">Historical canonical evidence used the legacy shared vault and separate TxLINE validation. The market ticket stays disabled until the reviewed v2 upgrade is deployed. Devnet SOL only.</div>
+            <div className="mt-6 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-[#9fb0c9]">Canonical v2 used a secure test-user devnet keypair, not Phantom. Phantom and Solflare remain available for public user transactions. Devnet only; no real-money settlement.</div>
           </aside>
         </section>
 
@@ -85,7 +82,7 @@ export default function HomePage() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <VerdictCard side="YES attack" observed={price(displayed)} fair={price(fair)} edge={`+${price(edge)}`} verdict="VOIDED_REFUNDED" destination="Refunded to trader" tone="red" />
-              <VerdictCard side="NO trade" observed={price(1 - displayed)} fair={price(1 - fair)} edge={`−${price(edge)}`} verdict="STALE_ALLOWED_NO_EDGE" destination="Finalized to ProtocolVault" tone="blue" />
+              <VerdictCard side="Repriced YES" observed={price(fair)} fair={price(fair)} edge="0.000¢" verdict="POSITION_OPENED" destination="Isolated market vault" tone="blue" />
             </div>
           </div>
         </section>
@@ -99,7 +96,7 @@ export default function HomePage() {
               ["03", "Market becomes stale", "materialSeq moves ahead of pricedAtSeq."],
               ["04", "Order enters escrow", "The observed side price and stake are frozen."],
               ["05", "LineGuard calculates edge", "Fair side price minus observed price is evaluated."],
-              ["06", "Refund or finalize", "Exploitative orders refund; safe orders reach ProtocolVault."],
+              ["06", "Refund or position", "Exploitative orders refund; safe orders update a wallet-owned Position."],
             ].map(([n, title, body]) => <article key={n} className="rounded-xl border border-(--border) bg-[#fafbfc] p-3.5"><span className="mono text-[9px] font-bold text-(--blue)">{n}</span><h3 className="mt-2 text-[11.5px] font-bold text-(--ink)">{title}</h3><p className="mt-1 text-[9.5px] leading-relaxed text-(--ink-3)">{body}</p></article>)}
           </div>
         </section>
@@ -109,7 +106,7 @@ export default function HomePage() {
             <div>
               <p className="section-label text-(--green)">A complete market, not just a guard</p>
               <h2 className="mt-2 text-[27px] font-extrabold tracking-[-0.045em] text-(--ink) sm:text-[32px]">Fill → protect → resolve → pay.</h2>
-              <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">The historical canonical run proves the legacy operator flow. The reviewed v2 path adds user-signed orders, wallet-owned positions, isolated market vaults, direct validateStatV2 CPI, threshold resolution, and owner-signed claims; it remains deployment-pending.</p>
+              <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">The canonical v2 devnet run proves an exact stale refund, a wallet-owned accepted Position, direct TxLINE CPI, 2-of-3 resolution, owner-signed claim and isolated-vault conservation in one market.</p>
             </div>
             <Link href="/proof#settlement" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-(--green)/30 bg-white px-4 text-[11px] font-bold text-(--green) hover:border-(--green)/50">See the settlement proof <ArrowUpRight className="h-4 w-4" /></Link>
           </div>
@@ -117,7 +114,7 @@ export default function HomePage() {
             <LifecycleStep n="01" icon={Coins} title="Both sides fill" body="YES and NO stakes escrow into their on-chain parimutuel pools." />
             <LifecycleStep n="02" icon={ShieldCheck} title="LineGuard protects" body="Stale positive-edge orders are refunded; safe orders finalize to the vault." />
             <LifecycleStep n="03" icon={Gavel} title="Outcome resolved" body="A confirmed score receipt maps deterministically through the committed home-win rule; draws void." />
-            <LifecycleStep n="04" icon={HandCoins} title="Winners paid" body={`Winning side collects its parimutuel share — a ${payoutMultiple}× payout in the recorded devnet run.`} />
+            <LifecycleStep n="04" icon={HandCoins} title="Winner paid" body="The canonical winning Position claimed exactly 0.01 Devnet SOL from its isolated market vault." />
           </div>
         </section>
 
@@ -127,12 +124,12 @@ export default function HomePage() {
             <h2 className="mt-2 text-[27px] font-extrabold tracking-[-0.045em] text-(--ink)">Canonical devnet proof, not a simulated claim.</h2>
             <p className="mt-2 max-w-2xl text-[11.5px] leading-relaxed text-(--ink-2)">These artifacts were re-checked against current devnet accounts. Fresh execution is exposed only when runtime status confirms the deployed schema and operator are ready.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Evidence label="Program ID" value={proofData.program.id} href={proofData.program.explorerUrl} />
-              <Evidence label="Current recorded upgrade" value={`slot ${proofData.program.deployedSlot}`} href={proofData.program.deploymentTxUrl} />
-              <Evidence label="Source event hash" value={yesCase.sourceEventHash} href={yesCase.txs[1].explorerUrl} />
-              <Evidence label="YES verdict" value={`${yesCase.verdict} · trader`} href={yesCase.txs.at(-1)!.explorerUrl} />
-              <Evidence label="NO verdict" value={`${noCase.verdict} · vault`} href={noCase.txs.at(-1)!.explorerUrl} />
-              <Evidence label="ProtocolVault" value={proofData.vault.pda} href={proofData.vault.explorerUrl} />
+              <Evidence label="Program ID" value={v2.program.programId} href={`https://explorer.solana.com/address/${v2.program.programId}?cluster=devnet`} />
+              <Evidence label="Current v2 upgrade" value={`slot ${v2.program.slot}`} href={v2.transactions.upgrade.explorerUrl} />
+              <Evidence label="Direct TxLINE CPI" value="ValidateStatV2 verified" href={v2.transactions.txlineCpiProof.explorerUrl} />
+              <Evidence label="Stale protection" value="0.01 SOL refunded" href={v2.transactions.staleRefund.explorerUrl} />
+              <Evidence label="Wallet-owned Position" value={v2.lifecycle.positionPda} href={`https://explorer.solana.com/address/${v2.lifecycle.positionPda}?cluster=devnet`} />
+              <Evidence label="Market vault" value={v2.market.marketVaultPda} href={`https://explorer.solana.com/address/${v2.market.marketVaultPda}?cluster=devnet`} />
             </div>
           </div>
           <div className="self-start">

@@ -7,6 +7,8 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { ArrowUpRight, CheckCircle2, RefreshCw, ShieldCheck, TriangleAlert, WalletCards } from "lucide-react";
 import canonicalCapture from "@/fixtures/txline/canonical.json";
+import { CanonicalV2Settlement } from "@/components/fairx-proof/CanonicalV2Settlement";
+import { canonicalV2Lifecycle } from "@/lib/proof/v2Lifecycle";
 import {
   CANONICAL_V2_MARKET_LABEL,
   buildOrderTransaction,
@@ -22,7 +24,6 @@ import {
 
 type SubmissionState = "IDLE" | "SIMULATING" | "AWAITING_SIGNATURE" | "CONFIRMING" | "POSITION_OPENED" | "REFUNDED" | "ERROR";
 
-const FALLBACK_DISPLAYED = canonicalCapture.odds.displayedPricingInput.fairPriceMicros;
 const FALLBACK_FAIR = canonicalCapture.odds.normalizedPricingInput.fairPriceMicros;
 
 function sol(lamports: number): string {
@@ -71,7 +72,7 @@ export function DevnetMarket() {
 
   const market = snapshot?.market;
   const vault = snapshot?.vault;
-  const displayedYes = market?.displayedPriceMicros ?? FALLBACK_DISPLAYED;
+  const displayedYes = market?.displayedPriceMicros ?? canonicalCapture.odds.normalizedPricingInput.fairPriceMicros;
   const fairYes = market?.fairPriceMicros ?? FALLBACK_FAIR;
   const sidePrice = side === "YES" ? displayedYes : 1_000_000 - displayedYes;
   const fairSide = side === "YES" ? fairYes : 1_000_000 - fairYes;
@@ -135,13 +136,17 @@ export function DevnetMarket() {
           </div>
         </div>
 
+        <div className="border-b border-(--border) p-4 sm:p-5">
+          <CanonicalV2Settlement connectedWallet={wallet.publicKey?.toBase58()} />
+        </div>
+
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-5 p-5 sm:p-6">
             <div className="grid gap-3 sm:grid-cols-4">
               <Metric label="YES probability" value={pct(displayedYes)} accent />
               <Metric label="NO probability" value={pct(1_000_000 - displayedYes)} />
-              <Metric label="Accepted collateral" value={vault ? sol(vault.totalAccepted) : "Not deployed"} />
-              <Metric label="Protection" value={stale ? "Stale window" : "Synchronized"} good={!stale} />
+              <Metric label="Accepted collateral" value={vault ? sol(vault.totalAccepted) : sol(canonicalV2Lifecycle.market.acceptedCollateralLamports)} />
+              <Metric label="Market state" value={market?.resolved ? "Resolved · YES" : stale ? "Stale window" : "Synchronized"} good={Boolean(market?.resolved || !stale)} />
             </div>
 
             <section>
@@ -168,11 +173,7 @@ export function DevnetMarket() {
               <EvidenceRow title="Resolution assurance" detail="v2 requires TxLINE validateStatV2 CPI success plus threshold approval before execution." />
             </section>
 
-            {!snapshot?.deployed && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
-                <strong>Deployment pending.</strong> {snapshot?.reason ?? "Checking v2 market state."} Historical canonical evidence remains verifiable, but wallet trading stays disabled until the reviewed v2 program and market are deployed.
-              </div>
-            )}
+            {!snapshot?.deployed && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-relaxed text-blue-900"><strong>Canonical v2 evidence loaded.</strong> Live RPC hydration is still loading or unavailable; the durable settled receipt remains visible above.</div>}
           </div>
 
           <aside className="border-t border-(--border) bg-[#fbfcfe] p-5 lg:border-l lg:border-t-0">
@@ -193,10 +194,10 @@ export function DevnetMarket() {
               <TicketLine label="Current probability" value={pct(sidePrice)} />
               <TicketLine label="Current fair probability" value={pct(fairSide)} />
               <TicketLine label="Maximum accepted edge" value={pct(market?.toleranceMicros ?? 20_000)} />
-              <TicketLine label="Potential payout estimate" value={snapshot?.deployed ? sol(Math.round(estimatedPayout)) : "Unavailable until deployed"} />
+              <TicketLine label="Potential payout estimate" value={market?.resolved ? "Market settled" : snapshot?.deployed ? sol(Math.round(estimatedPayout)) : "RPC loading"} />
               <TicketLine label="LineGuard status" value={snapshot?.deployed ? (wouldRefund ? "Stale edge → refund" : "Protected") : (wouldRefund ? "Local preview: would refund" : "Local preview")} good={snapshot?.deployed && !wouldRefund} warning={wouldRefund} />
               <TicketLine label="Market PDA" value={short(snapshot?.marketPda ?? deriveMarketV2Pda().toBase58())} mono />
-              <TicketLine label="Expected destination" value={snapshot?.deployed ? (wouldRefund ? "Connected wallet" : "Market vault + position") : "Preview only · no transaction"} />
+              <TicketLine label="Expected destination" value={market?.resolved ? "Settled · no new orders" : snapshot?.deployed ? (wouldRefund ? "Connected wallet" : "Market vault + position") : "RPC loading"} />
               <TicketLine label="Network" value="Solana Devnet" warning />
             </div>
 
@@ -214,7 +215,7 @@ export function DevnetMarket() {
             )}
 
             <button disabled={!ready || state === "SIMULATING" || state === "AWAITING_SIGNATURE" || state === "CONFIRMING"} onClick={() => void submit()} className="mt-4 h-11 w-full rounded-lg bg-(--blue) text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
-              {state === "SIMULATING" ? "SIMULATING SAFETY CHECK…" : state === "AWAITING_SIGNATURE" ? "CONFIRM IN WALLET…" : state === "CONFIRMING" ? "CHECKING FAIRNESS…" : `Buy ${side} with Devnet SOL`}
+              {market?.resolved ? "MARKET RESOLVED" : state === "SIMULATING" ? "SIMULATING SAFETY CHECK…" : state === "AWAITING_SIGNATURE" ? "CONFIRM IN WALLET…" : state === "CONFIRMING" ? "CHECKING FAIRNESS…" : `Buy ${side} with Devnet SOL`}
             </button>
 
             {(state === "POSITION_OPENED" || state === "REFUNDED") && (

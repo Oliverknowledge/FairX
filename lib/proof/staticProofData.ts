@@ -249,7 +249,7 @@ export const proofData = {
   cases,
   settlement: {
     title: "Unified lifecycle — LineGuard protection, then root-bound settlement",
-    claim: "This recorded settlement-v4 market proves protection, pools, root-bound submitted scores, payout, and accounting. Settlement-v5 adds machine-readable rule/team/stat-key binding and confirmation; that devnet upgrade remains pending.",
+    claim: "This settlement-v4 record is retained as historical shared-vault evidence. The current canonical v2 proof uses direct TxLINE CPI, wallet-owned Positions, an isolated MarketVault, and threshold resolution.",
     resolution: settlement.resolution,
     resolutionEventHash: settlement.resolutionEventHash,
     fixtureId: settlement.fixtureId,

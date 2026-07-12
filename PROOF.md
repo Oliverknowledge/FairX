@@ -1,68 +1,45 @@
-# FairX canonical devnet proof
+# FairX v2 canonical devnet proof
 
-Recorded 10 July 2026 from genuine France vs Morocco TxLINE evidence.
+The current canonical proof is the settled France–Morocco v2 market. Legacy shared-vault proofs remain available only under **Historical protocol versions** on `/proof`.
 
-## Evidence binding
+## Program and market
 
-- Fixture ID: `18209181`
-- TxLINE score sequence: `739`
-- Raw payload hash: `e4701bab0a8d2b8576eef7d2050ad032d3e090315129f51a732c8c6e5f2db598`
-- Normalized/source event hash: `ebd02daad8b04845804c46ebeae892026adf4b37f2b4909952cd9fe80f4b16d5`
-- LineGuard program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- LineGuard schema / deployment slot: `market-config-v2` / `475298151`
+- Program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
+- Slot: `475831626`
+- Market: `GRP8PvhytfrXku1WW5bnaWDgS7L14A84qNG51kRB5E2j`
+- Market vault: `2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb`
+- Position: `FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ`
+- Template: `MATCH_WINNER_HOME_V1`
+
+## TxLINE and resolution
+
+- Fixture / sequence: `18209181` / `739`
 - TxLINE program: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
-- Operator: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`
-- Stake: `0.02 SOL` per flow
+- Root PDA: `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`
+- CPI: `ValidateStatV2` succeeded
+- Scores: France `1`, Morocco `0`
+- Derived outcome: `YES`
+- Borsh payload hash: `1b1c31c9ffee2aec676fa9d9585e677c0c5ee42d38ec137f222fc87ea8501c98`
+- Approval mask: `011`; threshold `2-of-3`; proposal executed
 
-`validateStatV2` returned true separately against TxLINE devnet using daily root PDA `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`. Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.
+## Protection, position, and payout
 
-The settlement verifier also checks the committed canonical meaning: `HOME_TEAM_WINS`, YES means France/home wins, France is home stat key `1`, and Morocco is away stat key `2`. It rejects tampered rules, team mappings, stat keys, scores, or derived outcomes.
+- Stale refund transaction: `53CJo5rqySudR88vbK73CBwa6UoWXQrNwDTw2eKtjZAiFrNZYCfFsbxSAETsmB71E2wd92vZSwbVk5Sut4GPGUqB`
+- Accepted-position transaction: `2dj1svkdjYFcpoyUZvJgUSrQvThAQtmtjX7pvK1tzMWq6udsMmVWnabQuooJ4THCg9xC3RX2JvUBxVR9R6TzUSFG`
+- Claim transaction: `4q3mMYvWBrJzv3Vyix9TBYJGjCWAtMAAMAMsQrmnM1e7MiHwBvsevZhJf5UBMQvoKW1AtyoE6Ji3S9zY9c2QgJHR`
+- Trader: `8GEhW9qEJEFPQ6sA34H9fMUk937LPCVvKcVwWbhka4vx`
+- Refunded / accepted / paid: `0.01 / 0.01 / 0.01 Devnet SOL`
 
-## YES — voided and refunded
+## Conservation
 
-- Market: `ETf7e9Kc7NqG7SR1v6LMRoCDbrEL1TzRu1hFZybKWJvE`
-- MarketConfig: `G6LmjfuP5fDZGoNtB52WpDegfaw8rVCu2REeo33vjpZx`
-- Order: `Gt5fHPiRF736jPjWTbiJrfZMQwLP2HtffvcaxwZHuFDY`
-- Observed/fair: `522740 / 865050` micros
-- Edge: `+342310` micros (`+34.231¢`)
-- Verdict: `VOIDED_REFUNDED`
-- Destination: `REFUNDED_TO_TRADER`
+```text
+20,000,000 deposited
+= 10,000,000 refunded
++ 10,000,000 paid
++ 0 claimable
++ 0 rounding dust
+```
 
-Finalized transactions:
+The vault retains only its `1,510,320`-lamport rent reserve. A repeated claim is rejected with `PositionAlreadyClaimed`.
 
-1. `4NyVsPubbpzzQkoENYZq6NMjCT9xFvEmtAZbLHxzkNTcwza2kuAZ5uDsx8T6AFtrrMR5rm8c5hKPF8jQxTLWPjmC`
-2. `1dc9Qqja2HWqAG95EBi9dgHXn4w3rhpd1Ebkzpx9MUU76gE88EeLyDfjPAehsSpYf7ehRKZAr6861VhmfsHBCU7`
-3. `mJNfEG4BQ3CJ2UD1uZ2HTqAswWJ1zwTLfpKK2VxVkUcxBX6gHRcvNw4g3oUz74Y1rCknm9vPWJK5VRj5pYws286`
-4. `3uqFKfEcAtwE5P5xBRTbWT936Mz6AHuobVvSFSeAc1TSGYnfjs97oDvFowDPEBahBXU7H1eoYydqUyPuQ8rqjtVP`
-
-The trader balance read-back shows the 20,000,000-lamport stake returned; only transaction fees remain paid by the operator.
-
-## NO — allowed and finalized
-
-- Market: `AZ5cKJAFPLyQd3WRf1VdoWhbyNCQD7cWiMYQm5KoWj1c`
-- MarketConfig: `Edo6g9SoNWNJBqcNb8DGHe2RNAKqeGZvzAsHUzDT1eiD`
-- Order: `8YX2SemE9voYxPNxMrREs7g39MdtZtZDfxRWi6d4B4QZ`
-- Observed/fair: `477260 / 134950` micros
-- Edge: `-342310` micros (`−34.231¢`)
-- Verdict: `STALE_ALLOWED_NO_EDGE`
-- Destination: `FINALIZED_TO_VAULT`
-
-Finalized transactions:
-
-1. `3Mzw6i3G3J5pYc3tXc1a2Aa4MNqWjk2YBvWEqXkwYbmFFkU4cRort9GbNS5Nnx3NjSQGWheg6cKLXhTVk9cqFYU1`
-2. `3pRVDnTNnmW2R3iRvjn9KmAoh66TjaFxg18knMuRQ2ab6DrpfLFLyBgKFBJehecet6xuvJWXkYTdbFZ6Xp4f4ovT`
-3. `YBn7fpJRCvZ6q4aGHAfDokV2SBnSXH2ScczdxAdmNW5JMMswL6sfvr59HGWAjfAeug5XbwdxZS7ShgEVdfQ3gTm`
-4. `TdYx89cGtQXB1fzR2WprFE8aT8LRr6jAeGjmWZmLeKHLZXZgeWUAsfSwGuZa3qTV9pFiDdWEwtBMtDSygEJrTN9`
-
-ProtocolVault `HyM4MaQzz6qfXPZfDVvtAPeLaxJVkN8Tde4TNqyoZkKE` increased from `41,287,600` to `61,287,600` lamports: exactly `20,000,000` lamports.
-
-## Receipts
-
-- YES receipt: `bad1ccb86f2a5e37bfbfc45e168ee10c45291086b0c73d4eb6c756d0aaf38ee4`
-- NO receipt: `65da4f0731adcdad61899e99007c0ee57aba0705d2a5cc733d12bf54d2cf154f`
-- Stable YES route: `/verify/rcpt-devnet-yes-3uqFKfEcAt`
-- Stable NO route: `/verify/rcpt-devnet-no-TdYx89cGtQ`
-
-Both verifier results are valid. Payload integrity, normalized-event integrity, source hash, OrderEscrow snapshot, fixture commitment, TxLINE validation status, verdict, and settlement destination all match. Tampering any sealed provenance field fails verification.
-
-The machine-readable source of truth is `fixtures/lineguard/canonical-proof.json`, generated by `npm run lineguard:record-proof` from finalized RPC read-back.
+Open `/verify/v2-france-morocco` to reconstruct both TxLINE hash domains and exercise every tamper control.

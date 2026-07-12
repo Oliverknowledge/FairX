@@ -24,7 +24,7 @@ export function MarketCard({ market, liveConnected = false }: { market: FairXMar
   const guardLabel = guardLabelForStatus(market.status);
   const canonicalHistorical = market.id === "france-morocco-france-win";
   const executionLabel = canonicalHistorical
-    ? "Historical proof · v2 pending"
+    ? "Canonical v2 · devnet settled"
     : market.onChain?.settled
       ? "Devnet settled"
       : market.onChain?.initialized

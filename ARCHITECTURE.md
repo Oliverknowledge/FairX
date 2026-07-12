@@ -1,60 +1,38 @@
-# FairX / LineGuard Architecture
+# FairX v2 architecture
 
 ```text
-TxLINE
-   ↓
-raw capture + deterministic normalization
-   ↓
-TxLINE validateStatV2 (separate devnet verification)
-   ↓
-source event hash
-   ↓
-LineGuard MarketState + MarketConfig
-   ↓
-validation draft → authority confirmation
-   ↓
-OrderEscrow
-   ↓
-evaluate_order
-   ├── refund trader
-   └── finalize ProtocolVault
-   ↓
-receipt / verifier UI
+genuine TxLINE historical capture + StablePrice
+  → canonical JSON hash + deterministic pricing
+  → MarketV2 template and evidence commitments
+  → user-signed OrderEscrowV2
+      ├─ stale positive edge → exact wallet refund
+      └─ synchronized order → wallet-owned Position + MarketVault
+  → feed authority closes market
+  → LineGuard CPI → TxLINE ValidateStatV2
+  → LineGuard derives MATCH_WINNER_HOME_V1 outcome
+  → resolution proposal + 2-of-3 approvals
+  → position owner claims from the same isolated MarketVault
 ```
 
-## On-chain
+## Canonical PDAs
 
-- market authority and freshness registers (`materialSeq`, `pricedAtSeq`)
-- displayed and fair prices plus tolerance
-- non-zero source event hash committed by the authority
-- escrowed order stake and frozen order inputs
-- deterministic side-specific edge calculation
-- verdict/status and settlement destination
-- trader refund for stale positive edge
-- ProtocolVault finalization for safe/no-edge orders
-- `GuardVerdict` event evidence
-- MarketConfig hashes and OrderEscrow config/event snapshots
-- `MATCH_WINNER_HOME` resolution rule, home/away team hashes, and stat keys
-- genuine TxLINE root account identity check
-- deterministic score mapping: home win → YES, away win → NO, draw → void
-- replaceable validation draft before confirmation; immutable after confirmation/resolution
+- AuthorityConfig: `3aHfuXLKtRmQrCiMzWMe7CiP2pARKu7rkcR78bmdVpai`
+- MarketV2: `GRP8PvhytfrXku1WW5bnaWDgS7L14A84qNG51kRB5E2j`
+- MarketVault: `2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb`
+- Position: `FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ`
+- Validation receipt: `7RV4xKZxtpZwXrWLK8HxXMMzvLpgNydKHuBBxP11nbWq`
+- Resolution proposal: `5PXYx3zHgaBUSkLw1A9CCPrj1hJYeLXRK2PuwmrVjRZp`
 
-## Off-chain
+## Authority model
 
-- public website and market discovery
-- TxLINE HTTP/SSE transport and credentials
-- payload normalization and raw/normalized hash calculation
-- materiality/fair-price input before authority ingestion
-- local preview, guided scenarios, and Attack Lab
-- receipt rendering, URL transport, and browser seal verification
-- operator dashboard, technical terminal, and proof walkthrough
+Feed, pricing, emergency, and three resolution roles are distinct. Resolution requires 2-of-3. Emergency action can only void/refund. Authority updates use the program's timelocked path. The current program upgrade authority has not been transferred.
 
-The UI does not custody devnet order funds. Server-only routes create and sign on-chain instructions when the runtime is configured and ready.
+## Trust and deployment boundaries
 
-## Trust model
+- Direct TxLINE CPI is enforced for the canonical resolution.
+- Public users sign their own devnet orders and claims through wallet adapter.
+- The canonical automated lifecycle used a secure test-user keypair, not Phantom.
+- Operator services still ingest and reprice TxLINE evidence and submit resolution proposals.
+- Program is unaudited, devnet-only, and not a real-money or mainnet system.
 
-The deployed legacy ingestion and score-submission paths are authority controlled. `ingest_material_event` authorizes the market authority, requires a non-zero hash, validates price bounds, and advances freshness. Its TxLINE `validateStatV2` proof is checked separately, while scores remain operator-submitted. The deployment-pending v2 resolver instead CPIs into the fixed TxLINE devnet program with the exact committed payload, requires a true return value, derives the outcome internally, and requires threshold approval.
-
-## Not included
-
-FairX does not implement a full exchange, matching engine, AMM/order book, mainnet/real-money betting, decentralized oracle network, or audited production custody stack. The settlement engine currently supports only `MATCH_WINNER_HOME`; totals, next-goal, and custom propositions are not settlement-enabled.
+Legacy shared-ProtocolVault accounts remain readable historical evidence but are not the source of truth for v2 markets.

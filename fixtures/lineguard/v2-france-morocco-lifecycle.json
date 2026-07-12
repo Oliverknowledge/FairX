@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "receiptId": "v2-france-morocco",
+  "network": "devnet",
+  "asset": "Devnet SOL",
+  "program": {
+    "programId": "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe",
+    "programData": "D6buB3VxXnxX3jXjPX5HCqRAMJqtV4yLzaKuMra17nPT",
+    "slot": 475831626,
+    "binarySha256": "76c2fd8e386d20e47af77b883175a26c5069b72e9c256413dea3f29ce06f3dd8",
+    "checkpointCommit": "fd478a75318e7da5b729906e905260597c6cee29",
+    "upgradeTransaction": "ubaqAZrxrLxqD23KorQSh7PRtUdgWbZsxCJgTSHQNCHhn1FWsdS3f8fDcm5utwguxh4MQahXvVu9maA1vD8xaWB"
+  },
+  "txline": {
+    "programId": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J",
+    "fixtureId": "18209181",
+    "fixtureIdHash": "f90186a5dde4dbdad1486870c7b3839282d1e7132cbd7955fe86b40caf9ac7d0",
+    "sequence": 739,
+    "statKeys": [1, 2],
+    "rootPda": "EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr",
+    "cpiInstruction": "ValidateStatV2",
+    "directCpiSuccess": true,
+    "captureHashDomain": "canonical-json",
+    "captureHash": "e4701bab0a8d2b8576eef7d2050ad032d3e090315129f51a732c8c6e5f2db598",
+    "cpiPayloadHashDomain": "borsh",
+    "borshPayloadHash": "1b1c31c9ffee2aec676fa9d9585e677c0c5ee42d38ec137f222fc87ea8501c98",
+    "homeTeam": "France",
+    "awayTeam": "Morocco",
+    "homeScore": 1,
+    "awayScore": 0,
+    "derivedOutcome": "YES"
+  },
+  "authorities": {
+    "authorityConfigPda": "3aHfuXLKtRmQrCiMzWMe7CiP2pARKu7rkcR78bmdVpai",
+    "threshold": 2,
+    "authorityCount": 3,
+    "approvalA": "ABrWPMaGRRCY2qGbF3cYkZv7E2rMMANoesGWcoSDUkTG",
+    "approvalB": "EXVwU5mGZBAn7MBWZLwnDwqSkDZzn6PvhXJwh1L5cNm5",
+    "approvalMask": "011",
+    "proposalPda": "5PXYx3zHgaBUSkLw1A9CCPrj1hJYeLXRK2PuwmrVjRZp",
+    "proposalExecuted": true
+  },
+  "market": {
+    "marketPda": "GRP8PvhytfrXku1WW5bnaWDgS7L14A84qNG51kRB5E2j",
+    "marketVaultPda": "2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb",
+    "validationReceiptPda": "7RV4xKZxtpZwXrWLK8HxXMMzvLpgNydKHuBBxP11nbWq",
+    "template": "MATCH_WINNER_HOME_V1",
+    "fixtureCommitment": "f90186a5dde4dbdad1486870c7b3839282d1e7132cbd7955fe86b40caf9ac7d0",
+    "acceptedCollateralLamports": 10000000,
+    "resolution": "YES",
+    "resolved": true
+  },
+  "lifecycle": {
+    "traderWallet": "8GEhW9qEJEFPQ6sA34H9fMUk937LPCVvKcVwWbhka4vx",
+    "walletDescription": "Secure test-user devnet keypair",
+    "refundedOrderPda": "FfQpZRoFpybMjLzALSor7DjsL1ZdxBrAVd34M83xXDbQ",
+    "acceptedOrderPda": "7NSxGwvfDbcyLbFjMDHRvfjGAsXDPnqf2xNWVRU5xDZa",
+    "positionPda": "FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ",
+    "positionOwner": "8GEhW9qEJEFPQ6sA34H9fMUk937LPCVvKcVwWbhka4vx",
+    "positionStatus": "CLAIMED",
+    "refundedStakeLamports": 10000000,
+    "acceptedStakeLamports": 10000000,
+    "claimedPayoutLamports": 10000000
+  },
+  "vault": {
+    "totalDepositedLamports": 20000000,
+    "totalRefundedLamports": 10000000,
+    "totalPaidLamports": 10000000,
+    "totalClaimableLamports": 0,
+    "roundingDustLamports": 0,
+    "rentReserveLamports": 1510320,
+    "invariant": "totalDeposited = totalRefunded + totalPaid + totalClaimable + roundingDust"
+  },
+  "transactions": {
+    "upgrade": { "signature": "ubaqAZrxrLxqD23KorQSh7PRtUdgWbZsxCJgTSHQNCHhn1FWsdS3f8fDcm5utwguxh4MQahXvVu9maA1vD8xaWB", "explorerUrl": "https://explorer.solana.com/tx/ubaqAZrxrLxqD23KorQSh7PRtUdgWbZsxCJgTSHQNCHhn1FWsdS3f8fDcm5utwguxh4MQahXvVu9maA1vD8xaWB?cluster=devnet" },
+    "initialization": { "signature": "BVcgaonktyyvczJuj8JrqdQ1mDnNRtVLesfUA3LwTZynExkL9p4fLHEk4Mr5JLX5oyuebyE47j7V5Ej8FnGWBmF", "explorerUrl": "https://explorer.solana.com/tx/BVcgaonktyyvczJuj8JrqdQ1mDnNRtVLesfUA3LwTZynExkL9p4fLHEk4Mr5JLX5oyuebyE47j7V5Ej8FnGWBmF?cluster=devnet" },
+    "staleRefund": { "signature": "53CJo5rqySudR88vbK73CBwa6UoWXQrNwDTw2eKtjZAiFrNZYCfFsbxSAETsmB71E2wd92vZSwbVk5Sut4GPGUqB", "explorerUrl": "https://explorer.solana.com/tx/53CJo5rqySudR88vbK73CBwa6UoWXQrNwDTw2eKtjZAiFrNZYCfFsbxSAETsmB71E2wd92vZSwbVk5Sut4GPGUqB?cluster=devnet" },
+    "reprice": { "signature": "mjGoZvuY3MzuTWVzi8UgcLWKubsKZps4RTcpZ4DwYywB1JuzAhbTLGhKtp4hYSsMbtMug1db121Fh3aBYRLMH8X", "explorerUrl": "https://explorer.solana.com/tx/mjGoZvuY3MzuTWVzi8UgcLWKubsKZps4RTcpZ4DwYywB1JuzAhbTLGhKtp4hYSsMbtMug1db121Fh3aBYRLMH8X?cluster=devnet" },
+    "acceptedPosition": { "signature": "2dj1svkdjYFcpoyUZvJgUSrQvThAQtmtjX7pvK1tzMWq6udsMmVWnabQuooJ4THCg9xC3RX2JvUBxVR9R6TzUSFG", "explorerUrl": "https://explorer.solana.com/tx/2dj1svkdjYFcpoyUZvJgUSrQvThAQtmtjX7pvK1tzMWq6udsMmVWnabQuooJ4THCg9xC3RX2JvUBxVR9R6TzUSFG?cluster=devnet" },
+    "marketClose": { "signature": "2X9aNvzU1EG8FLWuP2afHbxhZLRV7LWVLML8Te6FVavCws1ErviFnkf9DZAU5TNAq5W4MZGsqYfiiZUcjVTeLRr9", "explorerUrl": "https://explorer.solana.com/tx/2X9aNvzU1EG8FLWuP2afHbxhZLRV7LWVLML8Te6FVavCws1ErviFnkf9DZAU5TNAq5W4MZGsqYfiiZUcjVTeLRr9?cluster=devnet" },
+    "txlineCpiProof": { "signature": "2qSJAY4iuFnkvtrAtXDxCWKfJP8kwA2dpG8HJsSvWRFEfpwsot8EZNYgXaXmosVZxkvakiY1Bpx7GeAyCLx3ank7", "explorerUrl": "https://explorer.solana.com/tx/2qSJAY4iuFnkvtrAtXDxCWKfJP8kwA2dpG8HJsSvWRFEfpwsot8EZNYgXaXmosVZxkvakiY1Bpx7GeAyCLx3ank7?cluster=devnet" },
+    "secondApproval": { "signature": "UTfHVsFyf8Q3hQq9J6ufbVctgE7HV7WpRix4GZhkDZDxHmn2xnY6M7vMRKXvCkjAbFYzspJTb8pJjnCrSfWCw2p", "explorerUrl": "https://explorer.solana.com/tx/UTfHVsFyf8Q3hQq9J6ufbVctgE7HV7WpRix4GZhkDZDxHmn2xnY6M7vMRKXvCkjAbFYzspJTb8pJjnCrSfWCw2p?cluster=devnet" },
+    "resolution": { "signature": "37Hw5BzuQyeT2L26aafscq3kst29TqiUpbodXBhtJytsoD6y7C549PgGzTvtbGdiuqRNwYvnnyrMthYmSMwuirKn", "explorerUrl": "https://explorer.solana.com/tx/37Hw5BzuQyeT2L26aafscq3kst29TqiUpbodXBhtJytsoD6y7C549PgGzTvtbGdiuqRNwYvnnyrMthYmSMwuirKn?cluster=devnet" },
+    "claim": { "signature": "4q3mMYvWBrJzv3Vyix9TBYJGjCWAtMAAMAMsQrmnM1e7MiHwBvsevZhJf5UBMQvoKW1AtyoE6Ji3S9zY9c2QgJHR", "explorerUrl": "https://explorer.solana.com/tx/4q3mMYvWBrJzv3Vyix9TBYJGjCWAtMAAMAMsQrmnM1e7MiHwBvsevZhJf5UBMQvoKW1AtyoE6Ji3S9zY9c2QgJHR?cluster=devnet" }
+  }
+}

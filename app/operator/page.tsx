@@ -4,6 +4,8 @@ import { ArrowLeft, RadioTower, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/lineguard/ui";
 import { OperatorDashboard } from "@/components/fairx-proof/OperatorDashboard";
 import { FairXShell } from "@/components/fairx/FairXShell";
+import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
+import { CanonicalV2Settlement } from "@/components/fairx-proof/CanonicalV2Settlement";
 
 export const metadata: Metadata = {
   title: "FairX Operator",
@@ -28,7 +30,7 @@ export default function OperatorPage() {
                 <p className="mono text-[10px] font-semibold uppercase tracking-[0.15em] text-(--ink-3)">Developer / operator view</p>
                 <h1 className="mt-1 text-[25px] font-extrabold tracking-[-0.03em] text-(--ink)">Devnet operational truth.</h1>
                 <p className="mt-1.5 max-w-3xl text-[12.5px] leading-relaxed text-(--ink-2)">
-                  Inspect server-checked program, operator, ProtocolVault, TxLINE, and proof readiness without exposing private configuration.
+                  Inspect the deployed v2 program, role-separated resolution, isolated MarketVault, TxLINE CPI, and proof readiness without exposing private configuration.
                 </p>
               </div>
             </div>
@@ -40,7 +42,9 @@ export default function OperatorPage() {
         </div>
       </header>
 
-      <OperatorDashboard />
+      <RuntimeStatusStrip detailed />
+      <div className="mt-4"><CanonicalV2Settlement /></div>
+      <details className="mt-4 rounded-xl border border-(--border) bg-[#f8fafc] p-4"><summary className="cursor-pointer text-[11px] font-bold">Historical protocol operations</summary><div className="mt-4"><OperatorDashboard /></div></details>
       </div>
     </FairXShell>
   );

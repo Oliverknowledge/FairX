@@ -58,7 +58,7 @@ export function SettlementProofPanel() {
           <p><span className="font-bold">TxLINE proof validated separately:</span> {s.validateStatV2Passed ? "validateStatV2 passed" : "not validated"}</p>
         </div>
         <p className="mt-2 rounded-md border border-[#f0d39a] bg-(--amber-bg) p-2 font-semibold text-(--amber)">Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.</p>
-        {s.ruleBindingDeployment !== "DEPLOYED" && <p className="mt-2 text-[9.5px] text-(--ink-3)">The 13-transaction devnet record below is settlement-v4 evidence and predates these new config fields. Source tests verify the v5 bindings; the runtime gate remains closed until an approved upgrade.</p>}
+        {s.ruleBindingDeployment !== "DEPLOYED" && <p className="mt-2 text-[9.5px] text-(--ink-3)">The 13-transaction record below is historical settlement-v4 evidence. It predates the deployed v2 direct-CPI, Position, isolated-vault, and threshold-resolution accounts.</p>}
       </div>
 
       <div className="mt-3 rounded-xl border border-(--border) bg-white p-3">

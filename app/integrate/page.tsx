@@ -10,57 +10,44 @@ export const metadata: Metadata = {
   description: "The current LineGuard integration flow, deployed devnet capabilities, and honest production gaps.",
 };
 
-const instructions = `// Current Anchor instruction names in programs/lineguard/src/lib.rs
-initialize_vault()
-initialize_market(market_id, material_seq, priced_at_seq,
-                  displayed_price_micros, fair_price_micros, tolerance_micros)
-initialize_market_config(..., market_type = MATCH_WINNER_HOME,
-                         resolution_rule = HOME_TEAM_WINS,
-                         home_stat_key, away_stat_key,
-                         home_team_hash, away_team_hash)
-attach_market_config()
-ingest_material_event(new_material_seq, new_fair_price_micros,
-                      source_event_hash)
-reprice_market(new_priced_at_seq, new_displayed_price_micros)
-place_order(order_id, side, stake)
-evaluate_order()
-close_market()
-submit_txline_validation(fixture_id, sequence, root_epoch_day,
-                         home_score, away_score, validation_payload_hash,
-                         event_stat_root) // no outcome/stat-key inputs
-confirm_validation()
-resolve_market_from_txline()
-
-// evaluate_order emits GuardVerdict and transfers escrow to either:
-// REFUNDED_TO_TRADER | FINALIZED_TO_VAULT`;
+const instructions = `// Deployed FairX v2 instruction path
+initialize_authorities(feed, pricing, [resolutionA, B, C], emergency, 2)
+initialize_market_v2(MATCH_WINNER_HOME_V1, fixture commitments,
+                     odds payload + pricing model hashes)
+place_order_v2(order_id, side, stake, max_edge)
+evaluate_order_v2() // exact refund or wallet-owned Position
+reprice_market_v2()
+close_market_v2()
+prove_resolution_with_txline_v2(borsh_payload_hash, payload)
+  // CPI → fixed TxLINE ValidateStatV2; derives outcome internally
+approve_resolution_v2() // second distinct authority
+execute_resolution_v2() // requires 2-of-3
+claim_position_v2()     // Position owner signs; MarketVault pays`;
 
 const liveNow = [
-  "Market freshness registers and displayed/fair price state",
-  "Non-zero source event hash commitment by an operator-controlled authority",
-  "OrderEscrow PDA creation and deterministic stale-edge calculation",
+  "MATCH_WINNER_HOME_V1 template and deterministic TxLINE price commitments",
+  "Wallet-signed OrderEscrowV2 and wallet-owned Position PDAs",
   "Positive-edge stale-order refund to the trader",
-  "Safe/no-edge finalization to ProtocolVault",
-  "GuardVerdict event data and tamper-evident receipts",
-  "Custom-market initialization and guarded devnet order execution",
+  "Safe-order finalization to an isolated per-market MarketVault",
+  "Direct TxLINE ValidateStatV2 CPI and internally derived outcome",
+  "2-of-3 resolution approval and owner-signed claims",
 ];
 
 const planned = [
   "Production oracle decentralization",
-  "Direct TxLINE validate_stat CPI",
   "Complete counterparty matching or AMM/order book",
-  "Per-market vault accounting beyond the current aggregate vault",
   "Mainnet deployment, independent security audit, and real-money operation",
 ];
 
 const flow = [
-  ["1", "Register market", "Create MarketState with freshness, prices, tolerance, and authority."],
-  ["2", "Commit configuration", "Hash type, fixture, title, materiality, and settlement rules; attach MarketConfig."],
-  ["3", "Ingest event", "Normalize a material event and commit its source hash through the authority."],
-  ["4", "Reprice", "Advance pricedAtSeq when the displayed quote catches up."],
-  ["5", "Escrow order", "Freeze side, stake, and observed quote in an OrderEscrow PDA."],
-  ["6", "Evaluate", "Calculate fair side price and stale edge deterministically."],
-  ["7", "Refund or finalize", "Return exploitative stake to the trader or transfer safe stake to ProtocolVault."],
-  ["8", "Build receipt", "Render the on-chain accounts, event hash, config hashes, and transactions for verification."],
+  ["1", "Initialize template", "Commit fixture, teams, stat keys, pricing and materiality hashes."],
+  ["2", "Escrow user order", "The trader signs and owns its OrderEscrowV2 and Position PDA."],
+  ["3", "Evaluate", "Refund stale positive edge or accept into the isolated MarketVault."],
+  ["4", "Reprice and close", "Synchronize the quote, then the feed authority closes trading."],
+  ["5", "Validate through CPI", "Invoke TxLINE ValidateStatV2 with the exact Borsh payload."],
+  ["6", "Approve", "Two distinct resolution authorities approve the derived outcome."],
+  ["7", "Resolve", "Execute only the CPI-derived result after threshold."],
+  ["8", "Claim and verify", "The Position owner claims; verify market-vault conservation."],
 ];
 
 export default function IntegratePage() {
@@ -106,7 +93,7 @@ export default function IntegratePage() {
 
         <section className="rounded-xl border border-[#d9e6fc] bg-[#f7faff] p-4 text-[10.5px] leading-relaxed text-[#3d5e95]">
           <p className="flex items-center gap-2 font-bold"><Radio className="h-4 w-4" />TxLINE boundary</p>
-          <p className="mt-1.5">Only <span className="mono">MATCH_WINNER_HOME</span> is settlement-enabled. <span className="mono">TOTAL_GOALS</span>, <span className="mono">NEXT_GOAL</span>, and <span className="mono">CUSTOM_YES_NO</span> are rejected by the on-chain settlement initializer. Scores are operator-submitted; the TxLINE Merkle proof is validated separately and is not re-verified inside LineGuard.</p>
+          <p className="mt-1.5">Only <span className="mono">MATCH_WINNER_HOME_V1</span> is settlement-enabled. <span className="mono">TOTAL_GOALS</span>, <span className="mono">NEXT_GOAL</span>, and custom propositions are rejected. The deployed v2 resolver CPIs into the fixed TxLINE devnet program, requires <span className="mono">ValidateStatV2</span> success, and derives the outcome inside LineGuard.</p>
         </section>
       </div>
     </FairXShell>
