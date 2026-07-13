@@ -6,7 +6,7 @@ import { CanonicalV2Settlement } from "@/components/fairx-proof/CanonicalV2Settl
 describe("canonical resolved market evidence", () => {
   it("renders the complete settled state without a wallet", () => {
     const html = renderToStaticMarkup(<CanonicalV2Settlement />);
-    for (const claim of ["Resolved: France won", "ValidateStatV2 passed", "2 of 3", "Claimed", "0.02 SOL", "Conservation verified", "No wallet is required"]) {
+    for (const claim of ["Resolved: France won", "ValidateStatV2 passed", "2 of 3", "Claimed", "0.02 SOL", "v2 record verified", "Economic limitation", "No wallet is required"]) {
       expect(html).toContain(claim);
     }
   });

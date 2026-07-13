@@ -37,7 +37,7 @@ export default function OperatorPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge tone="amber">Devnet funds only</Badge>
-            <Badge tone="green" dot><ShieldCheck className="h-3 w-3" /> Oracle authority controlled</Badge>
+            <Badge tone="neutral"><ShieldCheck className="h-3 w-3" /> Historical evidence disclosed</Badge>
           </div>
         </div>
       </header>

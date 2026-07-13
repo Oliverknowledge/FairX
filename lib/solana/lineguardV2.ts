@@ -41,6 +41,17 @@ export interface MarketV2State {
   resolvedAt: number;
   validationPayloadHash: string;
   resolutionEventHash: string;
+  feedAuthority?: string;
+  pricingAuthority?: string;
+  resolutionAuthorities?: string[];
+  emergencyAuthority?: string;
+  resolutionThreshold?: number;
+  authorityEpoch?: number;
+  yesShares: number;
+  noShares: number;
+  claimedWinningShares: number;
+  evidenceMode?: "LIVE" | "HISTORICAL";
+  settlementMinTimestampMs?: number;
 }
 
 export interface MarketVaultState {
@@ -127,8 +138,11 @@ export function deriveMarketVaultPda(market: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync([textEncoder.encode("market-vault"), market.toBytes()], LINEGUARD_V2_PROGRAM_ID)[0];
 }
 
-export function deriveOrderV2Pda(market: PublicKey, orderId: Uint8Array): PublicKey {
-  return PublicKey.findProgramAddressSync([textEncoder.encode("order-v2"), market.toBytes(), orderId], LINEGUARD_V2_PROGRAM_ID)[0];
+export function deriveOrderV2Pda(market: PublicKey, trader: PublicKey, orderId: Uint8Array): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [textEncoder.encode("order-v2"), market.toBytes(), trader.toBytes(), orderId],
+    LINEGUARD_V2_PROGRAM_ID
+  )[0];
 }
 
 export function derivePositionPda(market: PublicKey, trader: PublicKey, side: V2Side): PublicKey {
@@ -164,6 +178,23 @@ export function parseMarketV2(address: PublicKey, raw: Buffer): MarketV2State {
     resolvedAt: readI64(raw, 436),
     validationPayloadHash: hashHex(raw, 444),
     resolutionEventHash: hashHex(raw, 476),
+    feedAuthority: raw.length >= 540 ? new PublicKey(raw.subarray(508, 540)).toBase58() : undefined,
+    pricingAuthority: raw.length >= 572 ? new PublicKey(raw.subarray(540, 572)).toBase58() : undefined,
+    resolutionAuthorities: raw.length >= 668
+      ? [
+          new PublicKey(raw.subarray(572, 604)).toBase58(),
+          new PublicKey(raw.subarray(604, 636)).toBase58(),
+          new PublicKey(raw.subarray(636, 668)).toBase58(),
+        ]
+      : undefined,
+    emergencyAuthority: raw.length >= 700 ? new PublicKey(raw.subarray(668, 700)).toBase58() : undefined,
+    resolutionThreshold: raw.length >= 701 ? raw[700] : undefined,
+    authorityEpoch: raw.length >= 709 ? readU64(raw, 701) : undefined,
+    yesShares: raw.length >= 717 ? readU64(raw, 709) : 0,
+    noShares: raw.length >= 725 ? readU64(raw, 717) : 0,
+    claimedWinningShares: raw.length >= 733 ? readU64(raw, 725) : 0,
+    evidenceMode: raw.length >= 734 ? (raw[733] === 0 ? "LIVE" : raw[733] === 1 ? "HISTORICAL" : undefined) : undefined,
+    settlementMinTimestampMs: raw.length >= 742 ? readI64(raw, 734) : undefined,
   };
 }
 
@@ -231,10 +262,15 @@ export function buildOrderTransaction(args: {
   side: V2Side;
   stakeLamports: bigint;
   maxAcceptedEdgeMicros: bigint;
+  expectedExecutionPriceMicros: bigint;
+  maxSlippageMicros: bigint;
+  expectedPricingSequence: bigint;
+  expectedOddsSequence: bigint;
+  expirySlot: bigint;
   orderNonce?: string;
 }): { transaction: Transaction; orderId: Uint8Array; orderPda: PublicKey; positionPda: PublicKey; vaultPda: PublicKey } {
   const orderId = bytes32Hash(args.orderNonce ?? crypto.randomUUID());
-  const orderPda = deriveOrderV2Pda(args.market, orderId);
+  const orderPda = deriveOrderV2Pda(args.market, args.trader, orderId);
   const positionPda = derivePositionPda(args.market, args.trader, args.side);
   const vaultPda = deriveMarketVaultPda(args.market);
   const sideCode = args.side === "YES" ? 0 : 1;
@@ -254,6 +290,11 @@ export function buildOrderTransaction(args: {
       Buffer.from([sideCode]),
       u64(args.stakeLamports),
       u64(args.maxAcceptedEdgeMicros),
+      u64(args.expectedExecutionPriceMicros),
+      u64(args.maxSlippageMicros),
+      u64(args.expectedPricingSequence),
+      u64(args.expectedOddsSequence),
+      u64(args.expirySlot),
     ]),
   });
   const evaluate = new TransactionInstruction({
@@ -281,6 +322,39 @@ export function buildClaimTransaction(args: { trader: PublicKey; market: PublicK
       { pubkey: args.position, isSigner: false, isWritable: true },
     ],
     data: discriminator("global", "claim_position_v2"),
+  }));
+}
+
+export function buildClosePositionTransaction(args: {
+  trader: PublicKey;
+  market: PublicKey;
+  position: PublicKey;
+  reason: "EMPTY" | "LOSING" | "SETTLED_RENT";
+}): Transaction {
+  const instruction = args.reason === "EMPTY"
+    ? "close_empty_position_v2"
+    : args.reason === "LOSING"
+      ? "close_losing_position_v2"
+      : "close_settled_position_rent_v2";
+  return new Transaction().add(new TransactionInstruction({
+    programId: LINEGUARD_V2_PROGRAM_ID,
+    keys: [
+      { pubkey: args.trader, isSigner: true, isWritable: true },
+      { pubkey: args.market, isSigner: false, isWritable: false },
+      { pubkey: args.position, isSigner: false, isWritable: true },
+    ],
+    data: discriminator("global", instruction),
+  }));
+}
+
+export function buildCloseLegacyOrderTransaction(args: { trader: PublicKey; order: PublicKey }): Transaction {
+  return new Transaction().add(new TransactionInstruction({
+    programId: LINEGUARD_V2_PROGRAM_ID,
+    keys: [
+      { pubkey: args.trader, isSigner: true, isWritable: true },
+      { pubkey: args.order, isSigner: false, isWritable: true },
+    ],
+    data: discriminator("global", "close_legacy_evaluated_order_v2"),
   }));
 }
 

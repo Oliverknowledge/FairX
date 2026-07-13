@@ -2,7 +2,7 @@
   "name": "fairx-fairplay-contracts",
   "version": "0.1.0",
   "private": true,
-  "description": "FairPlay Contracts by FairX — programmable, fair-execution World Cup prediction contracts powered by TxLINE-verifiable match data.",
+  "description": "Unaudited Solana devnet prototype for selectively refunding stale-price exploit orders using historical TxLINE evidence.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -18,7 +18,8 @@
     "txline:validate": "node --env-file-if-exists=.env.local --import tsx scripts/txline-validate.ts",
     "lineguard:record-proof": "node --import tsx scripts/lineguard-record-proof.ts",
     "lineguard:record-settlement": "node --import tsx scripts/lineguard-record-settlement.ts",
-    "lineguard:v2:initialize": "node --env-file-if-exists=.env.local --import tsx scripts/lineguard-v2-initialize.ts"
+    "lineguard:v2:initialize": "node --env-file-if-exists=.env.local --import tsx scripts/lineguard-v2-initialize.ts",
+    "lineguard:v3:record-lifecycle": "node --env-file-if-exists=.env.local --import tsx scripts/lineguard-v3-record-lifecycle.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "1.1.2",

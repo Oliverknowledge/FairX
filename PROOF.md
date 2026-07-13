@@ -1,45 +1,23 @@
-# FairX v2 canonical devnet proof
+# FairX proof hierarchy
 
-The current canonical proof is the settled France–Morocco v2 market. Legacy shared-vault proofs remain available only under **Historical protocol versions** on `/proof`.
+## Current canonical proof: v3 three-wallet lifecycle
 
-## Program and market
+`/proof` and `/api/verify/v3-lifecycle` independently verify the target lifecycle from Solana devnet. The verifier checks capture and Borsh hashes, program and ProgramData ownership/hash, TxLINE identities, market/vault/receipt/proposal fields, evidence timestamps, threshold approvals, transaction finality, account closures and wallet balance deltas.
+
+The canonical record is `fixtures/lineguard/v3-france-morocco-three-wallet.json`. Its 14 transactions are finalized. The verifier currently reports **VERIFIED** with 18 passed checks, zero failures and zero unknowns. It recomputes final wallet balances of A `0.06 SOL`, B `0.04 SOL`, and C `0.05 SOL`; excluding equal `0.05 SOL` setup funding, the economic deltas are `+0.01`, `-0.01`, and `0 SOL`.
+
+The v3 record also proves `0.03 deposited = 0.01 refunded + 0.02 paid`, zero claimable collateral, zero rounding dust, and closure of all three Order and Position accounts. A temporary RPC outage changes the live verdict to **UNKNOWN**, not success.
+
+## Archived v2 evidence
 
 - Program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- Slot: `475831626`
+- Deployed slot: `475831626`
 - Market: `GRP8PvhytfrXku1WW5bnaWDgS7L14A84qNG51kRB5E2j`
-- Market vault: `2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb`
+- Vault: `2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb`
 - Position: `FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ`
-- Template: `MATCH_WINNER_HOME_V1`
+- TxLINE fixture/sequence: `18209181` / `739` (historical)
+- Direct CPI: `ValidateStatV2` succeeded
+- Resolution: YES from France 1–0 Morocco, 2-of-3 approvals
+- Accounting: `0.02 deposited = 0.01 refunded + 0.01 paid + 0 remaining`
 
-## TxLINE and resolution
-
-- Fixture / sequence: `18209181` / `739`
-- TxLINE program: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
-- Root PDA: `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`
-- CPI: `ValidateStatV2` succeeded
-- Scores: France `1`, Morocco `0`
-- Derived outcome: `YES`
-- Borsh payload hash: `1b1c31c9ffee2aec676fa9d9585e677c0c5ee42d38ec137f222fc87ea8501c98`
-- Approval mask: `011`; threshold `2-of-3`; proposal executed
-
-## Protection, position, and payout
-
-- Stale refund transaction: `53CJo5rqySudR88vbK73CBwa6UoWXQrNwDTw2eKtjZAiFrNZYCfFsbxSAETsmB71E2wd92vZSwbVk5Sut4GPGUqB`
-- Accepted-position transaction: `2dj1svkdjYFcpoyUZvJgUSrQvThAQtmtjX7pvK1tzMWq6udsMmVWnabQuooJ4THCg9xC3RX2JvUBxVR9R6TzUSFG`
-- Claim transaction: `4q3mMYvWBrJzv3Vyix9TBYJGjCWAtMAAMAMsQrmnM1e7MiHwBvsevZhJf5UBMQvoKW1AtyoE6Ji3S9zY9c2QgJHR`
-- Trader: `8GEhW9qEJEFPQ6sA34H9fMUk937LPCVvKcVwWbhka4vx`
-- Refunded / accepted / paid: `0.01 / 0.01 / 0.01 Devnet SOL`
-
-## Conservation
-
-```text
-20,000,000 deposited
-= 10,000,000 refunded
-+ 10,000,000 paid
-+ 0 claimable
-+ 0 rounding dust
-```
-
-The vault retains only its `1,510,320`-lamport rent reserve. A repeated claim is rejected with `PositionAlreadyClaimed`.
-
-Open `/verify/v2-france-morocco` to reconstruct both TxLINE hash domains and exercise every tamper control.
+That accounting is solvent, but the accepted pool contained only the winner's own stake. The v2 record must never be used to claim that a winner captured a loser's collateral.

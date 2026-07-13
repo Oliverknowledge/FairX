@@ -1,17 +1,17 @@
-# FairX v2 demo video
+# FairX demo recording gate
 
-Target: 3–4 minutes, desktop 1440×900, browser zoom 100%.
+Record at desktop and verify once at 390×844. Use `/` → `/walkthrough` → archived market → `/proof`.
 
-1. **Homepage** — show FairX v2 deployed on devnet, slot `475831626`, direct TxLINE CPI, isolated vault and 2-of-3 resolution.
-2. **Walkthrough** — genuine TxLINE historical event → stale refund → reprice → accepted Position → close → direct CPI → two approvals → YES → claim → conservation.
-3. **Canonical market** — show the complete public settled state without connecting a wallet: France won, Position claimed, refund/payout transactions and `0.02 = 0.01 + 0.01` vault accounting.
-4. **V2 verifier** — open `/verify/v2-france-morocco`; point to both hash domains and `V2 LIFECYCLE VERIFIED`.
-5. **Tamper** — change the Borsh hash, approval mask and payout in separate resets; each must show `TAMPER DETECTED`.
-6. **Wallet modal** — show Phantom and Solflare support. Say clearly: “The recorded canonical lifecycle used a secure test-user devnet keypair, not a browser extension.”
-7. **Proof hub** — primary v2 evidence first; legacy proofs only under **Historical protocol versions**.
+The video may call the v3 lifecycle verified only when all of these are true:
 
-Closing narration:
+- `/api/verify/v3-lifecycle` returns `VERIFIED`
+- every transaction is finalized and opens on devnet Explorer
+- A and B accepted collateral; C alone refunded
+- A's payout equals total accepted collateral
+- all three user Order/Position accounts are closed
+- ProgramData hash matches the recorded deployed binary
+- evidence is labelled `TxLINE historical`
 
-> FairX protected entry, verified the result and paid the winning position from the same isolated market vault. This is an unaudited Solana devnet prototype using Devnet SOL only, with no mainnet or real-money operation.
+These conditions currently pass for the canonical v3 record. If RPC availability makes the verifier `UNKNOWN` during recording, pause and retry; do not substitute the archived v2 record, which is economically incomplete.
 
-Before recording, verify every surface identifies v2 as deployed, there is no horizontal overflow or browser console error, and every Explorer link targets `cluster=devnet`.
+Before recording: production build, no console errors, no horizontal overflow, disabled controls on the resolved archive, operator endpoints fail closed, and no secrets appear in client assets or responses.

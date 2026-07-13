@@ -4,6 +4,7 @@ import { AnchorProvider, BN, Program, Wallet } from "@anchor-lang/core";
 import { Connection, Keypair, PublicKey, Transaction, type TransactionSignature } from "@solana/web3.js";
 import bs58 from "bs58";
 import canonicalCapture from "../fixtures/txline/canonical.json" with { type: "json" };
+import canonicalValidation from "../fixtures/txline/canonical.validation.json" with { type: "json" };
 import { canonicalize } from "../lib/receipts/create";
 import { hashRawEvent } from "../lib/proof/eventHash";
 import { TXLINE_PRICING_MODEL_V1 } from "../lib/txline/pricing";
@@ -88,7 +89,9 @@ async function main() {
     fairPriceMicros: new BN(canonicalCapture.odds.normalizedPricingInput.fairPriceMicros),
     toleranceMicros: new BN(20_000),
     closeTime: new BN(now + 7 * 24 * 60 * 60),
-    claimDeadline: new BN(now + 365 * 24 * 60 * 60),
+    claimDeadline: new BN(0),
+    evidenceMode: 1,
+    settlementMinTimestamp: new BN(canonicalValidation.validationPayload.ts),
   }).accountsPartial({ admin: payer.publicKey, payer: payer.publicKey, authorityConfig, market, marketVault }).instruction();
 
   const transaction = new Transaction().add(authorityIx, marketIx);

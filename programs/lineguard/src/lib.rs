@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)] // Anchor instruction ABI methods are intentionally flat.
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -12,6 +14,8 @@ const MICROS_ONE: u64 = 1_000_000;
 const MATCH_WINNER_HOME: u8 = 0;
 const MATCH_WINNER_HOME_V1: u16 = 1;
 const PRICING_MODEL_VERSION_V1: u16 = 1;
+const EVIDENCE_MODE_LIVE: u8 = 0;
+const EVIDENCE_MODE_HISTORICAL: u8 = 1;
 const AUTHORITY_TIMELOCK_SECONDS: i64 = 86_400;
 const TXLINE_VALIDATE_STAT_V2_DISCRIMINATOR: [u8; 8] = [208, 215, 194, 214, 241, 71, 246, 178];
 const MAX_SCORE: u16 = 99;
@@ -1024,6 +1028,29 @@ pub mod lineguard {
             LineGuardError::InvalidCloseTime
         );
         require!(
+            args.claim_deadline == 0,
+            LineGuardError::ClaimsMustNotExpire
+        );
+        require!(
+            args.evidence_mode == EVIDENCE_MODE_LIVE
+                || args.evidence_mode == EVIDENCE_MODE_HISTORICAL,
+            LineGuardError::InvalidEvidenceMode
+        );
+        require!(
+            args.settlement_min_timestamp > 0,
+            LineGuardError::InvalidEvidenceTimestamp
+        );
+        if args.evidence_mode == EVIDENCE_MODE_LIVE {
+            let close_time_ms = args
+                .close_time
+                .checked_mul(1_000)
+                .ok_or(LineGuardError::MathOverflow)?;
+            require!(
+                args.settlement_min_timestamp >= close_time_ms,
+                LineGuardError::InvalidEvidenceTimestamp
+            );
+        }
+        require!(
             args.displayed_price_micros > 0 && args.displayed_price_micros < MICROS_ONE,
             LineGuardError::InvalidPrice
         );
@@ -1089,6 +1116,17 @@ pub mod lineguard {
         market.resolved_at = 0;
         market.validation_payload_hash = [0u8; 32];
         market.resolution_event_hash = [0u8; 32];
+        market.feed_authority = ctx.accounts.authority_config.feed_authority;
+        market.pricing_authority = ctx.accounts.authority_config.pricing_authority;
+        market.resolution_authorities = ctx.accounts.authority_config.resolution_authorities;
+        market.emergency_authority = ctx.accounts.authority_config.emergency_authority;
+        market.resolution_threshold = ctx.accounts.authority_config.threshold;
+        market.authority_epoch = 1;
+        market.yes_shares = 0;
+        market.no_shares = 0;
+        market.claimed_winning_shares = 0;
+        market.evidence_mode = args.evidence_mode;
+        market.settlement_min_timestamp = args.settlement_min_timestamp;
         market.bump = ctx.bumps.market;
 
         let vault = &mut ctx.accounts.market_vault;
@@ -1117,7 +1155,7 @@ pub mod lineguard {
         source_event_hash: [u8; 32],
     ) -> Result<()> {
         require!(
-            ctx.accounts.feed_authority.key() == ctx.accounts.authority_config.feed_authority,
+            ctx.accounts.feed_authority.key() == ctx.accounts.market.feed_authority,
             LineGuardError::InvalidFeedAuthority
         );
         require!(
@@ -1146,7 +1184,7 @@ pub mod lineguard {
         pricing_model_hash: [u8; 32],
     ) -> Result<()> {
         require!(
-            ctx.accounts.pricing_authority.key() == ctx.accounts.authority_config.pricing_authority,
+            ctx.accounts.pricing_authority.key() == ctx.accounts.market.pricing_authority,
             LineGuardError::InvalidPricingAuthority
         );
         require!(
@@ -1189,7 +1227,7 @@ pub mod lineguard {
 
     pub fn reprice_market_v2(ctx: Context<PricingUpdateV2>) -> Result<()> {
         require!(
-            ctx.accounts.pricing_authority.key() == ctx.accounts.authority_config.pricing_authority,
+            ctx.accounts.pricing_authority.key() == ctx.accounts.market.pricing_authority,
             LineGuardError::InvalidPricingAuthority
         );
         require!(
@@ -1208,10 +1246,21 @@ pub mod lineguard {
         side: u8,
         stake_lamports: u64,
         max_accepted_edge_micros: u64,
+        expected_execution_price_micros: u64,
+        max_slippage_micros: u64,
+        expected_pricing_sequence: u64,
+        expected_odds_sequence: u64,
+        expiry_slot: u64,
     ) -> Result<()> {
         require!(stake_lamports > 0, LineGuardError::InvalidStake);
         require!(
             max_accepted_edge_micros <= MICROS_ONE,
+            LineGuardError::InvalidPrice
+        );
+        require!(
+            expected_execution_price_micros > 0
+                && expected_execution_price_micros < MICROS_ONE
+                && max_slippage_micros <= MICROS_ONE,
             LineGuardError::InvalidPrice
         );
         require!(
@@ -1222,8 +1271,22 @@ pub mod lineguard {
             Clock::get()?.unix_timestamp < ctx.accounts.market.close_time,
             LineGuardError::TradingClosed
         );
+        let clock = Clock::get()?;
+        require!(clock.slot <= expiry_slot, LineGuardError::OrderExpired);
+        require!(
+            ctx.accounts.market.priced_at_seq == expected_pricing_sequence,
+            LineGuardError::PricingSequenceMismatch
+        );
+        require!(
+            ctx.accounts.market.odds_sequence == expected_odds_sequence,
+            LineGuardError::OddsSequenceMismatch
+        );
         let side = OrderSide::try_from(side)?;
         let observed_price_micros = side.side_price(ctx.accounts.market.displayed_price_micros)?;
+        require!(
+            observed_price_micros.abs_diff(expected_execution_price_micros) <= max_slippage_micros,
+            LineGuardError::SlippageExceeded
+        );
 
         transfer(
             CpiContext::new(
@@ -1278,6 +1341,12 @@ pub mod lineguard {
         order.priced_at_seq = ctx.accounts.market.priced_at_seq;
         order.odds_sequence = ctx.accounts.market.odds_sequence;
         order.odds_payload_hash = ctx.accounts.market.odds_payload_hash;
+        order.expected_execution_price_micros = expected_execution_price_micros;
+        order.max_slippage_micros = max_slippage_micros;
+        order.expected_pricing_sequence = expected_pricing_sequence;
+        order.expected_odds_sequence = expected_odds_sequence;
+        order.expiry_slot = expiry_slot;
+        order.pool_shares = 0;
         order.status = OrderV2Status::Escrowed as u8;
         order.bump = ctx.bumps.order;
         Ok(())
@@ -1287,10 +1356,6 @@ pub mod lineguard {
         require!(
             ctx.accounts.order.status == OrderV2Status::Escrowed as u8,
             LineGuardError::OrderAlreadyEvaluated
-        );
-        require!(
-            !ctx.accounts.market.trading_closed && !ctx.accounts.market.resolved,
-            LineGuardError::TradingClosed
         );
         require!(
             ctx.accounts.position.key() == ctx.accounts.order.position,
@@ -1310,7 +1375,9 @@ pub mod lineguard {
             .order
             .max_accepted_edge_micros
             .min(ctx.accounts.market.tolerance_micros) as i64;
-        let refund = stale && edge > accepted_edge;
+        let refund = ctx.accounts.market.trading_closed
+            || ctx.accounts.market.resolved
+            || (stale && edge > accepted_edge);
         let stake = ctx.accounts.order.stake_lamports;
         ctx.accounts.market_vault.total_deposited = ctx
             .accounts
@@ -1355,33 +1422,53 @@ pub mod lineguard {
                 .checked_add(stake)
                 .ok_or(LineGuardError::MathOverflow)?;
             let market = &mut ctx.accounts.market;
+            let pool_shares_u128 = (stake as u128)
+                .checked_mul(MICROS_ONE as u128)
+                .ok_or(LineGuardError::MathOverflow)?
+                .checked_div(ctx.accounts.order.observed_price_micros as u128)
+                .ok_or(LineGuardError::MathOverflow)?;
+            require!(
+                pool_shares_u128 > 0 && pool_shares_u128 <= u64::MAX as u128,
+                LineGuardError::InvalidPoolShares
+            );
+            let pool_shares = pool_shares_u128 as u64;
             if ctx.accounts.order.side == 0 {
                 market.yes_pool_lamports = market
                     .yes_pool_lamports
                     .checked_add(stake)
+                    .ok_or(LineGuardError::MathOverflow)?;
+                market.yes_shares = market
+                    .yes_shares
+                    .checked_add(pool_shares)
                     .ok_or(LineGuardError::MathOverflow)?;
             } else {
                 market.no_pool_lamports = market
                     .no_pool_lamports
                     .checked_add(stake)
                     .ok_or(LineGuardError::MathOverflow)?;
+                market.no_shares = market
+                    .no_shares
+                    .checked_add(pool_shares)
+                    .ok_or(LineGuardError::MathOverflow)?;
             }
             let position = &mut ctx.accounts.position;
-            let old = position.accepted_lamports as u128;
-            let next = old
-                .checked_add(stake as u128)
+            let next_accepted = position
+                .accepted_lamports
+                .checked_add(stake)
                 .ok_or(LineGuardError::MathOverflow)?;
-            let weighted = (position.entry_price_micros as u128)
-                .checked_mul(old)
-                .and_then(|v| {
-                    v.checked_add(
-                        (ctx.accounts.order.observed_price_micros as u128) * stake as u128,
-                    )
-                })
+            let next_shares = position
+                .shares_or_pool_weight
+                .checked_add(pool_shares)
                 .ok_or(LineGuardError::MathOverflow)?;
-            position.accepted_lamports = next as u64;
-            position.shares_or_pool_weight = next as u64;
-            position.entry_price_micros = (weighted / next) as u64;
+            position.accepted_lamports = next_accepted;
+            position.shares_or_pool_weight = next_shares;
+            position.entry_price_micros = ((next_accepted as u128)
+                .checked_mul(MICROS_ONE as u128)
+                .ok_or(LineGuardError::MathOverflow)?
+                .checked_div(next_shares as u128)
+                .ok_or(LineGuardError::MathOverflow)?)
+                as u64;
+            ctx.accounts.order.pool_shares = pool_shares;
             ctx.accounts.order.status = OrderV2Status::PositionOpened as u8;
         }
         ctx.accounts.order.fair_side_price_micros = fair_side;
@@ -1395,7 +1482,107 @@ pub mod lineguard {
             status: ctx.accounts.order.status,
             stake_lamports: stake,
             edge_micros: edge,
+            execution_price_micros: ctx.accounts.order.observed_price_micros,
+            pool_shares: ctx.accounts.order.pool_shares,
+            refunded: refund,
         });
+        Ok(())
+    }
+
+    pub fn cancel_order_v2(ctx: Context<CancelOrderV2>) -> Result<()> {
+        require!(
+            ctx.accounts.order.status == OrderV2Status::Escrowed as u8,
+            LineGuardError::OrderAlreadyEvaluated
+        );
+        let stake = ctx.accounts.order.stake_lamports;
+        let order_info = ctx.accounts.order.to_account_info();
+        require!(
+            **order_info.lamports.borrow() >= stake,
+            LineGuardError::InsufficientEscrow
+        );
+        **order_info.try_borrow_mut_lamports()? -= stake;
+        **ctx
+            .accounts
+            .trader
+            .to_account_info()
+            .try_borrow_mut_lamports()? += stake;
+        ctx.accounts.position.deposited_lamports = ctx
+            .accounts
+            .position
+            .deposited_lamports
+            .checked_sub(stake)
+            .ok_or(LineGuardError::MathOverflow)?;
+        Ok(())
+    }
+
+    pub fn close_empty_position_v2(ctx: Context<CloseEmptyPositionV2>) -> Result<()> {
+        require!(
+            ctx.accounts.market.trading_closed || ctx.accounts.market.resolved,
+            LineGuardError::MarketNotClosed
+        );
+        require!(
+            ctx.accounts.position.accepted_lamports == 0,
+            LineGuardError::PositionHasAcceptedStake
+        );
+        Ok(())
+    }
+
+    pub fn close_losing_position_v2(ctx: Context<CloseLosingPositionV2>) -> Result<()> {
+        require!(
+            ctx.accounts.market.resolved,
+            LineGuardError::MarketNotResolved
+        );
+        require!(
+            ctx.accounts.market.resolution == 1 || ctx.accounts.market.resolution == 2,
+            LineGuardError::MarketVoided
+        );
+        require!(
+            ctx.accounts.position.accepted_lamports > 0,
+            LineGuardError::PositionHasNoAcceptedStake
+        );
+        let lost = (ctx.accounts.market.resolution == 1 && ctx.accounts.position.side == 1)
+            || (ctx.accounts.market.resolution == 2 && ctx.accounts.position.side == 0);
+        require!(lost, LineGuardError::PositionDidNotLose);
+        Ok(())
+    }
+
+    pub fn close_settled_position_rent_v2(ctx: Context<CloseSettledPositionRentV2>) -> Result<()> {
+        let market_data = ctx.accounts.market.try_borrow_data()?;
+        require!(
+            market_data.len() >= 509,
+            LineGuardError::InvalidLegacyAccount
+        );
+        require!(
+            &market_data[..8] == MarketV2::DISCRIMINATOR,
+            LineGuardError::InvalidLegacyAccount
+        );
+        require!(market_data[435] == 1, LineGuardError::MarketNotResolved);
+        let resolution = market_data[433];
+        let position = &ctx.accounts.position;
+        let lost =
+            (resolution == 1 && position.side == 1) || (resolution == 2 && position.side == 0);
+        require!(
+            position.claimed || position.accepted_lamports == 0 || lost,
+            LineGuardError::PositionStillClaimable
+        );
+        Ok(())
+    }
+
+    pub fn close_legacy_evaluated_order_v2(
+        ctx: Context<CloseLegacyEvaluatedOrderV2>,
+    ) -> Result<()> {
+        let order_data = ctx.accounts.order.try_borrow_data()?;
+        validate_legacy_evaluated_order_data(&order_data, &ctx.accounts.trader.key())?;
+        drop(order_data);
+        let order_info = ctx.accounts.order.to_account_info();
+        let trader_info = ctx.accounts.trader.to_account_info();
+        let order_lamports = order_info.lamports();
+        let trader_lamports = trader_info.lamports();
+        **trader_info.try_borrow_mut_lamports()? = trader_lamports
+            .checked_add(order_lamports)
+            .ok_or(LineGuardError::MathOverflow)?;
+        **order_info.try_borrow_mut_lamports()? = 0;
+        order_info.resize(0)?;
         Ok(())
     }
 
@@ -1404,8 +1591,7 @@ pub mod lineguard {
             !ctx.accounts.market.resolved,
             LineGuardError::MarketAlreadyResolved
         );
-        let authorized_feed =
-            ctx.accounts.closer.key() == ctx.accounts.authority_config.feed_authority;
+        let authorized_feed = ctx.accounts.closer.key() == ctx.accounts.market.feed_authority;
         require!(
             authorized_feed || Clock::get()?.unix_timestamp >= ctx.accounts.market.close_time,
             LineGuardError::MarketNotClosed
@@ -1443,8 +1629,8 @@ pub mod lineguard {
             hash(&encoded_payload).to_bytes() == validation_payload_hash,
             LineGuardError::ValidationPayloadMismatch
         );
-        let authority_index = resolution_authority_index(
-            &ctx.accounts.authority_config,
+        let authority_index = resolution_authority_index_from_set(
+            &ctx.accounts.market.resolution_authorities,
             ctx.accounts.proposer.key(),
         )?;
         require!(
@@ -1452,6 +1638,12 @@ pub mod lineguard {
             LineGuardError::FixtureMismatch
         );
         require!(payload.stats.len() == 2, LineGuardError::InvalidStatKeys);
+        require!(
+            payload.ts >= ctx.accounts.market.settlement_min_timestamp
+                && payload.fixture_summary.update_stats.max_timestamp
+                    >= ctx.accounts.market.settlement_min_timestamp,
+            LineGuardError::EvidenceTooOld
+        );
         require!(
             !is_zero_hash(&payload.event_stat_root),
             LineGuardError::ZeroConfigHash
@@ -1514,6 +1706,9 @@ pub mod lineguard {
         receipt.away_score = away_score;
         receipt.derived_outcome = derived_outcome;
         receipt.direct_cpi_verified = true;
+        receipt.proof_timestamp = payload.ts;
+        receipt.max_update_timestamp = payload.fixture_summary.update_stats.max_timestamp;
+        receipt.evidence_mode = ctx.accounts.market.evidence_mode;
         receipt.bump = ctx.bumps.validation_receipt;
 
         let proposal = &mut ctx.accounts.resolution_proposal;
@@ -1523,6 +1718,7 @@ pub mod lineguard {
         proposal.derived_outcome = derived_outcome;
         proposal.approvals_mask = 1u8 << authority_index;
         proposal.executed = false;
+        proposal.authority_epoch = ctx.accounts.market.authority_epoch;
         proposal.bump = ctx.bumps.resolution_proposal;
         emit!(TxlineCpiVerifiedEvent {
             market: ctx.accounts.market.key(),
@@ -1541,8 +1737,12 @@ pub mod lineguard {
             !ctx.accounts.resolution_proposal.executed,
             LineGuardError::ProposalAlreadyExecuted
         );
-        let index = resolution_authority_index(
-            &ctx.accounts.authority_config,
+        require!(
+            ctx.accounts.resolution_proposal.authority_epoch == ctx.accounts.market.authority_epoch,
+            LineGuardError::AuthorityEpochMismatch
+        );
+        let index = resolution_authority_index_from_set(
+            &ctx.accounts.market.resolution_authorities,
             ctx.accounts.approver.key(),
         )?;
         let mask = 1u8 << index;
@@ -1574,7 +1774,7 @@ pub mod lineguard {
         );
         require!(
             ctx.accounts.resolution_proposal.approvals_mask.count_ones() as u8
-                >= ctx.accounts.authority_config.threshold,
+                >= ctx.accounts.market.resolution_threshold,
             LineGuardError::ResolutionThresholdNotMet
         );
         require!(
@@ -1618,8 +1818,7 @@ pub mod lineguard {
 
     pub fn emergency_void_market_v2(ctx: Context<EmergencyVoidMarketV2>) -> Result<()> {
         require!(
-            ctx.accounts.emergency_authority.key()
-                == ctx.accounts.authority_config.emergency_authority,
+            ctx.accounts.emergency_authority.key() == ctx.accounts.market.emergency_authority,
             LineGuardError::InvalidEmergencyAuthority
         );
         require!(
@@ -1654,31 +1853,37 @@ pub mod lineguard {
             let won = (resolution == 1 && ctx.accounts.position.side == 0)
                 || (resolution == 2 && ctx.accounts.position.side == 1);
             require!(won, LineGuardError::PositionDidNotWin);
-            let winning_pool = if resolution == 1 {
-                ctx.accounts.market.yes_pool_lamports
+            let winning_shares = if resolution == 1 {
+                ctx.accounts.market.yes_shares
             } else {
-                ctx.accounts.market.no_pool_lamports
+                ctx.accounts.market.no_shares
             };
-            require!(winning_pool > 0, LineGuardError::WinningPoolEmpty);
+            require!(winning_shares > 0, LineGuardError::WinningPoolEmpty);
             let next_claimed = ctx
                 .accounts
                 .market
-                .claimed_winning_lamports
-                .checked_add(accepted)
+                .claimed_winning_shares
+                .checked_add(ctx.accounts.position.shares_or_pool_weight)
                 .ok_or(LineGuardError::MathOverflow)?;
             require!(
-                next_claimed <= winning_pool,
+                next_claimed <= winning_shares,
                 LineGuardError::MarketAccountingOverflow
             );
-            let payout = if next_claimed == winning_pool {
+            let payout = if next_claimed == winning_shares {
                 ctx.accounts.market_vault.total_claimable
             } else {
-                ((accepted as u128)
+                ((ctx.accounts.position.shares_or_pool_weight as u128)
                     .checked_mul(ctx.accounts.market_vault.total_accepted as u128)
                     .ok_or(LineGuardError::MathOverflow)?
-                    / winning_pool as u128) as u64
+                    / winning_shares as u128) as u64
             };
-            ctx.accounts.market.claimed_winning_lamports = next_claimed;
+            ctx.accounts.market.claimed_winning_shares = next_claimed;
+            ctx.accounts.market.claimed_winning_lamports = ctx
+                .accounts
+                .market
+                .claimed_winning_lamports
+                .checked_add(payout)
+                .ok_or(LineGuardError::MathOverflow)?;
             payout
         };
         require!(
@@ -1730,6 +1935,46 @@ pub mod lineguard {
 
 fn is_zero_hash(value: &[u8; 32]) -> bool {
     value.iter().all(|byte| *byte == 0)
+}
+
+fn validate_legacy_evaluated_order_data(order_data: &[u8], trader: &Pubkey) -> Result<()> {
+    require!(
+        order_data.len() == 235,
+        LineGuardError::InvalidLegacyAccount
+    );
+    require!(
+        &order_data[..8] == OrderEscrowV2::DISCRIMINATOR,
+        LineGuardError::InvalidLegacyAccount
+    );
+    let stored_trader = Pubkey::try_from(&order_data[40..72])
+        .map_err(|_| error!(LineGuardError::InvalidLegacyAccount))?;
+    require!(stored_trader == *trader, LineGuardError::InvalidTrader);
+    require!(
+        order_data[233] != OrderV2Status::Escrowed as u8,
+        LineGuardError::OrderStillEscrowed
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod legacy_rent_recovery_tests {
+    use super::*;
+
+    #[test]
+    fn only_exact_legacy_evaluated_orders_can_close() {
+        let trader = Pubkey::new_unique();
+        let mut legacy = vec![0u8; 235];
+        legacy[..8].copy_from_slice(OrderEscrowV2::DISCRIMINATOR);
+        legacy[40..72].copy_from_slice(trader.as_ref());
+        legacy[233] = OrderV2Status::PositionOpened as u8;
+        assert!(validate_legacy_evaluated_order_data(&legacy, &trader).is_ok());
+
+        let mut escrowed = legacy.clone();
+        escrowed[233] = OrderV2Status::Escrowed as u8;
+        assert!(validate_legacy_evaluated_order_data(&escrowed, &trader).is_err());
+        assert!(validate_legacy_evaluated_order_data(&vec![0u8; 283], &trader).is_err());
+        assert!(validate_legacy_evaluated_order_data(&legacy, &Pubkey::new_unique()).is_err());
+    }
 }
 
 fn verify_receipt_against_config(
@@ -1814,9 +2059,8 @@ fn validate_authority_set(
     Ok(())
 }
 
-fn resolution_authority_index(config: &AuthorityConfig, signer: Pubkey) -> Result<u8> {
-    config
-        .resolution_authorities
+fn resolution_authority_index_from_set(authorities: &[Pubkey; 3], signer: Pubkey) -> Result<u8> {
+    authorities
         .iter()
         .position(|key| *key == signer)
         .map(|index| index as u8)
@@ -1909,6 +2153,8 @@ pub struct InitializeMarketV2Args {
     pub tolerance_micros: u64,
     pub close_time: i64,
     pub claim_deadline: i64,
+    pub evidence_mode: u8,
+    pub settlement_min_timestamp: i64,
 }
 
 // Exact Borsh-compatible subset of the official TxLINE devnet validateStatV2 ABI.
@@ -2057,7 +2303,7 @@ pub struct PricingUpdateV2<'info> {
     #[account(seeds = [b"authorities-v2"], bump = authority_config.bump)]
     pub authority_config: Account<'info, AuthorityConfig>,
     #[account(mut, has_one = authority_config @ LineGuardError::InvalidAuthority, seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
-    pub market: Account<'info, MarketV2>,
+    pub market: Box<Account<'info, MarketV2>>,
 }
 
 #[derive(Accounts)]
@@ -2066,13 +2312,13 @@ pub struct PlaceOrderV2<'info> {
     #[account(mut)]
     pub trader: Signer<'info>,
     #[account(seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
-    pub market: Account<'info, MarketV2>,
+    pub market: Box<Account<'info, MarketV2>>,
     #[account(mut, has_one = market @ LineGuardError::InvalidMarket, seeds = [b"market-vault", market.key().as_ref()], bump = market_vault.bump)]
-    pub market_vault: Account<'info, MarketVault>,
-    #[account(init, payer = trader, space = 8 + OrderEscrowV2::INIT_SPACE, seeds = [b"order-v2", market.key().as_ref(), order_id.as_ref()], bump)]
-    pub order: Account<'info, OrderEscrowV2>,
+    pub market_vault: Box<Account<'info, MarketVault>>,
+    #[account(init, payer = trader, space = 8 + OrderEscrowV2::INIT_SPACE, seeds = [b"order-v2", market.key().as_ref(), trader.key().as_ref(), order_id.as_ref()], bump)]
+    pub order: Box<Account<'info, OrderEscrowV2>>,
     #[account(init_if_needed, payer = trader, space = 8 + Position::INIT_SPACE, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[side]], bump)]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -2082,12 +2328,66 @@ pub struct EvaluateOrderV2<'info> {
     pub market: Box<Account<'info, MarketV2>>,
     #[account(mut, has_one = market @ LineGuardError::InvalidMarket, seeds = [b"market-vault", market.key().as_ref()], bump = market_vault.bump)]
     pub market_vault: Box<Account<'info, MarketVault>>,
-    #[account(mut, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"order-v2", market.key().as_ref(), order.order_id.as_ref()], bump = order.bump)]
+    #[account(mut, close = trader, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"order-v2", market.key().as_ref(), trader.key().as_ref(), order.order_id.as_ref()], bump = order.bump)]
     pub order: Box<Account<'info, OrderEscrowV2>>,
     #[account(mut)]
     pub trader: SystemAccount<'info>,
     #[account(mut, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
     pub position: Box<Account<'info, Position>>,
+}
+
+#[derive(Accounts)]
+pub struct CancelOrderV2<'info> {
+    #[account(mut)]
+    pub trader: Signer<'info>,
+    #[account(seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
+    pub market: Box<Account<'info, MarketV2>>,
+    #[account(mut, close = trader, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, has_one = position @ LineGuardError::InvalidPosition, seeds = [b"order-v2", market.key().as_ref(), trader.key().as_ref(), order.order_id.as_ref()], bump = order.bump)]
+    pub order: Box<Account<'info, OrderEscrowV2>>,
+    #[account(mut, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
+    pub position: Box<Account<'info, Position>>,
+}
+
+#[derive(Accounts)]
+pub struct CloseEmptyPositionV2<'info> {
+    #[account(mut)]
+    pub trader: Signer<'info>,
+    #[account(seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
+    pub market: Box<Account<'info, MarketV2>>,
+    #[account(mut, close = trader, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
+    pub position: Box<Account<'info, Position>>,
+}
+
+#[derive(Accounts)]
+pub struct CloseLosingPositionV2<'info> {
+    #[account(mut)]
+    pub trader: Signer<'info>,
+    #[account(seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
+    pub market: Box<Account<'info, MarketV2>>,
+    #[account(mut, close = trader, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
+    pub position: Box<Account<'info, Position>>,
+}
+
+#[derive(Accounts)]
+pub struct CloseSettledPositionRentV2<'info> {
+    #[account(mut)]
+    pub trader: Signer<'info>,
+    /// CHECK: The handler validates LineGuard ownership, the MarketV2 discriminator,
+    /// settled state, and the Position's has-one relationship before rent is returned.
+    #[account(owner = crate::ID)]
+    pub market: UncheckedAccount<'info>,
+    #[account(mut, close = trader, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
+    pub position: Box<Account<'info, Position>>,
+}
+
+#[derive(Accounts)]
+pub struct CloseLegacyEvaluatedOrderV2<'info> {
+    #[account(mut)]
+    pub trader: Signer<'info>,
+    /// CHECK: The handler validates the legacy discriminator, embedded trader,
+    /// evaluated status, and program ownership before the close constraint runs.
+    #[account(mut, owner = crate::ID)]
+    pub order: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -2134,11 +2434,11 @@ pub struct ExecuteResolutionV2<'info> {
     #[account(seeds = [b"authorities-v2"], bump = authority_config.bump)]
     pub authority_config: Account<'info, AuthorityConfig>,
     #[account(mut, has_one = authority_config @ LineGuardError::InvalidAuthority, seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
-    pub market: Account<'info, MarketV2>,
+    pub market: Box<Account<'info, MarketV2>>,
     #[account(has_one = market @ LineGuardError::InvalidMarket, seeds = [b"txval-v2", market.key().as_ref()], bump = validation_receipt.bump)]
-    pub validation_receipt: Account<'info, TxlineValidationReceiptV2>,
+    pub validation_receipt: Box<Account<'info, TxlineValidationReceiptV2>>,
     #[account(mut, has_one = market @ LineGuardError::InvalidMarket, has_one = validation_receipt @ LineGuardError::ValidationPayloadMismatch, seeds = [b"resolution-v2", market.key().as_ref()], bump = resolution_proposal.bump)]
-    pub resolution_proposal: Account<'info, ResolutionProposal>,
+    pub resolution_proposal: Box<Account<'info, ResolutionProposal>>,
 }
 
 #[derive(Accounts)]
@@ -2155,11 +2455,11 @@ pub struct ClaimPositionV2<'info> {
     #[account(mut)]
     pub trader: Signer<'info>,
     #[account(mut, seeds = [b"market-v2", market.market_id.as_ref()], bump = market.bump)]
-    pub market: Account<'info, MarketV2>,
+    pub market: Box<Account<'info, MarketV2>>,
     #[account(mut, has_one = market @ LineGuardError::InvalidMarket, seeds = [b"market-vault", market.key().as_ref()], bump = market_vault.bump)]
-    pub market_vault: Account<'info, MarketVault>,
-    #[account(mut, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
-    pub position: Account<'info, Position>,
+    pub market_vault: Box<Account<'info, MarketVault>>,
+    #[account(mut, close = trader, has_one = market @ LineGuardError::InvalidMarket, has_one = trader @ LineGuardError::InvalidTrader, seeds = [b"position", market.key().as_ref(), trader.key().as_ref(), &[position.side]], bump = position.bump)]
+    pub position: Box<Account<'info, Position>>,
 }
 
 #[derive(Accounts)]
@@ -2571,6 +2871,17 @@ pub struct MarketV2 {
     pub resolved_at: i64,
     pub validation_payload_hash: [u8; 32],
     pub resolution_event_hash: [u8; 32],
+    pub feed_authority: Pubkey,
+    pub pricing_authority: Pubkey,
+    pub resolution_authorities: [Pubkey; 3],
+    pub emergency_authority: Pubkey,
+    pub resolution_threshold: u8,
+    pub authority_epoch: u64,
+    pub yes_shares: u64,
+    pub no_shares: u64,
+    pub claimed_winning_shares: u64,
+    pub evidence_mode: u8,
+    pub settlement_min_timestamp: i64,
     pub bump: u8,
 }
 
@@ -2619,6 +2930,12 @@ pub struct OrderEscrowV2 {
     pub priced_at_seq: u64,
     pub odds_sequence: u64,
     pub odds_payload_hash: [u8; 32],
+    pub expected_execution_price_micros: u64,
+    pub max_slippage_micros: u64,
+    pub expected_pricing_sequence: u64,
+    pub expected_odds_sequence: u64,
+    pub expiry_slot: u64,
+    pub pool_shares: u64,
     pub status: u8,
     pub bump: u8,
 }
@@ -2636,6 +2953,9 @@ pub struct TxlineValidationReceiptV2 {
     pub away_score: u16,
     pub derived_outcome: u8,
     pub direct_cpi_verified: bool,
+    pub proof_timestamp: i64,
+    pub max_update_timestamp: i64,
+    pub evidence_mode: u8,
     pub bump: u8,
 }
 
@@ -2648,6 +2968,7 @@ pub struct ResolutionProposal {
     pub derived_outcome: u8,
     pub approvals_mask: u8,
     pub executed: bool,
+    pub authority_epoch: u64,
     pub bump: u8,
 }
 
@@ -2911,6 +3232,9 @@ pub struct OrderV2EvaluatedEvent {
     pub status: u8,
     pub stake_lamports: u64,
     pub edge_micros: i64,
+    pub execution_price_micros: u64,
+    pub pool_shares: u64,
+    pub refunded: bool,
 }
 
 #[event]
@@ -3085,4 +3409,34 @@ pub enum LineGuardError {
     ResolutionThresholdNotMet,
     #[msg("Resolution proposal does not match the validation receipt")]
     ValidationPayloadMismatch,
+    #[msg("The signed order expired before execution")]
+    OrderExpired,
+    #[msg("The market pricing sequence differs from the signed order")]
+    PricingSequenceMismatch,
+    #[msg("The market odds sequence differs from the signed order")]
+    OddsSequenceMismatch,
+    #[msg("The execution price moved beyond signed slippage")]
+    SlippageExceeded,
+    #[msg("The accepted order would create an invalid pool-share amount")]
+    InvalidPoolShares,
+    #[msg("The position contains accepted stake and cannot be closed as empty")]
+    PositionHasAcceptedStake,
+    #[msg("The resolution proposal belongs to a different authority epoch")]
+    AuthorityEpochMismatch,
+    #[msg("Claims do not expire; claim_deadline must be zero")]
+    ClaimsMustNotExpire,
+    #[msg("Evidence mode must be 0 (live) or 1 (historical)")]
+    InvalidEvidenceMode,
+    #[msg("The minimum settlement evidence timestamp is invalid for this market")]
+    InvalidEvidenceTimestamp,
+    #[msg("The TxLINE proof predates this market's committed settlement evidence boundary")]
+    EvidenceTooOld,
+    #[msg("Only a losing settled position can use this close path")]
+    PositionDidNotLose,
+    #[msg("The legacy account layout or discriminator is invalid")]
+    InvalidLegacyAccount,
+    #[msg("The settled position still has a valid payout claim")]
+    PositionStillClaimable,
+    #[msg("The legacy order is still escrowed and cannot be rent-closed")]
+    OrderStillEscrowed,
 }

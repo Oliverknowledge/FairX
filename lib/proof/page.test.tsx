@@ -1,58 +1,29 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ProofPage from "@/app/proof/page";
-import { proofData } from "@/lib/proof/staticProofData";
-import { verifyReceipt } from "@/lib/receipts/verify";
+import { canonicalV2Lifecycle, verifyV2Lifecycle } from "@/lib/proof/v2Lifecycle";
 
-describe("proof page", () => {
-  it("renders the honest settlement limitation and committed YES meaning", () => {
+describe("simplified proof page", () => {
+  it("presents one seven-step v2 lifecycle in plain language", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("Scores are operator-submitted; the TxLINE Merkle proof is not re-verified inside LineGuard.");
-    expect(html).toContain("France/home team wins");
-    expect(html).toContain("TxLINE proof validated separately");
-  });
-  it("renders the ten canonical TxLINE and settlement proof stages", () => {
-    const html = renderToStaticMarkup(<ProofPage />);
-    for (const title of [
-      "TxLINE subscription active", "Genuine fixture loaded", "TxLINE score proof validated", "MarketConfig committed",
-      "Source event hash committed", "YES stake escrowed", "YES refunded", "NO stake escrowed",
-      "NO finalized to ProtocolVault", "Receipt integrity verified",
-    ]) expect(html).toContain(title);
-    expect(html).toContain("settlement-v4 · 475793035");
-    expect(html).toContain(proofData.txline.programId);
-    expect(html).toContain(proofData.txline.rootPda);
-    expect(html).toContain(proofData.receipt.noReceipt.receiptHash);
-    expect((html.match(/<a /g) ?? []).length).toBeGreaterThanOrEqual(18);
+    expect(html).toContain("ARCHIVED V2 RECORD VERIFIED");
+    for (const title of ["Genuine TxLINE evidence", "Stale exploit refunded", "Fair position created", "Direct TxLINE CPI passed", "2-of-3 resolution reached", "User payout claimed", "Vault conservation verified"]) expect(html).toContain(title);
+    expect(html).not.toContain("TxLINE subscription active");
   });
 
-  it("renders the unified lifecycle (protection + TxLINE resolution + payout) evidence", () => {
+  it("keeps protocol internals inside technical details", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("root-bound resolution");
-    const s = proofData.settlement;
-    expect(s.resolution).toBe("YES_WON");
-    expect(s.winnerOrderStatus).toBe("Settled");
-    expect(s.loserOrderStatus).toBe("Filled");
-    // Protection and settlement happened on the SAME market (one unified lifecycle).
-    expect(s.protectionRefunded).toBe(true);
-    expect(s.protectionVerdict).toBe("VOIDED_REFUNDED");
-    expect(s.txs.length).toBe(13);
-    // The committed rule maps the submitted 1-0 score to YES.
-    expect(s.derivedOutcome).toBe(s.homeScore > s.awayScore ? 1 : 2);
-    expect(s.derivedOutcome).toBe(1);
-    // The genuine on-chain TxLINE daily-scores root is bound.
-    expect(s.validationRootPda).toBe("EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr");
-    // Parimutuel invariant + solvency invariant.
-    const expectedPayout = Math.floor((s.winnerStakeLamports * s.totalPoolLamports) / s.winningPoolLamports);
-    expect(s.winnerPayoutLamports).toBe(expectedPayout);
-    expect(s.marketTotalPaidLamports + s.marketTotalRefundedLamports).toBeLessThanOrEqual(s.marketTotalInLamports);
-    // Every lifecycle transaction signature is surfaced as evidence.
-    for (const tx of s.txs) expect(html).toContain(tx.signature);
+    expect(html).toContain("Technical details");
+    expect(html.indexOf("Technical details")).toBeLessThan(html.indexOf(canonicalV2Lifecycle.program.programId));
+    expect(html).toContain("The hashes differ because they commit different serializations");
   });
 
-  it("publishes stable valid routes for both canonical receipts", () => {
-    expect(proofData.receipt.verifierHref).toBe(`/verify/${proofData.receipt.receipt.receiptId}`);
-    expect(proofData.receipt.noVerifierHref).toBe(`/verify/${proofData.receipt.noReceipt.receiptId}`);
-    expect(verifyReceipt(proofData.receipt.receipt, 0).valid).toBe(true);
-    expect(verifyReceipt(proofData.receipt.noReceipt, 0).valid).toBe(true);
+  it("surfaces the canonical transaction links", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    for (const key of ["staleRefund", "acceptedPosition", "txlineCpiProof", "secondApproval", "resolution", "claim"] as const) expect(html).toContain(canonicalV2Lifecycle.transactions[key].explorerUrl.replaceAll("&", "&amp;"));
+  });
+
+  it("keeps the canonical v2 fixture valid", () => {
+    expect(verifyV2Lifecycle(canonicalV2Lifecycle).valid).toBe(true);
   });
 });

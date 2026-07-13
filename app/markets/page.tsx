@@ -1,44 +1,25 @@
 import type { Metadata } from "next";
-import { ArrowUpRight, Plus } from "lucide-react";
-import Link from "next/link";
 import { FairXShell } from "@/components/fairx/FairXShell";
-import { MarketsDiscovery } from "@/components/fairx/MarketsDiscovery";
-import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
+import { MarketCard } from "@/components/fairx/MarketCard";
+import { getMarketById } from "@/lib/markets/catalog";
 
 export const metadata: Metadata = {
   title: "Markets",
-  description: "Protected sandbox and devnet prediction markets powered by LineGuard.",
+  description: "Genuine TxLINE-backed prediction markets protected by LineGuard.",
 };
 
 export default function MarketsPage() {
+  const market = getMarketById("france-morocco-france-win");
   return (
-    <FairXShell>
-      <section className="flex flex-col gap-5 border-b border-(--border) pb-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="section-label">Protected market discovery</p>
-          <h1 className="mt-2 text-[28px] font-bold leading-[1.02] tracking-[-0.055em] text-(--ink) sm:text-[34px]">Markets that expose their fairness state.</h1>
-          <p className="mt-3 max-w-xl text-[12px] leading-relaxed text-(--ink-2)">
-            Browse guided and user-created sandbox markets. Every card separates provenance, freshness, and execution mode—without fake volume or fake activity.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Link
-            href="/proof"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-(--border) bg-white px-3 text-[10.5px] font-semibold text-(--ink-2) transition-colors hover:border-[#bed2f8] hover:text-(--blue)"
-          >
-            View proof
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </Link>
-          <Link href="/create" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-(--blue) px-3 text-[10.5px] font-semibold text-white transition-colors hover:bg-[#1d55c6]">
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-            Create market
-          </Link>
-        </div>
-      </section>
-
-      <div className="mt-4"><RuntimeStatusStrip /></div>
-      <div className="mt-5">
-        <MarketsDiscovery />
+    <FairXShell compact>
+      <div className="mx-auto max-w-[980px]">
+        <header className="py-5 sm:py-9">
+          <p className="text-[11px] font-bold text-(--blue)">Devnet markets</p>
+          <h1 className="mt-2 text-[38px] font-extrabold tracking-[-0.055em] sm:text-[52px]">Markets</h1>
+          <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-(--ink-2)">Inspect the archived resolved football market. New orders are unavailable because trading is closed.</p>
+        </header>
+        {market && <div className="max-w-xl"><MarketCard market={market} /></div>}
+        <p className="mt-5 text-[11px] text-(--ink-3)">Only the audited MATCH_WINNER_HOME_V1 market is shown. No seeded or unsupported markets appear here.</p>
       </div>
     </FairXShell>
   );

@@ -14,23 +14,27 @@ const instructions = `// Deployed FairX v2 instruction path
 initialize_authorities(feed, pricing, [resolutionA, B, C], emergency, 2)
 initialize_market_v2(MATCH_WINNER_HOME_V1, fixture commitments,
                      odds payload + pricing model hashes)
-place_order_v2(order_id, side, stake, max_edge)
-evaluate_order_v2() // exact refund or wallet-owned Position
+place_order_v2(order_id, side, stake, max_edge,
+               expected_price, max_slippage,
+               pricing_seq, odds_seq, expiry_slot)
+evaluate_order_v2() // exact refund or price-weighted Position; Order closes
+cancel_order_v2()   // trader timeout recovery; Order closes
 reprice_market_v2()
 close_market_v2()
 prove_resolution_with_txline_v2(borsh_payload_hash, payload)
   // CPI → fixed TxLINE ValidateStatV2; derives outcome internally
 approve_resolution_v2() // second distinct authority
 execute_resolution_v2() // requires 2-of-3
-claim_position_v2()     // Position owner signs; MarketVault pays`;
+claim_position_v2()     // winner signs; MarketVault pays; Position closes
+close_losing_position_v2() / close_empty_position_v2()`;
 
 const liveNow = [
   "MATCH_WINNER_HOME_V1 template and deterministic TxLINE price commitments",
-  "Wallet-signed OrderEscrowV2 and wallet-owned Position PDAs",
+  "Wallet-signed price, slippage, pricing sequence, odds sequence, and expiry constraints",
   "Positive-edge stale-order refund to the trader",
-  "Safe-order finalization to an isolated per-market MarketVault",
+  "Price-weighted pool shares and isolated per-market MarketVault accounting",
   "Direct TxLINE ValidateStatV2 CPI and internally derived outcome",
-  "2-of-3 resolution approval and owner-signed claims",
+  "2-of-3 resolution approval, owner-signed claims, and explicit account-rent recovery",
 ];
 
 const planned = [
@@ -66,7 +70,7 @@ export default function IntegratePage() {
         <RuntimeStatusStrip detailed />
 
         <section className="grid gap-3 lg:grid-cols-2">
-          <CapabilityCard title="Deployed on devnet now" tone="green" items={liveNow} />
+          <CapabilityCard title="Implemented in this repository — confirm deployment above" tone="green" items={liveNow} />
           <CapabilityCard title="Still required for production" tone="amber" items={planned} />
         </section>
 
@@ -85,7 +89,7 @@ export default function IntegratePage() {
           <div className="card p-4">
             <p className="section-label">Deployed program</p>
             <p className="mono mt-2 break-all text-[11px] font-bold text-(--blue)">{proofData.program.id}</p>
-            <p className="mt-3 text-[10px] leading-relaxed text-(--ink-2)">The status strip checks the executable ProgramData account and whether the deployed binary supports the repository&rsquo;s MarketConfig schema. Configuration instructions must not be treated as available until that runtime check passes.</p>
+            <p className="mt-3 text-[10px] leading-relaxed text-(--ink-2)">The status strip checks the executable ProgramData account. Repository instructions are not evidence of deployment; use the independent verifier and explorer links before treating v3 as live.</p>
             <a href={proofData.program.explorerUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">Open devnet program <ExternalLink className="h-3.5 w-3.5" /></a>
             <Link href="/proof" className="mt-2 flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">Inspect on-chain proof <ArrowRight className="h-3.5 w-3.5" /></Link>
           </div>

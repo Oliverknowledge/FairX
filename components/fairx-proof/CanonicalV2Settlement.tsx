@@ -17,11 +17,11 @@ export function CanonicalV2Settlement({ connectedWallet }: { connectedWallet?: s
     <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4" aria-label="Canonical v2 settled lifecycle">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="section-label text-emerald-700">Canonical v2 settlement · public on-chain evidence</p>
+          <p className="section-label text-emerald-700">Archived v2 devnet record</p>
           <h2 className="mt-1 text-[21px] font-extrabold tracking-[-0.035em] text-(--ink)">Resolved: France won</h2>
-          <p className="mt-1 text-[10.5px] text-(--ink-2)">User-owned devnet wallet lifecycle · secure test-user keypair · Devnet SOL only.</p>
+          <p className="mt-1 text-[10.5px] text-(--ink-2)">Real devnet transactions using historical TxLINE evidence. Retained for audit history, not presented as the economically complete v3 lifecycle.</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" />Conservation verified</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800"><CheckCircle2 className="h-3.5 w-3.5" />v2 record verified</span>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -38,7 +38,6 @@ export function CanonicalV2Settlement({ connectedWallet }: { connectedWallet?: s
             <Row label="Accepted position owner" value={short(proof.lifecycle.positionOwner)} />
             <Row label="Accepted stake" value={sol(proof.lifecycle.acceptedStakeLamports)} />
             <Row label="Refunded stale order" value={sol(proof.lifecycle.refundedStakeLamports)} />
-            <Row label="Position PDA" value={short(proof.lifecycle.positionPda)} mono />
           </dl>
           <div className="mt-3 flex flex-wrap gap-3">
             <EvidenceLink label="Refund transaction" href={proof.transactions.staleRefund.explorerUrl} />
@@ -53,7 +52,6 @@ export function CanonicalV2Settlement({ connectedWallet }: { connectedWallet?: s
             <Row label="Refunded" value={sol(proof.vault.totalRefundedLamports)} />
             <Row label="Paid" value={sol(proof.vault.totalPaidLamports)} />
             <Row label="Claimable / dust" value="0 / 0" />
-            <Row label="Rent reserve" value={`${proof.vault.rentReserveLamports.toLocaleString("en-GB")} lamports`} />
           </dl>
         </div>
       </div>
@@ -62,6 +60,8 @@ export function CanonicalV2Settlement({ connectedWallet }: { connectedWallet?: s
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <p>{connectedWallet ? (ownerConnected ? "Connected wallet owns the canonical position; it is already claimed." : "This wallet does not own the canonical position. Public settlement proof remains visible.") : "No wallet is required to inspect this settled lifecycle. Connect only to inspect wallet-specific positions."}</p>
       </div>
+      <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[10.5px] font-semibold leading-relaxed text-amber-900">Economic limitation: this v2 record had no losing counterparty collateral, so the winner claimed only the winner&rsquo;s own 0.01 SOL principal. Use the v3 verifier for the required A-wins-B settlement claim.</p>
+      <details className="mt-3 rounded-lg border border-(--border) bg-white p-3"><summary className="cursor-pointer text-[10.5px] font-bold">Technical details</summary><dl className="mt-3 space-y-2 text-[10.5px]"><Row label="Position PDA" value={short(proof.lifecycle.positionPda)} mono /><Row label="Market vault PDA" value={short(proof.market.marketVaultPda)} mono /><Row label="Rent reserve" value={`${proof.vault.rentReserveLamports.toLocaleString("en-GB")} lamports`} /></dl></details>
     </section>
   );
 }

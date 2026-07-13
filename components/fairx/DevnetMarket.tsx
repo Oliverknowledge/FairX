@@ -16,6 +16,7 @@ import {
   explorerTransaction,
   fetchTraderPositions,
   fetchV2MarketSnapshot,
+  parsePosition,
   prepareAndSimulate,
   type PositionV2State,
   type V2MarketSnapshot,
@@ -78,11 +79,14 @@ export function DevnetMarket() {
   const fairSide = side === "YES" ? fairYes : 1_000_000 - fairYes;
   const edge = fairSide - sidePrice;
   const stakeLamports = Math.round(Number(stake) * LAMPORTS_PER_SOL);
-  const sidePool = side === "YES" ? (market?.yesPoolLamports ?? 0) : (market?.noPoolLamports ?? 0);
+  const sideShares = side === "YES" ? (market?.yesShares ?? 0) : (market?.noShares ?? 0);
   const totalPool = (market?.yesPoolLamports ?? 0) + (market?.noPoolLamports ?? 0);
-  const estimatedPayout = stakeLamports > 0 ? (stakeLamports * (totalPool + stakeLamports)) / (sidePool + stakeLamports) : 0;
+  const newShares = sidePrice > 0 ? Math.floor((stakeLamports * 1_000_000) / sidePrice) : 0;
+  const estimatedPayout = stakeLamports > 0 && newShares > 0
+    ? (newShares * (totalPool + stakeLamports)) / (sideShares + newShares)
+    : 0;
   const currentPosition = positions.find((position) => position.side === side);
-  const stale = market ? market.materialSeq > market.pricedAtSeq : true;
+  const stale = market ? market.materialSeq > market.pricedAtSeq : false;
   const wouldRefund = stale && edge > (market?.toleranceMicros ?? 20_000);
   const ready = Boolean(wallet.publicKey && snapshot?.deployed && market && !market.tradingClosed && !market.resolved && stakeLamports > 0);
 
@@ -94,12 +98,19 @@ export function DevnetMarket() {
       if (!Number.isSafeInteger(stakeLamports) || stakeLamports <= 0) throw new Error("Enter a positive Devnet SOL stake.");
       if (balance !== null && stakeLamports >= balance) throw new Error("Insufficient Devnet SOL for stake, rent, and transaction fee.");
       const marketKey = new PublicKey(market.address);
+      const currentSlot = await connection.getSlot("confirmed");
+      const previousAccepted = currentPosition?.acceptedLamports ?? 0;
       const built = buildOrderTransaction({
         trader: wallet.publicKey,
         market: marketKey,
         side,
         stakeLamports: BigInt(stakeLamports),
         maxAcceptedEdgeMicros: BigInt(market.toleranceMicros),
+        expectedExecutionPriceMicros: BigInt(sidePrice),
+        maxSlippageMicros: 5_000n,
+        expectedPricingSequence: BigInt(market.pricedAtSeq),
+        expectedOddsSequence: BigInt(market.oddsSequence),
+        expirySlot: BigInt(currentSlot + 150),
       });
       setState("SIMULATING");
       await prepareAndSimulate(connection, built.transaction, wallet.publicKey);
@@ -107,12 +118,12 @@ export function DevnetMarket() {
       const tx = await wallet.sendTransaction(built.transaction, connection, { skipPreflight: false, preflightCommitment: "confirmed" });
       setSignature(tx);
       setState("CONFIRMING");
-      const confirmation = await connection.confirmTransaction(tx, "confirmed");
+      const confirmation = await connection.confirmTransaction(tx, "finalized");
       if (confirmation.value.err) throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-      const orderInfo = await connection.getAccountInfo(built.orderPda, "confirmed");
-      if (!orderInfo || orderInfo.data.length < 235) throw new Error("Order account was not readable after confirmation.");
-      const orderStatus = orderInfo.data[233];
-      setState(orderStatus === 2 ? "REFUNDED" : "POSITION_OPENED");
+      const positionInfo = await connection.getAccountInfo(built.positionPda, "finalized");
+      if (!positionInfo) throw new Error("Position account was not readable after finalization.");
+      const finalizedPosition = parsePosition(built.positionPda, Buffer.from(positionInfo.data));
+      setState(finalizedPosition.acceptedLamports > previousAccepted ? "POSITION_OPENED" : "REFUNDED");
       await refresh();
     } catch (cause) {
       setState("ERROR");
@@ -129,15 +140,12 @@ export function DevnetMarket() {
               <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-200">
                 <span>Football</span><span>•</span><span>TxLINE historical</span><span>•</span><span>Devnet SOL only</span>
               </div>
-              <h1 className="mt-2 text-[28px] font-bold tracking-[-0.045em] sm:text-[36px]">Will France beat Morocco?</h1>
-              <p className="mt-2 max-w-2xl text-[12px] leading-relaxed text-slate-300">YES = committed home team France wins. NO = France does not win. Protected by LineGuard.</p>
+              <p className="mt-3 text-[14px] font-semibold text-blue-100">France vs Morocco</p>
+              <h1 className="mt-1 text-[30px] font-bold tracking-[-0.045em] sm:text-[40px]">Will France win?</h1>
+              <p className="mt-2 flex items-center gap-2 text-[12px] font-semibold text-blue-200"><ShieldCheck className="h-4 w-4" />Archived settled v2 market</p>
             </div>
             <WalletMultiButton className="!h-10 !rounded-md !bg-[#2563eb] !px-4 !text-[11px] !font-semibold" />
           </div>
-        </div>
-
-        <div className="border-b border-(--border) p-4 sm:p-5">
-          <CanonicalV2Settlement connectedWallet={wallet.publicKey?.toBase58()} />
         </div>
 
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -146,7 +154,7 @@ export function DevnetMarket() {
               <Metric label="YES probability" value={pct(displayedYes)} accent />
               <Metric label="NO probability" value={pct(1_000_000 - displayedYes)} />
               <Metric label="Accepted collateral" value={vault ? sol(vault.totalAccepted) : sol(canonicalV2Lifecycle.market.acceptedCollateralLamports)} />
-              <Metric label="Market state" value={market?.resolved ? "Resolved · YES" : stale ? "Stale window" : "Synchronized"} good={Boolean(market?.resolved || !stale)} />
+              <Metric label="Market state" value={!market || market.resolved ? "Resolved · YES" : stale ? "Price update pending" : "Synchronized"} good={Boolean(!market || market.resolved || !stale)} />
             </div>
 
             <section>
@@ -161,25 +169,22 @@ export function DevnetMarket() {
                   <circle cx="60" cy="112" r="6" fill="#2563eb" /><circle cx="560" cy="35" r="6" fill="#2563eb" />
                   <text x="48" y="135" fontSize="12" fill="#64748b">52.274%</text><text x="515" y="25" fontSize="12" fill="#2563eb">86.505%</text>
                   <line x1="310" x2="310" y1="20" y2="150" stroke="#d97706" strokeDasharray="4 4" />
-                  <text x="320" y="92" fontSize="11" fill="#92400e">France goal · seq 739</text>
+                  <text x="320" y="92" fontSize="11" fill="#92400e">France goal</text>
                 </svg>
               </div>
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2">
-              <EvidenceRow title="Pricing evidence" detail={`Raw payload ${canonicalCapture.odds.rawPayloadHash.slice(0, 12)}… → 86.505% using txline-demargined-pct-v1.`} />
-              <EvidenceRow title="Resolution template" detail="MATCH_WINNER_HOME_V1 · stat keys 1/2 · outcome derived inside LineGuard." />
-              <EvidenceRow title="Vault isolation" detail={snapshot?.vault ? `${short(snapshot.vault.address)} · ${sol(snapshot.vault.lamports)}` : `Expected PDA ${short(snapshot?.vaultPda ?? deriveMarketV2Pda().toBase58())}`} />
-              <EvidenceRow title="Resolution assurance" detail="v2 requires TxLINE validateStatV2 CPI success plus threshold approval before execution." />
-            </section>
+            <section className="rounded-xl border border-(--border) bg-white p-4"><p className="section-label">Match state</p><div className="mt-3 grid gap-3 sm:grid-cols-3"><Metric label="Source" value="TxLINE historical" /><Metric label="Final score" value="France 1–0 Morocco" /><Metric label="LineGuard" value="Market synchronized" good /></div></section>
 
-            {!snapshot?.deployed && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-relaxed text-blue-900"><strong>Canonical v2 evidence loaded.</strong> Live RPC hydration is still loading or unavailable; the durable settled receipt remains visible above.</div>}
+            <details className="rounded-xl border border-(--border) bg-white p-4"><summary className="cursor-pointer text-[11px] font-bold">Technical details</summary><section className="mt-4 grid gap-3 sm:grid-cols-2"><EvidenceRow title="Pricing evidence" detail={`Raw payload ${canonicalCapture.odds.rawPayloadHash.slice(0, 12)}… → 86.505% using txline-demargined-pct-v1.`} /><EvidenceRow title="Resolution template" detail="MATCH_WINNER_HOME_V1 · stat keys 1/2 · outcome derived inside LineGuard." /><EvidenceRow title="Vault isolation" detail={snapshot?.vault ? `${short(snapshot.vault.address)} · ${sol(snapshot.vault.lamports)}` : `Expected PDA ${short(snapshot?.vaultPda ?? deriveMarketV2Pda().toBase58())}`} /><EvidenceRow title="Resolution assurance" detail="v2 requires TxLINE ValidateStatV2 success plus threshold approval before execution." /></section></details>
+
+            {!snapshot?.deployed && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-relaxed text-blue-900"><strong>Canonical settled evidence loaded.</strong> Devnet RPC hydration is still loading or unavailable; the durable public receipt remains visible below.</div>}
           </div>
 
           <aside className="border-t border-(--border) bg-[#fbfcfe] p-5 lg:border-l lg:border-t-0">
             <div className="flex rounded-lg bg-[#eef2f7] p-1">
               {(["YES", "NO"] as const).map((choice) => (
-                <button key={choice} onClick={() => setSide(choice)} className={`h-10 flex-1 rounded-md text-[12px] font-bold ${side === choice ? choice === "YES" ? "bg-[#167d5a] text-white shadow-sm" : "bg-[#c2413b] text-white shadow-sm" : "text-(--ink-2)"}`}>Buy {choice}</button>
+                <button key={choice} disabled={Boolean(market?.resolved)} onClick={() => setSide(choice)} className={`h-10 flex-1 rounded-md text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-60 ${side === choice ? choice === "YES" ? "bg-[#167d5a] text-white shadow-sm" : "bg-[#c2413b] text-white shadow-sm" : "text-(--ink-2)"}`}>{market?.resolved ? choice : `Buy ${choice}`}</button>
               ))}
             </div>
 
@@ -187,19 +192,17 @@ export function DevnetMarket() {
               <label className="block">
                 <span className="text-[10px] font-semibold text-(--ink-2)">Stake · Devnet SOL</span>
                 <div className="mt-1 flex h-12 items-center rounded-lg border border-(--border) bg-white px-3">
-                  <input value={stake} onChange={(event) => setStake(event.target.value)} inputMode="decimal" className="min-w-0 flex-1 bg-transparent text-[20px] font-bold outline-none" aria-label="Stake in Devnet SOL" />
+                  <input disabled={Boolean(market?.resolved)} value={stake} onChange={(event) => setStake(event.target.value)} inputMode="decimal" className="min-w-0 flex-1 bg-transparent text-[20px] font-bold outline-none disabled:text-slate-400" aria-label="Stake in Devnet SOL" />
                   <span className="text-[11px] font-semibold text-(--ink-3)">SOL</span>
                 </div>
               </label>
               <TicketLine label="Current probability" value={pct(sidePrice)} />
-              <TicketLine label="Current fair probability" value={pct(fairSide)} />
-              <TicketLine label="Maximum accepted edge" value={pct(market?.toleranceMicros ?? 20_000)} />
-              <TicketLine label="Potential payout estimate" value={market?.resolved ? "Market settled" : snapshot?.deployed ? sol(Math.round(estimatedPayout)) : "RPC loading"} />
-              <TicketLine label="LineGuard status" value={snapshot?.deployed ? (wouldRefund ? "Stale edge → refund" : "Protected") : (wouldRefund ? "Local preview: would refund" : "Local preview")} good={snapshot?.deployed && !wouldRefund} warning={wouldRefund} />
-              <TicketLine label="Market PDA" value={short(snapshot?.marketPda ?? deriveMarketV2Pda().toBase58())} mono />
-              <TicketLine label="Expected destination" value={market?.resolved ? "Settled · no new orders" : snapshot?.deployed ? (wouldRefund ? "Connected wallet" : "Market vault + position") : "RPC loading"} />
+              <TicketLine label="Pool payout estimate" value={market?.resolved ? "Market settled" : snapshot?.deployed ? sol(Math.round(estimatedPayout)) : "RPC loading"} />
+              <TicketLine label="LineGuard" value={market?.resolved || !market ? "Market settled" : wouldRefund ? "Stale-price exploit detected" : "Market synchronized"} good={!wouldRefund} warning={wouldRefund} />
               <TicketLine label="Network" value="Solana Devnet" warning />
             </div>
+
+              <details className="mt-4 rounded-lg border border-(--border) bg-white p-3"><summary className="cursor-pointer text-[10.5px] font-bold">Technical order details</summary><div className="mt-3 space-y-2"><TicketLine label="Fair probability" value={pct(fairSide)} /><TicketLine label="Signed execution quote" value={pct(sidePrice)} /><TicketLine label="Maximum slippage" value="0.50%" /><TicketLine label="Pool shares" value={newShares.toLocaleString("en-GB")} /><TicketLine label="Maximum accepted edge" value={pct(market?.toleranceMicros ?? 20_000)} /><TicketLine label="Market PDA" value={short(snapshot?.marketPda ?? deriveMarketV2Pda().toBase58())} mono /><TicketLine label="Expected destination" value={market?.resolved ? "Settled · no new orders" : snapshot?.deployed ? (wouldRefund ? "Connected wallet" : "Market vault + position") : "RPC loading"} /></div></details>
 
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-[10.5px] leading-relaxed text-blue-900">
               <div className="flex gap-2"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /><span>The app builds transactions with a Devnet blockhash. Confirm “Devnet” in your wallet preview; reconnect if the wallet warns about another network.</span></div>
@@ -234,6 +237,10 @@ export function DevnetMarket() {
               </div>
             )}
           </aside>
+        </div>
+
+        <div className="border-t border-(--border) p-4 sm:p-6">
+          <CanonicalV2Settlement connectedWallet={wallet.publicKey?.toBase58()} />
         </div>
       </section>
 

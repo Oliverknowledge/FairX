@@ -1,6 +1,8 @@
 import "server-only";
 
 import crypto from "crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { getSignerInfo } from "@/lib/solana/lineguardServer";
 import { LOCAL_LINEGUARD_PROGRAM_ID } from "@/lib/solana/pdas";
@@ -23,6 +25,15 @@ const STATUS_CACHE_TTL_MS = 15_000;
 
 let cachedStatus: { value: FairXRuntimeStatus; cachedAt: number } | null = null;
 let statusRequest: Promise<FairXRuntimeStatus> | null = null;
+
+function recordedV3ProgramDataHash(): string | null {
+  try {
+    const record = JSON.parse(readFileSync(resolve(process.cwd(), "fixtures/lineguard/v3-france-morocco-three-wallet.json"), "utf8")) as { version?: number; program?: { programDataAccountSha256?: string } };
+    return record.version === 3 ? record.program?.programDataAccountSha256 ?? null : null;
+  } catch {
+    return null;
+  }
+}
 
 function cluster(): "devnet" | "localnet" | "unconfigured" {
   return process.env.NEXT_PUBLIC_SOLANA_CLUSTER === "devnet"
@@ -203,11 +214,14 @@ async function computeFairXRuntimeStatus(): Promise<FairXRuntimeStatus> {
       ]);
       if (programData?.owner.equals(UPGRADEABLE_LOADER)) {
         const bytes = Buffer.from(programData.data);
+        const expectedV3Hash = recordedV3ProgramDataHash();
         base.solana.programDataLength = Math.max(0, bytes.length - 45);
         if (bytes.length >= 12 && bytes.readUInt32LE(0) === 3) base.solana.deployedSlot = Number(bytes.readBigUInt64LE(4));
-        base.solana.schemaCurrent = bytes.length >= CURRENT_PROGRAM_DATA_ACCOUNT_MIN;
+        base.solana.schemaCurrent = Boolean(expectedV3Hash && crypto.createHash("sha256").update(bytes).digest("hex") === expectedV3Hash);
         base.solana.schemaLabel = base.solana.schemaCurrent
-          ? "settlement-v5"
+          ? "price-weighted-v3"
+          : bytes.length >= CURRENT_PROGRAM_DATA_ACCOUNT_MIN
+            ? "settlement-v5"
           : bytes.length >= SETTLEMENT_V4_ACCOUNT_MIN
             ? "settlement-v4"
           : bytes.length >= SETTLEMENT_V3_ACCOUNT_MIN
@@ -249,8 +263,6 @@ async function computeFairXRuntimeStatus(): Promise<FairXRuntimeStatus> {
     && base.solana.rpcConnected
     && base.solana.programExecutable
     && base.solana.schemaCurrent
-    && base.operator.configured
-    && !base.operator.lowBalance
   );
   base.level = base.freshProofAvailable ? "ready" : base.solana.programExecutable ? "limited" : "unavailable";
   base.reason = base.freshProofAvailable
@@ -258,11 +270,7 @@ async function computeFairXRuntimeStatus(): Promise<FairXRuntimeStatus> {
       ? "Live TxLINE authentication is unavailable; canonical TxLINE historical evidence remains available."
       : undefined
     : !base.solana.schemaCurrent
-      ? "The deployed program schema does not match the current settlement schema. Canonical verified proof remains available."
-      : !base.operator.configured
-        ? "The server operator is not configured; canonical proof is available."
-        : base.operator.lowBalance
-          ? "The devnet operator balance is below the safe proof-run threshold."
-          : "Fresh execution is unavailable; canonical proof is available.";
+      ? "The executable program does not match a recorded and independently verified v3 ProgramData hash. The v3 lifecycle remains UNKNOWN."
+      : "The deployed program is executable, but no matching independently verified v3 ProgramData record is available.";
   return base;
 }

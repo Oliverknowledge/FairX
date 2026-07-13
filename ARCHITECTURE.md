@@ -1,38 +1,37 @@
-# FairX v2 architecture
+# FairX architecture
 
 ```text
-genuine TxLINE historical capture + StablePrice
-  → canonical JSON hash + deterministic pricing
-  → MarketV2 template and evidence commitments
-  → user-signed OrderEscrowV2
-      ├─ stale positive edge → exact wallet refund
-      └─ synchronized order → wallet-owned Position + MarketVault
-  → feed authority closes market
-  → LineGuard CPI → TxLINE ValidateStatV2
-  → LineGuard derives MATCH_WINNER_HOME_V1 outcome
-  → resolution proposal + 2-of-3 approvals
-  → position owner claims from the same isolated MarketVault
+historical TxLINE capture ──> deterministic odds transform ──> pricing authority commit
+                                      │
+wallet signs price + slippage + pricing/odds sequences + expiry
+                                      │
+                         LineGuard evaluates atomically
+                         ├─ excessive stale edge → refund trader; close order
+                         └─ acceptable quote → isolated vault + price-weighted shares
+                                                        │
+feed closes market → direct TxLINE ValidateStatV2 CPI → derived outcome
+                                                        │
+                         2-of-3 resolution approval → winners divide pool
+                                                        │
+                         claim/close Position → user rent recovered
 ```
 
-## Canonical PDAs
+## Authority and custody boundaries
 
-- AuthorityConfig: `3aHfuXLKtRmQrCiMzWMe7CiP2pARKu7rkcR78bmdVpai`
-- MarketV2: `GRP8PvhytfrXku1WW5bnaWDgS7L14A84qNG51kRB5E2j`
-- MarketVault: `2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb`
-- Position: `FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ`
-- Validation receipt: `7RV4xKZxtpZwXrWLK8HxXMMzvLpgNydKHuBBxP11nbWq`
-- Resolution proposal: `5PXYx3zHgaBUSkLw1A9CCPrj1hJYeLXRK2PuwmrVjRZp`
+- Market snapshots feed, pricing, emergency and three resolution authorities so later config changes cannot silently rewrite an existing market's trust model.
+- Emergency can only void/refund; it cannot choose a winner.
+- Each market uses an isolated vault. Claims are non-expiring and the final winner receives integer remainder dust.
+- Trader is part of Order PDA seeds. Evaluation is permissionless after placement so an absent operator cannot strand escrow.
+- Orders close on evaluation/cancel; winning Positions close on claim; empty/losing/legacy-settled Positions have explicit rent recovery paths.
 
-## Authority model
+## Economic model
 
-Feed, pricing, emergency, and three resolution roles are distinct. Resolution requires 2-of-3. Emergency action can only void/refund. Authority updates use the program's timelocked path. The current program upgrade authority has not been transferred.
+Accepted pool shares equal `stake_lamports × 1,000,000 / execution_price_micros`. Winning payouts divide total accepted collateral by winning shares. This is solvent and makes the signed price economically meaningful, but it is a centrally quoted parimutuel pool—not an AMM or order book.
 
-## Trust and deployment boundaries
+## Trust boundaries
 
-- Direct TxLINE CPI is enforced for the canonical resolution.
-- Public users sign their own devnet orders and claims through wallet adapter.
-- The canonical automated lifecycle used a secure test-user keypair, not Phantom.
-- Operator services still ingest and reprice TxLINE evidence and submit resolution proposals.
-- Program is unaudited, devnet-only, and not a real-money or mainnet system.
-
-Legacy shared-ProtocolVault accounts remain readable historical evidence but are not the source of truth for v2 markets.
+- TxLINE validates historical result evidence; it does not attest FairX's prices or stale-edge policy.
+- Pricing, feed ingestion and resolution submission remain operator services.
+- The upgrade authority is retained by one devnet key, not frozen or controlled by a multisig.
+- Malicious frontend/RPC risk is reduced by wallet-signed constraints, simulation/finalized confirmation and an independent verifier, not eliminated.
+- Program is unaudited and devnet-only.

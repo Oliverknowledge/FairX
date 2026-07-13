@@ -1,6 +1,6 @@
 # FairX × TxLINE
 
-FairX uses genuine TxLINE historical fixture, score, stat-proof, and StablePrice odds evidence. It never labels this canonical replay as live.
+FairX uses genuine TxLINE historical fixture, score, stat-proof, and StablePrice odds evidence. It never labels this replay as live. TxLINE anchors event/result evidence; it does **not** guarantee FairX's displayed odds, pricing transform, liquidity, stale-edge threshold, or economic fairness.
 
 ## Canonical evidence
 
@@ -27,8 +27,12 @@ This commits the exact 606-byte Borsh `StatValidationInput` passed by LineGuard 
 
 The hashes differ because they commit different serializations of the same underlying TxLINE evidence. They are never compared for equality. The verifier instead checks each representation in its own domain, then checks that fixture, sequence, stat keys, and scores agree.
 
-## Direct CPI result
+## Current direct CPI result
 
-Transaction `2qSJAY4iuFnkvtrAtXDxCWKfJP8kwA2dpG8HJsSvWRFEfpwsot8EZNYgXaXmosVZxkvakiY1Bpx7GeAyCLx3ank7` invoked the real TxLINE devnet program. `ValidateStatV2` returned success. LineGuard recorded `direct_cpi_verified=true`, derived YES from France `1–0` Morocco, and accepted no caller-supplied outcome.
+The canonical v3 transaction `2bqdPv1M2RUpRUh4kroVEaYXnC5t8soD1cm4rpMN5rAjW7NTgS36krH1zeT8TNh27VfJhtMMjK5PRonS1xH8oNjh` invoked the real TxLINE devnet program. `ValidateStatV2` succeeded, evidence timestamps were bound into the LineGuard receipt, and resolution derived YES from France `1–0` Morocco with 2-of-3 approvals. This proves result-evidence integration—not FairX price correctness.
+
+## Archived v2 result
+
+The archived v2 transaction `2qSJAY4iuFnkvtrAtXDxCWKfJP8kwA2dpG8HJsSvWRFEfpwsot8EZNYgXaXmosVZxkvakiY1Bpx7GeAyCLx3ank7` also invoked the real TxLINE devnet program. It remains secondary evidence because its accepted pool had no losing counterparty.
 
 The capture and proof fixtures contain no authentication headers, JWTs, API tokens, or private keys. Runtime TxLINE credentials remain server-only.

@@ -67,7 +67,7 @@ const TOLERANCE_2C = 20_000;
 // finalize into the ProtocolVault; the receipt's display stake ($500) is separate.
 const STAKE_LAMPORTS = 20_000_000;
 // Both sides stake 0.02 SOL in the settlement demo, so the winning side collects the whole
-// 0.04 SOL pool (its 0.02 stake back + 0.02 in winnings) — a clean 2x parimutuel payout.
+// Legacy operator demo sizes. This route is authenticated and is not canonical proof.
 const SETTLEMENT_STAKE_LAMPORTS = 20_000_000;
 const CANONICAL_LINEGUARD_PROGRAM_ID = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe";
 const CANONICAL_OPERATOR_PUBLIC_KEY = "ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq";

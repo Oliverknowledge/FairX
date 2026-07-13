@@ -1,71 +1,49 @@
-# FairX — LineGuard-protected prediction markets
+# FairX — selective stale-price protection on Solana
 
-FairX is a Solana devnet prediction-market prototype designed to prevent stale-price exploitation and make every market decision independently auditable. **Devnet SOL only. No real-money settlement. No mainnet deployment.**
+FairX is an unaudited Solana devnet prototype. LineGuard evaluates each signed order against a newer committed price: only an order capturing excessive stale-price edge is refunded; honest accepted collateral remains in the market. **Devnet SOL only. No mainnet or real-money operation.**
 
-## Canonical FairX v2 lifecycle
+## Current truth
 
-FairX v2 is deployed on Solana devnet:
+- **REAL / HISTORICAL:** the archived France–Morocco v2 run used genuine historical TxLINE evidence, a direct `ValidateStatV2` CPI, threshold resolution, a per-market vault and a wallet-owned Position.
+- **MISLEADING if called economically complete:** that v2 winner recovered only its own `0.01 SOL`; no losing counterparty funded the payout.
+- **REAL and independently verified:** the current devnet binary signs execution price, slippage, pricing/odds sequences and expiry; prices create pool shares; ephemeral user accounts close. The canonical 14-transaction three-wallet lifecycle is finalized and `/api/verify/v3-lifecycle` recomputes it from RPC as `VERIFIED`.
+- **REAL economics:** A's synchronized YES and B's synchronized NO were accepted; C's stale YES alone was refunded; YES resolved from TxLINE evidence; A received the full `0.02 SOL` accepted pool. Excluding equal setup funding, A finished `+0.01 SOL`, B `-0.01 SOL`, and C flat.
+- **HISTORICAL, not live:** the canonical TxLINE capture is a replay of fixture `18209181`, sequence `739`.
 
-- Program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- Upgrade slot: `475831626`
-- Reviewed binary SHA-256: `76c2fd8e386d20e47af77b883175a26c5069b72e9c256413dea3f29ce06f3dd8`
-- Source checkpoint for the deployed binary: `fd478a75318e7da5b729906e905260597c6cee29`
-- Template: `MATCH_WINNER_HOME_V1`
-- Direct TxLINE CPI: `ValidateStatV2` passed
-- Resolution: 2-of-3 authorities
-- Custody: isolated per-market vault
-- Position: wallet-owned PDA
-
-The canonical France–Morocco lifecycle uses genuine TxLINE historical evidence and one user-owned devnet wallet lifecycle:
+The target lifecycle is:
 
 ```text
-TxLINE event seq 739
-→ stale 0.01 SOL YES order refunded exactly
-→ market repriced from 52.274% to 86.505%
-→ synchronized 0.01 SOL YES order opens Position PDA
-→ feed authority closes market
-→ LineGuard CPIs into TxLINE ValidateStatV2
-→ France 1–0 Morocco derives YES inside LineGuard
-→ resolution authorities A + B reach 2-of-3
-→ user wallet claims 0.01 SOL
-→ 0.02 deposited = 0.01 refunded + 0.01 paid + 0 claimable + 0 dust
+Wallet A: synchronized YES accepted ─┐
+Wallet B: synchronized NO accepted  ├─ YES resolves → A receives A+B collateral
+Wallet C: stale exploit refunded ───┘             → B/C close their Position rent
 ```
 
-The canonical wallet was a secure test-user devnet keypair, not a Phantom browser signature. The product supports Phantom, Solflare, and compatible wallet-adapter wallets for public devnet transactions.
+The pricing model is a price-weighted parimutuel pool, not an AMM or order book. Accepted shares are `stake × 1,000,000 / execution_price`; winners divide accepted collateral by winning shares. The pricing authority still supplies quotes.
 
-## Proof routes
+## Judge routes
 
-- `/markets/france-morocco-france-win` — public settled-market evidence
-- `/verify/v2-france-morocco` — v2 receipt and tamper verifier
-- `/walkthrough` — continuous v2 lifecycle
-- `/proof` — primary v2 proof; legacy versions are collapsed under **Historical protocol versions**
+- `/` — problem and selective-refund thesis
+- `/walkthrough` — lifecycle and trust boundaries
+- `/markets/france-morocco-france-win` — archived v2 state, trading disabled
+- `/proof` — v3 verifier first; archived v2 evidence second
+- `/portfolio` — wallet-owned positions and rent recovery
+- `/integrate` — exact implemented and missing capabilities
 
-The durable machine-readable fixture is [`fixtures/lineguard/v2-france-morocco-lifecycle.json`](fixtures/lineguard/v2-france-morocco-lifecycle.json).
-
-## Two TxLINE hash domains
-
-- **TxLINE capture hash — canonical JSON domain:** SHA-256 of the preserved canonical JSON score payload.
-- **TxLINE CPI payload hash — Borsh domain:** SHA-256 of the exact Borsh `StatValidationInput` supplied to `ValidateStatV2`.
-
-The hashes differ because they commit different serializations of the same underlying TxLINE evidence. Each representation is reconstructed and verified in its own domain.
-
-## Local verification
+## Verification
 
 ```bash
 npm install
-npm test
 npm run typecheck
+npm test
 npm run build
-NO_DNA=1 anchor test --validator legacy
+NO_DNA=1 anchor test
+NO_DNA=1 cargo clippy --manifest-path programs/lineguard/Cargo.toml -- -D warnings
 ```
 
-## Security and deployment status
+Use `NO_DNA=1 anchor test --validator legacy` for the full local suite with the cloned external TxLINE executable. The default validator profile skips that genuine CPI test.
 
-- Solana devnet only; no mainnet or real-money operation.
-- The program is unaudited and is not represented as production-ready.
-- The program upgrade authority remains `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`; it has not been transferred.
-- Feed, pricing, emergency, and three resolution roles are separated on-chain.
-- Emergency authority can void/refund but cannot select a winner.
-- TxLINE credentials and operator key material remain server-only and gitignored.
+## Deployment boundary
 
-See [PROOF.md](PROOF.md), [TXLINE.md](TXLINE.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [PRODUCT_TRUTH.md](PRODUCT_TRUTH.md).
+The hardened binary was deployed to devnet at slot `475972063`; its dumped bytes exactly match local SHA-256 `1903958567efc17f3a31a2b3d6e4bcd594fe2f601b458ec82ec946badd3830cc`. The separate canonical lifecycle proves the deployed economic path. Upgrade authority remains `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`; it is neither frozen nor multisig-controlled. Server-side operator routes fail closed unless `LINEGUARD_OPERATOR_API_TOKEN` is configured.
+
+See [PRODUCT_TRUTH.md](PRODUCT_TRUTH.md), [ARCHITECTURE.md](ARCHITECTURE.md), [PROOF.md](PROOF.md), [TXLINE.md](TXLINE.md), and [DEPLOYMENT.md](DEPLOYMENT.md).

@@ -2,18 +2,17 @@
 
 import { CircleAlert, Cpu, DatabaseZap, Radio, RefreshCw, ShieldCheck, Vault, Wallet } from "lucide-react";
 import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
-import { canonicalV2Lifecycle } from "@/lib/proof/v2Lifecycle";
 
 export function RuntimeStatusStrip({ detailed = false }: { detailed?: boolean }) {
   const { status, loading, error, refresh } = useRuntimeStatus();
   const items = status ? [
     { label: "Solana RPC", value: status.solana.rpcConnected ? `connected · slot ${status.solana.rpcSlot}` : "unavailable", ok: status.solana.rpcConnected, icon: DatabaseZap },
-    { label: "FairX v2", value: status.solana.programExecutable ? `deployed · slot ${canonicalV2Lifecycle.program.slot}` : "not executable", ok: status.solana.programExecutable, icon: Cpu },
-    { label: "Operator", value: status.operator.configured ? `${status.operator.balanceSol?.toFixed(3) ?? "—"} SOL` : "unavailable", ok: status.operator.configured && !status.operator.lowBalance, icon: Wallet },
+    { label: "Program", value: status.solana.programExecutable ? `executable · slot ${status.solana.deployedSlot ?? "unknown"}` : "not executable", ok: status.solana.programExecutable, icon: Cpu },
+    { label: "v3 binary", value: status.solana.schemaCurrent ? "matches verified record" : "not independently matched", ok: status.solana.schemaCurrent, icon: ShieldCheck },
+    { label: "Offline signer", value: status.operator.configured ? "configured" : "disabled", ok: !status.operator.configured, icon: Wallet },
     { label: "TxLINE", value: status.txline.authenticated ? `authenticated · ${status.txline.canonicalSourceMode}` : status.txline.configured ? "configured · unreachable" : "not configured", ok: status.txline.authenticated, icon: Radio },
-    { label: "TxLINE CPI", value: "verified", ok: true, icon: ShieldCheck },
-    { label: "Resolution", value: "2-of-3", ok: true, icon: ShieldCheck },
-    { label: "Vault", value: "isolated per market", ok: true, icon: Vault },
+    { label: "Archived TxLINE proof", value: status.txline.lastValidationPassed ? "passed" : "unknown", ok: status.txline.lastValidationPassed === true, icon: ShieldCheck },
+    { label: "v3 lifecycle", value: status.canonicalProofAvailable && status.solana.schemaCurrent ? "RPC-verifiable" : "UNKNOWN", ok: status.solana.schemaCurrent, icon: Vault },
   ] : [];
 
   return (

@@ -1,52 +1,36 @@
-# FairX submission
+# FairX submission truth
 
-## One-line description
+## One line
 
-FairX is a Solana devnet prediction market where LineGuard refunds stale-price exploitation, validates the result through direct TxLINE CPI, and pays a wallet-owned Position from an isolated market vault.
+FairX is a Solana devnet prototype that refunds only stale-price exploit orders while allowing honest accepted collateral to settle in a price-weighted pool.
 
-## Verified canonical lifecycle
+## Canonical verified claim
 
-- Program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- Slot: `475831626`
-- Genuine TxLINE historical fixture `18209181`, sequence `739`
-- Deterministic France probability `52.274% → 86.505%`
-- Exact stale `0.01 SOL` refund to the submitting wallet
-- Synchronized `0.01 SOL` order created Position PDA `FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ`
-- Direct CPI to real TxLINE `ValidateStatV2`
-- France `1–0` Morocco deterministically derived YES
-- Resolution authorities A and B reached 2-of-3
-- Position owner claimed `0.01 SOL`
-- Isolated vault conserved `0.02 = 0.01 refunded + 0.01 paid + 0 claimable + 0 dust`
+The first screen on `/proof` is the only current canonical verdict. The recorded v3 lifecycle returns `VERIFIED` after independent RPC reads prove all of the following:
 
-## Product and authority truth
+1. Wallet A's synchronized YES and Wallet B's synchronized NO were accepted.
+2. Wallet C's stale positive-edge order alone was refunded.
+3. Direct TxLINE CPI and 2-of-3 resolution derived YES.
+4. A received the full A+B accepted pool; B did not receive a payout.
+5. A, B and C order/position accounts were closed and no user rent or escrow was stranded.
+6. Program, ProgramData, account owners, transaction finality, slots, hashes, timestamps and balance deltas all match the record.
 
-The canonical automation used a secure test-user devnet keypair. It is not described as a Phantom signature. Phantom, Solflare, and compatible adapters are supported for public devnet user transactions.
+The recorder completed all 14 finalized devnet transactions and wrote `fixtures/lineguard/v3-france-morocco-three-wallet.json` only after its invariants passed. The independent verifier then recomputed 18 checks with zero failures and zero unknowns.
 
-Feed, pricing, emergency, and resolution roles are separated. Emergency can only void/refund. The program upgrade authority has not yet been transferred.
+## Archived evidence
 
-## TxLINE verification
+The public v2 France–Morocco record is REAL Solana devnet and HISTORICAL TxLINE evidence. It proves selective refund, direct CPI, threshold resolution and isolated custody. It does **not** prove economically complete counterparty settlement: its sole winning Position claimed only its own `0.01 SOL` principal.
 
-The verifier keeps two domains separate:
+## Material limitations
 
-- canonical JSON capture hash: `e4701bab0a8d2b8576eef7d2050ad032d3e090315129f51a732c8c6e5f2db598`
-- exact Borsh CPI payload hash: `1b1c31c9ffee2aec676fa9d9585e677c0c5ee42d38ec137f222fc87ea8501c98`
-
-They differ because they commit different serializations of the same underlying evidence. Fixture, sequence, stat keys and scores bridge the two verified representations.
+- unaudited prototype; devnet SOL only
+- historical reenactment, not a currently live match
+- pricing authority sets quotes; TxLINE does not derive or guarantee FairX odds
+- price-weighted parimutuel pool, not AMM/order-book price discovery
+- retained single-key upgrade authority and operator trust
+- external TxLINE CPI test requires devnet or a validator with the real program cloned
+- public RPC throttling can temporarily make the verifier `UNKNOWN`; it never converts unavailable evidence into success
 
 ## Judge route
 
-1. `/`
-2. `/walkthrough`
-3. `/markets/france-morocco-france-win`
-4. `/verify/v2-france-morocco`
-5. `/proof`
-6. `/portfolio`
-
-## Limitations
-
-- Unaudited prototype
-- Solana devnet and Devnet SOL only
-- No mainnet deployment or real-money operation
-- Canonical match evidence is historical, not a currently live match
-- Operator services remain responsible for TxLINE ingestion, pricing updates and proposing resolution evidence
-- Only `MATCH_WINNER_HOME_V1` is supported by the canonical v2 settlement path
+`/` → `/walkthrough` → `/markets/france-morocco-france-win` → `/proof`

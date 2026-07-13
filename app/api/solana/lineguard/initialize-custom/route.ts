@@ -1,11 +1,14 @@
 import { initializeCustomOnChainMarket } from "@/lib/solana/lineguardServer";
 import { isFairXMarketType } from "@/lib/markets/fairx";
+import { requireOperatorApiAuthorization } from "@/lib/server/operatorApiAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = requireOperatorApiAuthorization(req);
+  if (denied) return denied;
   let body: Record<string, unknown> = {};
   try {
     body = (await req.json()) as Record<string, unknown>;

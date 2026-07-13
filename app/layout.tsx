@@ -12,20 +12,20 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: "FairX",
   title: {
-    default: "FairX — Fair Settlement for Live Prediction Markets",
+    default: "FairX — Selective Stale-Price Protection",
     template: "%s | FairX",
   },
-  description: "FairX uses LineGuard and TxLINE event evidence to refund stale-price exploits and finalize safe prediction-market trades on Solana.",
+  description: "A Solana devnet prototype that refunds stale-price exploit orders while preserving honest accepted collateral.",
   openGraph: {
     type: "website",
-    title: "FairX — Fair Settlement for Live Prediction Markets",
-    description: "See LineGuard refund a stale-price exploit while allowing the opposite safe trade on Solana devnet.",
+    title: "FairX — Selective Stale-Price Protection",
+    description: "A devnet prototype: refund the stale exploit, keep honest accepted collateral in the market.",
     siteName: "FairX",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FairX — Fair Settlement for Live Prediction Markets",
-    description: "An on-chain settlement guard that blocks only trades exploiting stale information.",
+    title: "FairX — Selective Stale-Price Protection",
+    description: "An unaudited Solana devnet settlement-guard prototype.",
   },
 };
 

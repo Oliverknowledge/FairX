@@ -249,7 +249,7 @@ export const proofData = {
   cases,
   settlement: {
     title: "Unified lifecycle — LineGuard protection, then root-bound settlement",
-    claim: "This settlement-v4 record is retained as historical shared-vault evidence. The current canonical v2 proof uses direct TxLINE CPI, wallet-owned Positions, an isolated MarketVault, and threshold resolution.",
+    claim: "This settlement-v4 record is historical shared-vault evidence. The archived v2 record adds direct TxLINE CPI, wallet-owned Positions, an isolated MarketVault, and threshold resolution; neither substitutes for the still-unverified three-wallet v3 lifecycle.",
     resolution: settlement.resolution,
     resolutionEventHash: settlement.resolutionEventHash,
     fixtureId: settlement.fixtureId,
