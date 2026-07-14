@@ -4,15 +4,7 @@ import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useActiveTradeMarket } from "@/lib/markets/useActiveTradeMarket";
-
-const developerNavigation = [
-  { href: "/reference", label: "External reference price" },
-  { href: "/portfolio", label: "My positions" },
-  { href: "/terminal", label: "Guard terminal" },
-  { href: "/operator", label: "Operator status" },
-  { href: "/integrate", label: "Integration docs" },
-] as const;
+import { V4_REPLAY_SLUG } from "@/lib/v4/replay";
 
 type FairXShellProps = {
   children: ReactNode;
@@ -58,10 +50,11 @@ export function DevnetBadge({ className = "" }: { className?: string }) {
 /** Shared exchange frame. It intentionally keeps navigation and compliance copy present on every FairX surface. */
 export function FairXShell({ children, className = "", compact = false }: FairXShellProps) {
   const pathname = usePathname() ?? "/";
-  const activeTradeMarket = useActiveTradeMarket();
   const navigation = [
-    { href: `/markets/${activeTradeMarket.slug}`, label: "Trade" },
-    { href: "/walkthrough", label: "How It Works" },
+    { href: "/", label: "Home" },
+    { href: `/markets/${V4_REPLAY_SLUG}`, label: "Replay market" },
+    { href: "/portfolio", label: "Positions" },
+    { href: "/proof", label: "Proof" },
   ] as const;
 
   return (
@@ -90,7 +83,7 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <DevnetBadge className="hidden sm:inline-flex" />
+            <span className="hidden rounded-full border border-[#d7e6ff] bg-[#f4f8ff] px-2.5 py-1 text-[10px] font-semibold text-[#245db8] sm:inline-flex">Local V4 replay</span>
             <Link
               href="/proof"
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-(--blue) px-3 text-[11px] font-bold text-white transition-colors hover:bg-[#1d4ed8]"
@@ -126,8 +119,8 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
 
       <footer className="mx-auto max-w-[1380px] px-4 pb-8 pt-8 text-[10px] leading-relaxed text-(--ink-3) sm:px-6">
         <div className="border-t border-(--border) pt-5 sm:flex sm:items-start sm:justify-between sm:gap-8">
-          <div><p className="font-semibold text-(--ink-2)">Solana devnet · devnet SOL only</p><p className="mt-1">FairX is an unaudited prototype. No real-money settlement.</p></div>
-          <div className="mt-4 sm:mt-0"><p className="font-semibold text-(--ink-2)">Detail &amp; developer surfaces</p><div className="mt-1.5 flex max-w-xl flex-wrap gap-x-4 gap-y-1">{developerNavigation.map((item) => <Link key={item.href} href={item.href} className="hover:text-(--blue)">{item.label}</Link>)}</div></div>
+          <div><p className="font-semibold text-(--ink-2)">Isolated FairX V4 hackathon prototype</p><p className="mt-1">Recorded TxLINE replay only · unaudited · not deployed · no real-money settlement.</p></div>
+          <div className="mt-4 sm:mt-0"><p className="font-semibold text-(--ink-2)">Deliberately excluded</p><p className="mt-1">No market discovery, LP tokens, public creation, AMM, P2P matching, governance UI or analytics.</p></div>
         </div>
       </footer>
     </div>

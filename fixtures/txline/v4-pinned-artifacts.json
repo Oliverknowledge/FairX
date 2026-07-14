@@ -1,0 +1,26 @@
+{
+  "txlineProgramId": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J",
+  "txlineProgram": {
+    "path": "target/deploy/txline_oracle.so",
+    "sha256": "a645f9d61fc06e743a5bbcb0ebac0a6d7fdd7387dae67f413ab9b769950a3562",
+    "provenance": "Read-only solana program dump of the executable devnet account 6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J, captured for the Phase B canonical TxLINE validation harness. The lifecycle refuses any other bytes."
+  },
+  "oddsRoot": {
+    "path": "fixtures/txline/daily-odds-root-account.json",
+    "pda": "ACo4UtSFM5jtUeQwkrWuv7uDS9qeNVQv858eRBTKpHxh",
+    "owner": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J",
+    "epochDay": 20643,
+    "seed": "daily_batch_roots",
+    "fileSha256": "ab052576d10518641b296f6aa3ae36bdf21a6df79d367e50b4ab2b4f445f1aa1",
+    "dataSha256": "ad9345abb75b66cc3cd3fad85bd4483f70abc5c2d4c6a1ed5dd8a8b76e6fa214"
+  },
+  "scoresRoot": {
+    "path": "fixtures/txline/daily-scores-root-account.json",
+    "pda": "EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr",
+    "owner": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J",
+    "epochDay": 20643,
+    "seed": "daily_scores_roots",
+    "fileSha256": "552232547f878b0c19c36cc3a8c42ec21ff7a2be34b0b5a17bb2f02aebaf2c3b",
+    "dataSha256": "da19db7cfcce0bda30fc1c97119ef9a1956e100c2962921ccac19bc243aa8fdc"
+  }
+}

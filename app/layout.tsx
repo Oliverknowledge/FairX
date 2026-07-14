@@ -12,14 +12,14 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: "FairX",
   title: {
-    default: "FairX — Selective Stale-Price Protection",
+    default: "FairX V4 — Fixed-Payout Sports Vault",
     template: "%s | FairX",
   },
-  description: "A Solana devnet prototype that refunds stale-price exploit orders while preserving honest accepted collateral.",
+  description: "An isolated fixed-payout Solana vault replay using recorded TxLINE France-Morocco evidence.",
   openGraph: {
     type: "website",
-    title: "FairX — Selective Stale-Price Protection",
-    description: "A devnet prototype: refund the stale exploit, keep honest accepted collateral in the market.",
+    title: "FairX V4 — Fixed-Payout Sports Vault",
+    description: "A deterministic France-Morocco replay with genuine TxLINE odds, event and final-result proofs.",
     siteName: "FairX",
   },
   twitter: {

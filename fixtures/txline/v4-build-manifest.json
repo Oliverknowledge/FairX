@@ -1,0 +1,44 @@
+{
+  "programIdPlaceholder": "79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG",
+  "bootstrapAdminTestOnly": "GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB",
+  "sourceSha256": "36775266df2c802f73d6f346146cabffcbb262fb5b6e0734ee0b87c56655eeae",
+  "idlSha256": "acd583d9c26eaa01a03315d4e419bbbd68e8445876e8b74bd0bfed619c09bb33",
+  "typesSha256": "62b7ed2e58bd90158d1ffdd939f52d61883353138e948544c03b0ae485e45776",
+  "sbfSha256": "9981d882a96d4d38f50cb3cc5c1f10423cf8a3e77cdc6d56eecfaa25694fbb99",
+  "sbfSizeBytes": 422040,
+  "toolchain": {
+    "rust": "1.89.0",
+    "anchor": "1.1.2",
+    "solanaCli": "3.1.10",
+    "platformTools": "1.52"
+  },
+  "accountDiscriminatorsHex": {
+    "AuthorityConfigV4": "47d31f53eca4cbda",
+    "FixedPayoutPositionV4": "bf7c0df177efbe47",
+    "LiquidityVaultV4": "87725874920fcf06",
+    "MarketV4": "838f812184dca2d4",
+    "ResolutionProposalV4": "a61fc3b917834c84",
+    "TxlineQuoteValidationReceiptV4": "e7f2bd9e9308d2f1",
+    "TxlineResolutionReceiptV4": "2fdada130ee0c10e"
+  },
+  "instructionDiscriminatorsHex": {
+    "approve_resolution_v4": "2bd2a1d8e659a240",
+    "claim_fixed_payout": "e27d9db636f41879",
+    "claim_void_refund": "d85a19a564203dbd",
+    "close_fixed_payout_position": "55a4d9b900f19db5",
+    "commit_txline_quote": "fec537fae98579e2",
+    "deposit_liquidity": "f5633b199747e9f9",
+    "execute_resolution_v4": "01e02db9b0448e95",
+    "execute_void_v4": "bfa47d590f48dfab",
+    "ingest_material_event_v4": "fcd0da8014c14f04",
+    "initialize_liquidity_vault": "64f1f22bfce4ea08",
+    "initialize_market_v4": "eb04c6cf00377114",
+    "place_fixed_payout_order": "d04a75e844566b70",
+    "propose_void_v4": "42e9ccf7c147fc4e",
+    "prove_resolution_with_txline_v4": "97e78077035649de",
+    "reconcile_position": "70b367e1f15f0c4e",
+    "reconcile_vault_surplus": "38098ff70b82706c",
+    "verify_txline_quote": "c2d37c1a2a957687",
+    "withdraw_free_liquidity": "cf86b070bff60bdc"
+  }
+}

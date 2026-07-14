@@ -1,0 +1,27 @@
+[package]
+name = "fairx-vault-v4"
+version = "0.1.0"
+description = "Isolated fixed-payout FairX vault prototype for the France-Morocco TxLINE replay"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+name = "fairx_vault_v4"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.1.2"
+solana-sha256-hasher = "3.1.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -1,29 +1,34 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ProofPage from "@/app/proof/page";
-import { canonicalV2Lifecycle, verifyV2Lifecycle } from "@/lib/proof/v2Lifecycle";
+import { runCanonicalLifecycle, V4_EVIDENCE, V4_PROGRAM_ID } from "@/lib/v4/replay";
 
-describe("simplified proof page", () => {
-  it("presents one seven-step v2 lifecycle in plain language", () => {
+describe("isolated V4 proof page", () => {
+  it("presents only the genuine France-Morocco proof chain", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("ARCHIVED V2 RECORD VERIFIED");
-    for (const title of ["Genuine TxLINE evidence", "Stale exploit refunded", "Fair position created", "Direct TxLINE CPI passed", "2-of-3 resolution reached", "User payout claimed", "Vault conservation verified"]) expect(html).toContain(title);
-    expect(html).not.toContain("TxLINE subscription active");
+    for (const title of ["Pre-goal StablePrice", "Confirmed goal", "Post-goal StablePrice", "Final—not mid-game—evidence", "Regulation-time period", "Strict stale invalidation", "Fixed payout"]) expect(html).toContain(title);
+    expect(html).toContain("Sequence 1114, France 2–0 Morocco");
+    expect(html).not.toContain("France–Spain");
   });
 
-  it("keeps protocol internals inside technical details", () => {
+  it("surfaces exact TxLINE root and program identities", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    expect(html).toContain("Technical details");
-    expect(html.indexOf("Technical details")).toBeLessThan(html.indexOf(canonicalV2Lifecycle.program.programId));
-    expect(html).toContain("The hashes differ because they commit different serializations");
+    expect(html).toContain(V4_PROGRAM_ID);
+    expect(html).toContain(V4_EVIDENCE.oddsRootPda);
+    expect(html).toContain(V4_EVIDENCE.scoresRootPda);
+    expect(html).toContain("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
   });
 
-  it("surfaces the canonical transaction links", () => {
+  it("renders every exact solvency transition", () => {
     const html = renderToStaticMarkup(<ProofPage />);
-    for (const key of ["staleRefund", "acceptedPosition", "txlineCpiProof", "secondApproval", "resolution", "claim"] as const) expect(html).toContain(canonicalV2Lifecycle.transactions[key].explorerUrl.replaceAll("&", "&amp;"));
+    const lifecycle = runCanonicalLifecycle();
+    for (const snapshot of lifecycle.snapshots) expect(html).toContain(snapshot.label);
+    expect(html).toContain("A = F + R + S");
+    expect(html).toContain("0.199799 SOL");
   });
 
-  it("keeps the canonical v2 fixture valid", () => {
-    expect(verifyV2Lifecycle(canonicalV2Lifecycle).valid).toBe(true);
+  it("is explicit that V4 has not been deployed or signed", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    expect(html).toContain("No V4 deployment or signed transaction exists in Phase B");
   });
 });

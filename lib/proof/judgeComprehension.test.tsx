@@ -1,36 +1,37 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import HomePage from "@/app/page";
-import WalkthroughPage from "@/app/walkthrough/page";
+import PortfolioPage from "@/app/portfolio/page";
 
-describe("judge-first public surfaces", () => {
-  it("explains the product and action in the homepage hero", () => {
+describe("V4 judge-first public surfaces", () => {
+  it("explains the fixed-payout vault and replay action in the homepage hero", () => {
     const html = renderToStaticMarkup(<HomePage />);
-    expect(html).toContain("Impossible-to-exploit prediction markets.");
-    expect(html).toContain("Polymarket");
-    expect(html).toContain("Trade");
-    expect(html).toContain("Verify Proof");
-    expect(html).not.toContain("Runtime status");
+    expect(html).toContain("FIXED PAYOUT · FULLY COLLATERALISED");
+    expect(html).toContain("TxLINE supplies the source probability");
+    expect(html).toContain("Run the France–Morocco replay");
+    expect(html).toContain("Inspect the proof");
+    expect(html).not.toContain("Polymarket");
   });
 
-  it("uses only the simplified primary navigation", () => {
+  it("uses only the reduced V4 primary navigation", () => {
     const html = renderToStaticMarkup(<HomePage />);
     const primaryNavigation = html.match(/<nav[^>]*aria-label="Primary navigation"[\s\S]*?<\/nav>/)?.[0] ?? "";
-    for (const label of ["Trade", "How It Works"]) expect(primaryNavigation).toContain(label);
-    for (const label of ["Create Market", "Attack Lab", "Attack-lab", "Guard terminal", "Operator status"]) expect(primaryNavigation).not.toContain(label);
-    expect(html).toContain("Verify Proof");
+    for (const label of ["Home", "Replay market", "Positions", "Proof"]) expect(primaryNavigation).toContain(label);
+    for (const label of ["Create Market", "Attack Lab", "Guard terminal", "Operator status", "How It Works"]) expect(primaryNavigation).not.toContain(label);
   });
 
-  it("shows only the genuine canonical market on the homepage", () => {
+  it("shows only the canonical France-Morocco V4 replay", () => {
     const html = renderToStaticMarkup(<HomePage />);
-    expect(html).toContain("France vs Morocco");
-    expect(html).toContain("Will France win?");
-    expect(html).not.toContain("Create market");
-    expect(html).not.toContain("Creator market");
+    expect(html).toContain("France 2–0 Morocco");
+    expect(html).toContain("fixture 18209181");
+    expect(html).toContain("SEQ 1114");
+    expect(html).not.toContain("France vs Spain");
   });
 
-  it("answers 'why is this fair?' with Capture, Protect, Verify", () => {
-    const html = renderToStaticMarkup(<WalkthroughPage />);
-    for (const title of ["Why is this fair?", "Capture", "Protect", "Verify"]) expect(html).toContain(title);
+  it("labels positions as deterministic outputs rather than deployed accounts", () => {
+    const html = renderToStaticMarkup(<PortfolioPage />);
+    expect(html).toContain("deterministic lifecycle outputs");
+    expect(html).toContain("not connected-wallet or deployed accounts");
+    expect(html).toContain("Stake returned atomically");
   });
 });

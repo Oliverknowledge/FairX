@@ -10,6 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "anchor:build": "anchor build",
+    "v4:verify-proofs": "node --import tsx scripts/fairx-v4-verify-proofs.ts",
+    "v4:test-lifecycle": "node --import tsx scripts/fairx-v4-litesvm-lifecycle.ts",
+    "v4:test-void": "node --import tsx scripts/fairx-v4-void-litesvm.ts",
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
     "test:onchain": "anchor test",
     "test:watch": "vitest",
@@ -49,11 +52,12 @@
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.5",
     "chai": "4.5.0",
+    "litesvm": "^1.3.0",
     "mocha": "9.2.2",
     "tailwindcss": "4.1.8",
     "ts-mocha": "10.1.0",
     "tsx": "^4.23.0",
     "typescript": "5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.7"
   }
 }
