@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ArrowUpRight } from "lucide-react";
+import { ReferenceChart } from "@/components/fairx/ReferenceChart";
 
 /** Mirror of lib/polymarket/service.ts ReferenceQuoteView (kept local so this client file never imports the server module). */
 interface ReferenceQuoteView {
@@ -57,14 +58,11 @@ function ago(iso?: string): string {
   return `${Math.round(secs / 3600)}h ago`;
 }
 
-type PricePoint = { t: number; m: number };
-
 export function ReferencePriceCard({ mappingId }: { mappingId: string }) {
   const [view, setView] = useState<ReferenceQuoteView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTech, setShowTech] = useState(false);
-  const [history, setHistory] = useState<PricePoint[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,12 +75,6 @@ export function ReferencePriceCard({ mappingId }: { mappingId: string }) {
       } else {
         setView(body);
         setError(null);
-        const mid = body.quote?.quoteValid ? body.quote.midpointMicros : null;
-        if (mid != null) {
-          // Record every poll so the line is a true time series (flat while the
-          // midpoint is stable; it bends the moment the reference reprices).
-          setHistory((h) => [...h, { t: Date.now(), m: mid }].slice(-48));
-        }
       }
     } catch {
       setError("Reference data unavailable.");
@@ -135,11 +127,7 @@ export function ReferencePriceCard({ mappingId }: { mappingId: string }) {
       )}
 
       <div className="mt-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-(--ink-3)">Live reference price</p>
-          <span className="text-[10px] text-(--ink-3)">Polymarket midpoint · updates every 10s</span>
-        </div>
-        <Sparkline points={history} />
+        <ReferenceChart mappingId={mappingId} />
       </div>
 
       {priceValid ? (
@@ -189,43 +177,6 @@ export function ReferencePriceCard({ mappingId }: { mappingId: string }) {
       <p className="mt-4 border-t border-(--border) pt-3 text-[10px] leading-relaxed text-(--ink-3)">{view?.disclaimer ??
         "FairX is not affiliated with Polymarket. Public Polymarket market data is used only as an external reference source."}</p>
     </section>
-  );
-}
-
-function Sparkline({ points }: { points: PricePoint[] }) {
-  const W = 620;
-  const H = 120;
-  const PAD = 14;
-  if (points.length < 2) {
-    return (
-      <div className="mt-2 flex h-[120px] items-center justify-center rounded-lg border border-(--border) bg-[#f8faff] text-[11px] text-(--ink-3)">
-        Building live price history… (a new point every 10s; the line appears once the reference moves)
-      </div>
-    );
-  }
-  const cents = (m: number) => (m / 10_000).toFixed(1) + "¢";
-  const ms = points.map((p) => p.m);
-  const min = Math.min(...ms);
-  const max = Math.max(...ms);
-  const span = Math.max(max - min, 2_000); // keep a floor so a flat line isn't a razor edge
-  const x = (i: number) => PAD + (i / (points.length - 1)) * (W - 2 * PAD);
-  const y = (m: number) => PAD + (1 - (m - min) / span) * (H - 2 * PAD);
-  const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.m).toFixed(1)}`).join(" ");
-  const last = points[points.length - 1];
-  const rising = last.m >= points[0].m;
-  const stroke = rising ? "#2563eb" : "#dc2626";
-  return (
-    <div className="mt-2 rounded-lg border border-(--border) bg-[#f8faff] p-3">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-[120px] w-full" role="img" aria-label="Live Polymarket reference midpoint">
-        {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - 2 * PAD)} y2={PAD + f * (H - 2 * PAD)} stroke="#e2e8f0" strokeWidth="1" />
-        ))}
-        <path d={d} fill="none" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={x(points.length - 1)} cy={y(last.m)} r="4" fill={stroke} />
-        <text x={PAD} y={H - 3} fontSize="11" fill="#94a3b8">{cents(min)}</text>
-        <text x={W - PAD} y={16} fontSize="11" fill={stroke} textAnchor="end">{cents(last.m)}</text>
-      </svg>
-    </div>
   );
 }
 
