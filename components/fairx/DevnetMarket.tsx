@@ -10,6 +10,7 @@ import canonicalCapture from "@/fixtures/txline/canonical.json";
 import { CanonicalV2Settlement } from "@/components/fairx-proof/CanonicalV2Settlement";
 import { canonicalV2Lifecycle } from "@/lib/proof/v2Lifecycle";
 import { FRANCE_MOROCCO_MARKET, type SupportedMarket } from "@/lib/markets/supportedMarkets";
+import { ReferencePriceCard } from "@/components/fairx/ReferencePriceCard";
 import {
   buildOrderTransaction,
   deriveMarketV2Pda,
@@ -198,6 +199,10 @@ export function DevnetMarket({ config = FRANCE_MOROCCO_MARKET }: { config?: Supp
                 </svg>
               </div>
             </section>
+            )}
+
+            {!hasEvidence && config.mappingId && (
+              <ReferencePriceCard mappingId={config.mappingId} />
             )}
           </div>
 
