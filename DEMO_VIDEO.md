@@ -14,4 +14,10 @@ The video may call the v3 lifecycle verified only when all of these are true:
 
 These conditions currently pass for the canonical v3 record. If RPC availability makes the verifier `UNKNOWN` during recording, pause and retry; do not substitute the archived v2 record, which is economically incomplete.
 
+The `/reference` page may show the Polymarket quote as `Live Polymarket reference` only while
+`/api/reference-quotes/…` returns `LIVE`; if upstream is unavailable it must read `Recently cached` or
+`Historical Polymarket capture`, never live. Say "external reference price", never "Polymarket
+liquidity", "Polymarket oracle", or "routed to Polymarket". Keep the "not affiliated with Polymarket"
+disclaimer on screen.
+
 Before recording: production build, no console errors, no horizontal overflow, disabled controls on the resolved archive, operator endpoints fail closed, and no secrets appear in client assets or responses.

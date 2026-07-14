@@ -9,6 +9,7 @@ FairX is an unaudited Solana devnet prototype. LineGuard evaluates each signed o
 - **REAL and independently verified:** the current devnet binary signs execution price, slippage, pricing/odds sequences and expiry; prices create pool shares; ephemeral user accounts close. The canonical 14-transaction three-wallet lifecycle is finalized and `/api/verify/v3-lifecycle` recomputes it from RPC as `VERIFIED`.
 - **REAL economics:** A's synchronized YES and B's synchronized NO were accepted; C's stale YES alone was refunded; YES resolved from TxLINE evidence; A received the full `0.02 SOL` accepted pool. Excluding equal setup funding, A finished `+0.01 SOL`, B `-0.01 SOL`, and C flat.
 - **HISTORICAL, not live:** the canonical TxLINE capture is a replay of fixture `18209181`, sequence `739`.
+- **REAL external reference, READ-ONLY:** the opening quote for the current France–Spain reference market is the public Polymarket order-book midpoint (`/reference`), recomputed from best bid/ask and hash-captured. It is an external reference, not FairX liquidity, not an oracle, and not routed to Polymarket. The France–Morocco proof stays TxLINE StablePrice history and is unchanged. See [POLYMARKET_REFERENCE.md](POLYMARKET_REFERENCE.md).
 
 The target lifecycle is:
 
@@ -25,6 +26,7 @@ The pricing model is a price-weighted parimutuel pool, not an AMM or order book.
 - `/` — problem and selective-refund thesis
 - `/walkthrough` — lifecycle and trust boundaries
 - `/markets/france-morocco-france-win` — archived v2 state, trading disabled
+- `/reference` — live Polymarket external reference quote + RECORDED-EVIDENCE proof (France–Spain)
 - `/proof` — v3 verifier first; archived v2 evidence second
 - `/portfolio` — wallet-owned positions and rent recovery
 - `/integrate` — exact implemented and missing capabilities

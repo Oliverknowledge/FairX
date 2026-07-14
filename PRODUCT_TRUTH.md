@@ -11,13 +11,14 @@
 | Current `/proof` verdict | DERIVED from RPC | `VERIFIED` means 18 independent checks passed. RPC unavailability degrades to `UNKNOWN`, never success. |
 | Displayed execution quote | DERIVED | Deterministic historical StablePrice transformation supplied by the pricing authority. |
 | Economic price effect | REAL in current source/tests | Price determines pool shares; it is not decorative. |
-| Price discovery | NOT IMPLEMENTED | No AMM, order book or permissionless oracle sets the quote. |
+| Price discovery | NOT IMPLEMENTED | No AMM, order book or permissionless oracle *inside FairX* sets the quote. |
+| External reference price (Polymarket) | REAL external data · READ-ONLY | Public Polymarket order-book midpoint for an equivalent market, used only as an external reference quote and recomputed from best bid/ask. Not FairX liquidity, not an oracle, not routed to Polymarket, no Polygon custody. Labelled live/cached/historical/unavailable and never invented. |
 | Public wallet order flow | REAL when enabled on an unresolved compatible market | Wallet signs order and evaluation atomically. Archived resolved market disables it. |
 | `/create` | REMOVED / STATIC | No fake local market creation is presented as deployment. |
 | Attack lab and terminal scenarios | SIMULATED | Product exploration only; not proof of funds or TxLINE guarantees. |
 | TxLINE odds guarantee | MISLEADING and prohibited | TxLINE evidence anchors events/scores; FairX's pricing authority and model produce odds. |
 | Security/production readiness | FUTURE | Unaudited, upgradeable, operator-dependent, devnet only. |
 
-Required visible qualifiers: `Devnet SOL`, `TxLINE historical`, `archived v2`, `price-weighted pool`, and `UNKNOWN` whenever RPC evidence is unavailable.
+Required visible qualifiers: `Devnet SOL`, `TxLINE historical`, `archived v2`, `price-weighted pool`, `external reference (not liquidity)` on any Polymarket-sourced quote, and `UNKNOWN` whenever RPC evidence is unavailable.
 
 Prohibited claims: production-ready, trustless, decentralized odds, live canonical match, guaranteed fairness, audited, mainnet, real liquidity, or organic users.

@@ -19,7 +19,12 @@
     "lineguard:record-proof": "node --import tsx scripts/lineguard-record-proof.ts",
     "lineguard:record-settlement": "node --import tsx scripts/lineguard-record-settlement.ts",
     "lineguard:v2:initialize": "node --env-file-if-exists=.env.local --import tsx scripts/lineguard-v2-initialize.ts",
-    "lineguard:v3:record-lifecycle": "node --env-file-if-exists=.env.local --import tsx scripts/lineguard-v3-record-lifecycle.ts"
+    "lineguard:v3:record-lifecycle": "node --env-file-if-exists=.env.local --import tsx scripts/lineguard-v3-record-lifecycle.ts",
+    "polymarket:discover": "node --env-file-if-exists=.env.local --import tsx scripts/polymarket-discover.ts",
+    "polymarket:capture": "node --env-file-if-exists=.env.local --import tsx scripts/polymarket-capture.ts",
+    "polymarket:verify-capture": "node --import tsx scripts/polymarket-verify-capture.ts",
+    "fairx:prepare-live-market": "node --env-file-if-exists=.env.local --import tsx scripts/fairx-prepare-live-market.ts",
+    "fairx:initialize-live-market": "node --env-file-if-exists=.env.local --import tsx scripts/fairx-initialize-live-market.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "1.1.2",

@@ -28,6 +28,22 @@ feed closes market → direct TxLINE ValidateStatV2 CPI → derived outcome
 
 Accepted pool shares equal `stake_lamports × 1,000,000 / execution_price_micros`. Winning payouts divide total accepted collateral by winning shares. This is solvent and makes the signed price economically meaningful, but it is a centrally quoted parimutuel pool—not an AMM or order book.
 
+## External reference price (Polymarket)
+
+```text
+Polymarket public order book ──> recomputed midpoint ──> reference-quote capture (hashed)
+                                      │
+                    commit_txline_odds_v2 (odds_sequence + odds_payload_hash + fair_price_micros)
+                                      │
+                    wallet signs expected_odds_sequence + price + slippage + expiry (place_order_v2)
+```
+
+The canonical opening quote can be sourced from the midpoint of an equivalent Polymarket market
+instead of the operator heuristic. It rides the **already-deployed** LineGuard V2 pricing slot, so no
+program upgrade is required. FairX holds no Polymarket liquidity, routes no orders to Polymarket, and
+custodies no Polygon assets; the midpoint is an external reference, not an oracle. See
+[POLYMARKET_REFERENCE.md](POLYMARKET_REFERENCE.md).
+
 ## Trust boundaries
 
 - TxLINE validates historical result evidence; it does not attest FairX's prices or stale-edge policy.

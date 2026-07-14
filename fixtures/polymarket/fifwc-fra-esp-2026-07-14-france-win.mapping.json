@@ -1,0 +1,37 @@
+{
+  "artifact": "fairx-external-market-mapping",
+  "reissuedAt": "2026-07-13",
+  "supersedes": "TXLINE-PENDING-FIFWC-FRA-ESP-2026-07-14 (placeholder in prior .capture.json)",
+  "mapping": {
+    "version": 1,
+    "mappingId": "fifwc-fra-esp-2026-07-14-france-win",
+    "txlineFixtureId": "18237038",
+    "txlineCompetitionId": "FIFA-WORLD-CUP-2026",
+    "txlineHomeTeam": "France",
+    "txlineAwayTeam": "Spain",
+    "fairxTemplate": "MATCH_WINNER_HOME_V1",
+    "fairxYesMeaning": "HOME_TEAM_WINS",
+    "polymarketEventId": "691040",
+    "polymarketMarketId": "2879968",
+    "polymarketConditionId": "0x20fac1c925b7a2fed6b3b2736f47a800b4d0d4001b9deaeb7b918868eb63d081",
+    "polymarketQuestionId": "0x6dfb9f380450dd29df57e68454836c3cdb24312fbfb2a68a9d5fc35ead72d400",
+    "polymarketSlug": "fifwc-fra-esp-2026-07-14",
+    "polymarketYesTokenId": "25312457392074064866955638920139332428292497556441446372623464789018436410183",
+    "polymarketNoTokenId": "114008288197553961583518307739897802587067075299935011621746237390478872496575",
+    "polymarketQuestion": "Will France win on 2026-07-14?",
+    "polymarketResolutionRules": "In the upcoming game, scheduled for July 14, 2026\nIf France wins, this market will resolve to \"Yes\".\nOtherwise, this market will resolve to \"No\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve \"No\".\nThis market refers only to the outcome within the first 90 minutes of regular play plus stoppage time.\n\nThe primary resolution source for this market is the official statistics of the event as recognized by the governing body or event organizers. However, if the governing body or event organizers have not published final match statistics within 2 hours after the event's conclusion, a consensus of credible reporting may be used instead. All markets will settle based on the official final result as recognized by the governing body or event organizers. Revisions to officially declared final scores made after market resolution will not be accounted for in determining the outcome.",
+    "resolutionSemantics": {
+      "scope": "First 90 minutes of regular play plus stoppage time (regulation full-time).",
+      "drawMeansYesLoses": true,
+      "extraTimeNote": "Knockout ties are decided by extra time / penalties, but both FairX (home_score > away_score at TxLINE regulation full-time) and this Polymarket market resolve on the 90'+stoppage result, so a France win via ET/penalties resolves both sides to NO. Consistent.",
+      "cancellationNote": "On full cancellation with no make-up, Polymarket resolves NO whereas FairX would emergency-void and refund all stakes. Divergence limited to cancellation; documented and immaterial to reference pricing.",
+      "semanticsMatch": true
+    },
+    "verifiedAt": "2026-07-13T00:00:00.000Z",
+    "verifiedBy": "manual_review",
+    "homeTeamHash": "5805a44363043a9d90dab15c178070ba421afc40f6dbe3baabb68a348efb109d",
+    "awayTeamHash": "9aba88878c228f67879b11a67e39345dbc00d3eedbcf3a52d2e9ff637fa877c9",
+    "resolutionRuleHash": "8e148f3694346d5c7d2844cf5794ae0d89da5e7d00a58b597721a37b5789e327",
+    "mappingHash": "1bd2f0d0c89d77854fa70095f8b89fe1c39ce15b2097474038f594beba50556e"
+  }
+}

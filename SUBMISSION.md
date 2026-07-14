@@ -26,6 +26,7 @@ The public v2 France–Morocco record is REAL Solana devnet and HISTORICAL TxLIN
 - unaudited prototype; devnet SOL only
 - historical reenactment, not a currently live match
 - pricing authority sets quotes; TxLINE does not derive or guarantee FairX odds
+- the Polymarket reference is public read-only market data used as an external quote — not FairX liquidity, not an oracle, not routed to Polymarket, no Polygon custody, no Polymarket affiliation
 - price-weighted parimutuel pool, not AMM/order-book price discovery
 - retained single-key upgrade authority and operator trust
 - external TxLINE CPI test requires devnet or a validator with the real program cloned

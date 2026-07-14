@@ -21,3 +21,18 @@ The v3 record also proves `0.03 deposited = 0.01 refunded + 0.02 paid`, zero cla
 - Accounting: `0.02 deposited = 0.01 refunded + 0.01 paid + 0 remaining`
 
 That accounting is solvent, but the accepted pool contained only the winner's own stake. The v2 record must never be used to claim that a winner captured a loser's collateral.
+
+## Polymarket reference-price proof (RECORDED EVIDENCE)
+
+`/reference` and `/api/reference-quotes/fifwc-fra-esp-2026-07-14-france-win/history` verify the bundled
+Polymarket reference capture. The verifier ([lib/polymarket/verify.ts](lib/polymarket/verify.ts))
+recomputes `rawPayloadHash`, `mappingHash`, `normalizedQuoteHash`, and `pricingPolicyHash`, and
+re-derives best bid/ask, midpoint, spread, depth, method and validity from the stored raw book. Four
+statuses must pass: mapping verified, fixture/YES-orientation verified, order-book integrity verified,
+reference quote verified. Tampering with any level, the midpoint, the mapping, the timestamp, or a hash
+fails verification (32 unit tests in `lib/polymarket/*.test.ts`).
+
+This is **RECORDED EVIDENCE** — a bundled capture re-verified offline. It never re-fetches Polymarket,
+so it is never presented as **LIVE VERIFIED**. Live serving is labelled `LIVE`/`RECENTLY_CACHED`/
+`HISTORICAL_CAPTURE`/`UNAVAILABLE`. The reference midpoint is an external market reference, not an
+oracle; TxLINE remains the settlement source and this capture does not resolve the market.
