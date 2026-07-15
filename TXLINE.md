@@ -5,11 +5,22 @@ FairX uses genuine TxLINE historical fixture, score, stat-proof, and StablePrice
 ## Canonical evidence
 
 - Fixture: France vs Morocco (`18209181`)
-- Material sequence: `739`
+- Material sequence: `739` (goal); final sequence `1114` (France 2–0)
 - Stat keys: home `1`, away `2`
-- StablePrice: France `52.274% → 86.505%`
+- StablePrice (raw home probability): France `52.274% → 86.505%` (the V4 UI adds a 1¢ per-side spread)
 - TxLINE program: `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
-- Daily root PDA: `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`
+- Odds validation root PDA: `ACo4UtSFM5jtUeQwkrWuv7uDS9qeNVQv858eRBTKpHxh`
+- Daily scores root PDA: `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`
+
+## Exact authenticated API endpoints captured
+
+Origin: `https://txline-dev.txodds.com`
+
+- `GET /api/fixtures/snapshot` — fixture identity and participants
+- `GET /api/scores/historical/18209181` — historical score/event sequence used for the goal evidence
+- `GET /api/odds/updates/20643/21/5?fixtureId=18209181` — historical StablePrice updates used for the pre-goal and post-goal quote proofs
+
+The checked-in fixtures contain the resulting payloads and hashes, never the JWT or API token. Configurable snapshot and stream paths are documented in `.env.example`, but they are not labelled as canonical inputs unless they contributed to this capture.
 
 ## Hash-domain separation
 
@@ -27,12 +38,17 @@ This commits the exact 606-byte Borsh `StatValidationInput` passed by LineGuard 
 
 The hashes differ because they commit different serializations of the same underlying TxLINE evidence. They are never compared for equality. The verifier instead checks each representation in its own domain, then checks that fixture, sequence, stat keys, and scores agree.
 
-## Current direct CPI result
+## Current V4 validation
 
-The canonical v3 transaction `2bqdPv1M2RUpRUh4kroVEaYXnC5t8soD1cm4rpMN5rAjW7NTgS36krH1zeT8TNh27VfJhtMMjK5PRonS1xH8oNjh` invoked the real TxLINE devnet program. `ValidateStatV2` succeeded, evidence timestamps were bound into the LineGuard receipt, and resolution derived YES from France `1–0` Morocco with 2-of-3 approvals. This proves result-evidence integration—not FairX price correctness.
+Two distinct layers are intentionally shown:
 
-## Archived v2 result
+- **Read-only proof validation:** `npm run v4:verify-proofs` submits the exact `validate_odds` and `validate_stat_v2` inputs to the genuine TxLINE devnet program and confirms all three return `true`. It signs and sends nothing. This independently checks the captured proof material.
+- **Finalized V4 CPI evidence:** the deployed V4 lifecycle contains finalized `verify_txline_quote` instructions for the pre-goal and post-goal odds and a finalized `prove_resolution_with_txline_v4` instruction for France 2–0. Those instructions validate the approved TxLINE root accounts and invoke the real TxLINE program by CPI. V4 records receipts only after TxLINE returns successfully.
 
-The archived v2 transaction `2qSJAY4iuFnkvtrAtXDxCWKfJP8kwA2dpG8HJsSvWRFEfpwsot8EZNYgXaXmosVZxkvakiY1Bpx7GeAyCLx3ank7` also invoked the real TxLINE devnet program. It remains secondary evidence because its accepted pool had no losing counterparty.
+TxLINE proof validation proves the sports evidence, not the fairness of FairX's operator-set quote or spread. The V4 verifier checks the CPI-bound receipts and lifecycle separately.
+
+## Historical predecessor CPI (real, not V4 evidence)
+
+An earlier LineGuard v2/v3 transaction (`2bqdPv1M2RUpRUh4kroVEaYXnC5t8soD1cm4rpMN5rAjW7NTgS36krH1zeT8TNh27VfJhtMMjK5PRonS1xH8oNjh`) invoked the real TxLINE program via a signed `ValidateStatV2` CPI on devnet. It is genuine predecessor evidence for a different program and is never presented as V4 evidence.
 
 The capture and proof fixtures contain no authentication headers, JWTs, API tokens, or private keys. Runtime TxLINE credentials remain server-only.

@@ -23,6 +23,8 @@
 
 html {
   color-scheme: light;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -32,6 +34,26 @@ body {
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 13px;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+p,
+dd {
+  overflow-wrap: anywhere;
+}
+
+:where(a, button, summary, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.42);
+  outline-offset: 3px;
+}
+
+button,
+summary {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mono {
@@ -45,6 +67,26 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+
+.fx-dark-panel {
+  background: #0c1425;
+  color: #fff;
+}
+
+.fx-dark-card {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.fx-stale-card {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(252, 211, 77, 0.28);
+}
+
+.fx-good-card {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(110, 231, 183, 0.28);
 }
 
 .section-label {
@@ -158,4 +200,15 @@ body {
 .thin-scroll::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,36 +1,32 @@
-# Devnet deployment and evidence gate
+# FairX V4 deployment and evidence gate
 
-## Deployed artifact
+## Current state — deployed and lifecycle verified
 
-- Program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- ProgramData: `D6buB3VxXnxX3jXjPX5HCqRAMJqtV4yLzaKuMra17nPT`
-- Upgrade authority: `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`
-- Deployment slot: `475972063`
-- Program capacity and deployed binary size: `571,808` bytes
-- SHA-256 of both local artifact and independently dumped deployed bytes: `1903958567efc17f3a31a2b3d6e4bcd594fe2f601b458ec82ec946badd3830cc`
-- ProgramData rent balance: `3.98098776 SOL`
-- Extension transaction: `4mre6S26M63aMQUcXUasuzjZXirQKJYrY1GJChxSqAtEQvQJrAJKZHtqSqjiDhuRbM1Uoh6ZbJ783e7dqDjt54aM`
-- Upgrade transaction: `5rYPkn9pUtd4SSAGYPTo7ew7LeyGi8M2SFr3FQGQJ535dS6FeAGUdv9MvSgmHBeXEVhczdp1Tc33Pca66yd4kF6E`
+The FairX Vault V4 program is deployed on Solana devnet, and its isolated canonical lifecycle is finalized:
 
-The initial RPC upload attempt hit public-devnet rate limits. Its temporary buffer was treated as compromised after its recovery material appeared in CLI error output; the buffer was immediately closed and its entire `3.98098776 SOL` balance recovered. The successful retry used TPU transport. No compromised buffer remains funded.
+- Program `2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p` — executable, upgradeable-loader owned
+- ProgramData `9DrtcwJVTY4wDbJGRsiZfAj6sDFcLAHy6pBwxmRKk59V` — loader owned; upgrade authority `ELayKf…brbq`
+- Deployment signature `3na7azn…mKjjS7`, finalized at slot `476416258`
+- Upload buffer `BGB1nc…UteLM` — drained and purged by deployment
+- Dumped SBF — 422,040 bytes, SHA-256 `7917273c9c1dca1fb9f69f2b0f905b698fe69383913ca462d51f8888bffc71f0`
+- France–Morocco lifecycle — 24 finalized transactions; independent RPC verifier `VERIFIED` 20/20
 
-## Canonical lifecycle evidence
+The full deployment and lifecycle record is in [docs/v4-phase-c-deployment-plan.md](docs/v4-phase-c-deployment-plan.md).
 
-Deployment identity and economic behavior are separately verified.
+## Reproducible artifact (real now)
 
-The recorder verified that locally configured signers matched the existing AuthorityConfig roles without exposing private material:
+- SBF SHA-256 `7917273c9c1dca1fb9f69f2b0f905b698fe69383913ca462d51f8888bffc71f0`, 422,040 bytes, matching `fixtures/txline/v4-build-manifest.json`.
+- Pinned toolchain: Rust 1.89.0 · Anchor 1.1.2 · Solana CLI 3.1.10 · platform tools 1.52.
+- `bash scripts/fairx-v4-reproducibility.sh` rebuilds and re-pins every hash. No keypair, seed, or secret is in this repository; signing occurs only through an external wallet/HSM.
 
-- feed: `FbC9mbuyi9iWeMyhe9ZtTRg6KY4qz6Vqb83S2ssUwSm5`
-- pricing: `Ckwtt9Hd6eyn9wWFTEsJ1YyhUg9jCWAm944od29wK1qa`
-- resolution A: `ABrWPMaGRRCY2qGbF3cYkZv7E2rMMANoesGWcoSDUkTG`
-- resolution B: `EXVwU5mGZBAn7MBWZLwnDwqSkDZzn6PvhXJwh1L5cNm5`
+## Verification commands
 
-The recorder completed the exact A/B/C sequence, persisted `fixtures/lineguard/v3-france-morocco-three-wallet.json`, and the independent RPC verifier returned `VERIFIED` across 18 checks. The public record contains only addresses, transaction signatures, hashes, balances and derived accounting—not key material.
+`npm run v4:verify-lifecycle` re-fetches the executable program, deployed binary, TxLINE roots, durable V4 accounts, all 24 finalized transaction messages, balance deltas and closed-account state. It signs and sends nothing. `npm run v4:verify-proofs` independently re-simulates the three canonical TxLINE validations.
 
-Future authority replacement still requires the enforced 86,400-second timelock. Bypassing that delay with a program upgrade would invalidate the security story.
+## Historical predecessor (real, not V4 evidence)
+
+An earlier LineGuard v2/v3 program (`6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`) was deployed to devnet (slot `475972063`, SHA-256 `1903958567…3830cc`) and independently RPC-verified for the France–Morocco three-wallet lifecycle. It shows the team ships and verifies on-chain, but it is a different program and its transactions are never presented as V4 evidence.
 
 ## Server deployment
 
-Required public configuration includes devnet cluster, RPC URL and program ID. Server-only values include the operator keypair, TxLINE credentials and a random `LINEGUARD_OPERATOR_API_TOKEN` of at least 32 characters. Never expose these through `NEXT_PUBLIC_*` or client bundles.
-
-The operator API is not production architecture: it is an authenticated hackathon control plane backed by a hot key. Use a multisig/frozen upgrade authority, managed signer, rate limits and an external audit before any production or real-value use.
+Required public configuration: devnet cluster, RPC URL, program ID. Server-only values: operator keypair, TxLINE credentials, and a random operator API token of at least 32 characters. Never expose these through `NEXT_PUBLIC_*` or client bundles. The operator API is an authenticated hackathon control plane backed by a hot key, not production architecture; any real-value use requires a multisig/frozen upgrade authority, a managed signer, rate limits, and an external audit.

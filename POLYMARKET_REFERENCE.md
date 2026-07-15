@@ -1,5 +1,11 @@
 # FairX × Polymarket external reference price
 
+> **Scope note (V4 submission):** the Polymarket external-reference feature is **not part of the
+> current FairX Vault V4 submission**. Its route (`/reference`) now redirects to the home page and it
+> is out of the demo path. The implementation, mapping registry, verifier, and 32 unit tests remain in
+> the repository as documented, reproducible work, but nothing in the V4 product depends on it. The
+> description below is retained for that historical implementation.
+
 FairX uses **public Polymarket order-book data as an external reference quote** for an equivalent
 market. TxLINE supplies the sports-event and settlement evidence. LineGuard protects Solana
 execution when those states diverge.

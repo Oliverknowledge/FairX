@@ -1,44 +1,98 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, Database, ExternalLink, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronDown, ExternalLink, Eye, Settings2, ShieldCheck, Vault } from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
-import { formatSol, invariantHolds, REPLAY_LABEL, runCanonicalLifecycle, shortHash, V4_EVIDENCE, V4_PROGRAM_ID, V4_REPLAY_SLUG } from "@/lib/v4/replay";
+import { V4DeploymentStatus } from "@/components/v4/V4DeploymentStatus";
+import { V4LifecycleEvidence } from "@/components/v4/V4LifecycleEvidence";
+import { V3PredecessorEvidence } from "@/components/v4/V3PredecessorEvidence";
+import { formatSol, invariantHolds, runCanonicalLifecycle, shortHash, V4_EVIDENCE, V4_PROGRAM_ID, V4_REPLAY_SLUG } from "@/lib/v4/replay";
+import manifest from "@/fixtures/txline/v4-build-manifest.json";
 
-export const metadata: Metadata = { title: "Verify V4 Replay", description: "Verify the isolated FairX V4 France-Morocco fixed-payout replay." };
+const TXLINE_PROGRAM = "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J";
+const explorerAddress = (address: string) => `https://explorer.solana.com/address/${address}?cluster=devnet`;
+
+export const metadata: Metadata = { title: "What FairX enforces and verifies", description: "The honest trust boundary and independent settlement proof for the deployed FairX Vault V4 lifecycle." };
 
 export default function ProofPage() {
   const lifecycle = runCanonicalLifecycle();
-  const checks = [
-    ["Fixture isolation", V4_EVIDENCE.fixtureId === 18209181, "Only France–Morocco fixture 18209181 is accepted by the program."],
-    ["Pre-goal StablePrice", V4_EVIDENCE.preGoal.odds.MessageId === "1837056734:00003:000066-1-10021-stab", `Raw prices ${V4_EVIDENCE.preGoal.odds.Prices.join(" / ")}; complete Merkle branch recorded.`],
-    ["Confirmed goal", V4_EVIDENCE.goal.sequence === 739, `Sequence 739 · source timestamp ${V4_EVIDENCE.goal.ts}.`],
-    ["Post-goal StablePrice", V4_EVIDENCE.postGoal.odds.MessageId === "1837056922:00003:000268-10021-stab", `Raw prices ${V4_EVIDENCE.postGoal.odds.Prices.join(" / ")}; complete Merkle branch recorded.`],
-    ["Final—not mid-game—evidence", V4_EVIDENCE.finalSequence === 1114 && V4_EVIDENCE.finalResult.home === 2, "Sequence 1114, France 2–0 Morocco. The sequence-739 1–0 event is never used as final settlement."],
-    ["Regulation-time period", V4_EVIDENCE.finalProof.statsToProve.every((stat) => stat.period === 100), "Keys 1001/1002/3001/3002 all use TxLINE final period 100."],
-    ["Strict stale invalidation", lifecycle.positions.find((position) => position.id === "stale-bot")?.status === "REFUNDED", "The sequence-738 bot position is REFUNDED after market sequence advances to 739."],
-    ["Fixed payout", lifecycle.positions.find((position) => position.id === "pre-yes")?.grossPayoutLamports === 18_769_297n, "0.01 SOL at 532,785 micros fixes gross payout at 18,769,297 lamports."],
-    ["Every accounting snapshot", lifecycle.snapshots.every(invariantHolds), `${lifecycle.snapshots.length} lifecycle snapshots satisfy A = F + R + S exactly.`],
-    ["Final solvency", lifecycle.final.reservedLiability === 0n && lifecycle.final.acceptedStakePrincipal === 0n, "All payouts and losses reconcile before the operator withdrawal."],
+  const proofChecks = [
+    ["Genuine historical source", "TxLINE odds, goal sequence 739 and final sequence 1114 are bound to fixture 18209181."],
+    ["Objective stale-sequence return", "The sequence-738 order returns its principal after the market advances to sequence 739; intent is irrelevant."],
+    ["Fixed payouts", "Pre-goal and post-goal YES positions retain their execution-time gross payouts."],
+    ["Final—not mid-game—result", "Period-100 evidence resolves France 2–0 Morocco; the goal event is never used as the final score."],
+    ["Conservative collateral", "YES and NO liabilities are reserved independently without outcome netting."],
+    ["Exact final state", "All recorded accounting snapshots satisfy balance = free + reserve + principal."],
   ] as const;
 
   return (
     <FairXShell compact>
-      <div className="mx-auto max-w-[1060px]">
-        <header className="grid gap-5 border-b border-(--border) pb-7 lg:grid-cols-[1fr_330px]"><div><p className="text-[11px] font-bold text-(--blue)">V4 proof manifest</p><h1 className="mt-2 text-[40px] font-extrabold tracking-[-0.055em] sm:text-[52px]">One fixture. Fixed payouts. Zero hidden netting.</h1><p className="mt-3 max-w-2xl text-[12.5px] leading-relaxed text-(--ink-2)">{REPLAY_LABEL}</p></div><div className="card p-5"><p className="section-label">Local prototype program</p><p className="mono mt-2 break-all text-[10.5px] font-semibold">{V4_PROGRAM_ID}</p><p className="mt-3 text-[10px] leading-relaxed text-(--ink-3)">Distinct from the deployed V2/V3 LineGuard ID. No V4 deployment or signed transaction exists in Phase B.</p></div></header>
+      <div className="mx-auto max-w-[1100px]">
+        <header className="border-b border-(--border) pb-8">
+          <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-(--blue)"><ShieldCheck className="h-4 w-4" />Independent settlement proof</p>
+          <h1 className="mt-4 max-w-full text-[36px] font-extrabold leading-[1.02] tracking-[-0.045em] sm:max-w-[850px] sm:text-[58px]">The program enforces the money. The verifier proves what happened.</h1>
+          <p className="mt-5 max-w-3xl text-[13px] leading-6 text-(--ink-2)">FairX does not claim to remove every trusted role. It makes the sequence decision, liabilities, claims and operator withdrawal independently re-readable on Solana—and never shows a missing RPC response as verified.</p>
+        </header>
 
-        <section className="mt-7"><h2 className="text-[18px] font-extrabold">Independent checks</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{checks.map(([title, passed, detail]) => <article key={title} className="card flex gap-3 p-4"><CheckCircle2 className={`mt-0.5 h-5 w-5 shrink-0 ${passed ? "text-(--green)" : "text-(--red)"}`} /><div><h3 className="text-[12px] font-bold">{title}</h3><p className="mt-1 text-[10.5px] leading-relaxed text-(--ink-2)">{detail}</p></div></article>)}</div></section>
-
-        <section className="mt-8 grid gap-5 lg:grid-cols-[1fr_360px]">
-          <div className="card overflow-hidden"><div className="border-b border-(--border) p-5"><h2 className="text-[15px] font-extrabold">Solvency reconciliation</h2><p className="mt-1 text-[10.5px] text-(--ink-2)">Spendable vault lamports exclude rent.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-[10px]"><thead className="bg-[#f8fafc] text-(--ink-3)"><tr><Th>Transition</Th><Th>Balance A</Th><Th>Free F</Th><Th>Reserve R</Th><Th>Principal S</Th><Th>Check</Th></tr></thead><tbody>{lifecycle.snapshots.map((row) => <tr key={row.label} className="border-t border-(--border)"><Td>{row.label}</Td><Td>{formatSol(row.spendableLamports)}</Td><Td>{formatSol(row.freeCollateral)}</Td><Td>{formatSol(row.reservedLiability)}</Td><Td>{formatSol(row.acceptedStakePrincipal)}</Td><Td><span className="font-bold text-(--green)">EXACT</span></Td></tr>)}</tbody></table></div></div>
-          <aside className="space-y-4"><EvidenceCard title="Odds validation root" value={V4_EVIDENCE.oddsRootPda} detail={`${V4_EVIDENCE.preGoal.subTreeProof.length + V4_EVIDENCE.preGoal.mainTreeProof.length} pre-goal nodes · ${V4_EVIDENCE.postGoal.subTreeProof.length + V4_EVIDENCE.postGoal.mainTreeProof.length} post-goal nodes`} /><EvidenceCard title="Final scores root" value={V4_EVIDENCE.scoresRootPda} detail={`Period 100 · event root ${shortHash(V4_EVIDENCE.finalProof.eventStatRoot.join(""))}`} /><div className="card p-5"><p className="flex items-center gap-2 text-[11px] font-bold"><ShieldCheck className="h-4 w-4 text-(--green)" />Conservative collateral</p><p className="mt-2 text-[10.5px] leading-relaxed text-(--ink-2)">YES and NO liabilities are reserved independently. This intentionally ignores outcome netting and therefore over-collateralises the binary market.</p></div></aside>
+        <section className="mt-8 grid gap-4 lg:grid-cols-2" aria-label="FairX trust boundary">
+          <article className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-emerald-700"><ShieldCheck className="h-5 w-5" /></span><div><p className="text-[8.5px] font-bold uppercase tracking-[.09em] text-emerald-700">Enforced and publicly verified</p><h2 className="mt-1 text-[18px] font-extrabold">What the Solana program guarantees</h2></div></div><ul className="mt-5 grid gap-2 sm:grid-cols-2"><BoundaryItem text="Order quote sequence is compared with the market event sequence" /><BoundaryItem text="Returned principal creates no durable position liability" /><BoundaryItem text="Accepted positions reserve fixed payout liabilities" /><BoundaryItem text="Claims and operator withdrawal obey the vault boundary" /></ul></article>
+          <article className="rounded-2xl border border-amber-200 bg-amber-50 p-5 sm:p-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-amber-700"><Settings2 className="h-5 w-5" /></span><div><p className="text-[8.5px] font-bold uppercase tracking-[.09em] text-amber-700">Trusted or configurable</p><h2 className="mt-1 text-[18px] font-extrabold">What FairX does not make trustless</h2></div></div><ul className="mt-5 grid gap-2 sm:grid-cols-2"><BoundaryItem text="TxLINE supplies source evidence for fixture events, odds and final result" muted /><BoundaryItem text="The pricing authority publishes the executable quote" muted /><BoundaryItem text="Two of three configured resolution authorities approve settlement" muted /><BoundaryItem text="The deployed program currently retains an upgrade authority" muted /></ul></article>
         </section>
 
-        <div className="mt-6 flex flex-wrap gap-3"><Link href={`/markets/${V4_REPLAY_SLUG}`} className="inline-flex h-11 items-center rounded-lg bg-(--blue) px-5 text-[11px] font-bold text-white">Run replay</Link><a href="https://explorer.solana.com/address/6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J?cluster=devnet" target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-lg border border-(--border) bg-white px-5 text-[11px] font-bold"><ExternalLink className="h-3.5 w-3.5" />TxLINE devnet program</a></div>
+        <section className="mt-10" aria-labelledby="deployment-layer">
+          <LayerHeading number="01" title="Deployment" description="A fresh read of the approved V4 program and ProgramData accounts on Solana devnet." />
+          <div className="mt-4"><V4DeploymentStatus /></div>
+          <details className="group mt-3 overflow-hidden rounded-xl border border-(--border) bg-white">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-[10.5px] font-bold">Program ID and reproducible binary <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+            <div className="grid gap-4 border-t border-(--border) p-4 text-[10px] sm:grid-cols-3"><TechnicalFact label="Program ID" value={V4_PROGRAM_ID} mono /><TechnicalFact label="SBF SHA-256" value={manifest.sbfSha256} mono /><TechnicalFact label="SBF size" value={`${manifest.sbfSizeBytes.toLocaleString()} bytes`} /></div>
+          </details>
+        </section>
+
+        <section className="mt-12" aria-labelledby="v4-layer">
+          <LayerHeading number="02" title="Current V4 evidence" description="The primary proof: fresh RPC checks of the finalized France–Morocco settlement lifecycle." />
+          <div className="mt-4"><V4LifecycleEvidence /></div>
+
+          <div
+            className="fx-dark-panel mt-5 overflow-hidden rounded-2xl border border-emerald-900 text-white"
+            style={{ backgroundColor: "#0c1425", color: "#fff" }}
+          >
+            <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div><p className="text-[9px] font-bold uppercase tracking-[.1em] text-emerald-300">Final reconciliation</p><h3 className="mt-3 text-[28px] font-extrabold tracking-[-.04em]">Every lamport reconciled.</h3><div className="mt-5 flex flex-wrap items-center gap-2 text-[11px] font-bold sm:text-[14px]"><span>0.200000000</span><span className="text-slate-500">+</span><span>0.030000000</span><span className="text-slate-500">−</span><span>0.030200572</span><span className="text-slate-500">=</span><span className="text-emerald-300">0.199799428 SOL withdrawn</span></div></div>
+              <div className="grid grid-cols-2 gap-2"><ZeroFact label="Free collateral" /><ZeroFact label="Reserved liability" /><ZeroFact label="Pending refunds" /><ZeroFact label="Open positions" /></div>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <Disclosure title="How V4 proves the outcome" subtitle="Six product-level guarantees">
+              <div className="grid gap-2 sm:grid-cols-2">{proofChecks.map(([title, detail]) => <article key={title} className="flex items-start gap-3 rounded-xl bg-slate-50 p-4"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--green)" /><div><h3 className="text-[10.5px] font-bold">{title}</h3><p className="mt-1 text-[9.5px] leading-4 text-(--ink-2)">{detail}</p></div></article>)}</div>
+            </Disclosure>
+            <Disclosure title="Full solvency transition table" subtitle={`${lifecycle.snapshots.length} accounting snapshots · collapsed by default`}>
+              <div className="overflow-x-auto"><table className="w-full min-w-[660px] text-left text-[9.5px]"><thead className="bg-slate-50 text-(--ink-3)"><tr><Th>Transition</Th><Th>Balance</Th><Th>Free</Th><Th>Reserve</Th><Th>Principal</Th><Th>Check</Th></tr></thead><tbody>{lifecycle.snapshots.map((row) => <tr key={row.label} className="border-t border-(--border)"><Td>{row.label}</Td><Td>{formatSol(row.spendableLamports)}</Td><Td>{formatSol(row.freeCollateral)}</Td><Td>{formatSol(row.reservedLiability)}</Td><Td>{formatSol(row.acceptedStakePrincipal)}</Td><Td><span className={`font-bold ${invariantHolds(row) ? "text-(--green)" : "text-(--red)"}`}>{invariantHolds(row) ? "EXACT" : "FAILED"}</span></Td></tr>)}</tbody></table></div>
+            </Disclosure>
+            <Disclosure title="TxLINE provenance and validation roots" subtitle="Technical source evidence">
+              <div className="grid gap-3 sm:grid-cols-2"><EvidenceLink label="TxLINE devnet program" value={TXLINE_PROGRAM} href={explorerAddress(TXLINE_PROGRAM)} /><EvidenceLink label="Odds validation root" value={V4_EVIDENCE.oddsRootPda} href={explorerAddress(V4_EVIDENCE.oddsRootPda)} /><EvidenceLink label="Final scores root" value={V4_EVIDENCE.scoresRootPda} href={explorerAddress(V4_EVIDENCE.scoresRootPda)} /><TechnicalFact label="Recorded source mode" value="Genuine TxLINE historical evidence; live read-only devnet proof validation" /></div>
+            </Disclosure>
+          </div>
+        </section>
+
+        <section className="mt-12" aria-labelledby="v3-layer">
+          <LayerHeading number="03" title="Deployed predecessor evidence" description="V3 proved the original selective-refund primitive. V4 is the current architecture; V3 is not evidence for V4." secondary />
+          <details className="group mt-4 overflow-hidden rounded-2xl border border-(--border) bg-slate-50">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between px-5 text-[11px] font-bold text-(--ink-2)"><span>Open LineGuard V3 historical evidence</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
+            <div className="border-t border-(--border) p-3 sm:p-4"><V3PredecessorEvidence /></div>
+          </details>
+        </section>
+
+        <div className="mt-10 flex flex-col gap-3 border-t border-(--border) pt-7 sm:flex-row"><Link href={`/markets/${V4_REPLAY_SLUG}`} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-(--blue) px-6 text-[11px] font-bold text-white">Watch the protected market</Link><Link href="/portfolio" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-(--border) bg-white px-6 text-[11px] font-bold">See every position outcome</Link></div>
       </div>
     </FairXShell>
   );
 }
 
-function EvidenceCard({ title, value, detail }: { title: string; value: string; detail: string }) { return <div className="card p-5"><p className="flex items-center gap-2 text-[11px] font-bold"><Database className="h-4 w-4 text-(--blue)" />{title}</p><p className="mono mt-3 break-all text-[9.5px] text-(--ink-2)">{value}</p><p className="mt-2 text-[10px] text-(--ink-3)">{detail}</p></div>; }
+function LayerHeading({ number, title, description, secondary = false }: { number: string; title: string; description: string; secondary?: boolean }) { return <div className={secondary ? "opacity-80" : ""}><p className="text-[9px] font-bold uppercase tracking-[.12em] text-(--blue)">Layer {number}</p><h2 className="mt-2 text-[24px] font-extrabold tracking-[-.035em]">{title}</h2><p className="mt-2 max-w-3xl text-[11px] leading-5 text-(--ink-2)">{description}</p></div>; }
+function BoundaryItem({ text, muted = false }: { text: string; muted?: boolean }) { return <li className={`flex items-start gap-2 rounded-xl bg-white/70 p-3 text-[9.5px] font-semibold leading-4 ${muted ? "text-amber-950/75" : "text-emerald-950/75"}`}>{muted ? <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" /> : <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />}{text}</li>; }
+function ZeroFact({ label }: { label: string }) { return <div className="min-w-32 rounded-xl bg-white/5 p-3"><p className="text-[8.5px] text-emerald-200">{label}</p><p className="mt-1 text-[16px] font-extrabold">0</p></div>; }
+function Disclosure({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) { return <details className="group overflow-hidden rounded-xl border border-(--border) bg-white"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-4"><span><span className="block text-[10.5px] font-bold">{title}</span><span className="mt-0.5 block text-[9px] text-(--ink-3)">{subtitle}</span></span><ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" /></summary><div className="border-t border-(--border) p-3 sm:p-4">{children}</div></details>; }
+function TechnicalFact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) { return <div className="min-w-0 rounded-xl bg-slate-50 p-3"><p className="text-[8.5px] font-bold uppercase tracking-[.06em] text-(--ink-3)">{label}</p><p className={`mt-2 break-all text-[9.5px] font-semibold leading-4 ${mono ? "mono" : ""}`}>{value}</p></div>; }
+function EvidenceLink({ label, value, href }: { label: string; value: string; href: string }) { return <a href={href} target="_blank" rel="noreferrer" className="group rounded-xl bg-slate-50 p-3"><p className="flex items-center justify-between text-[8.5px] font-bold uppercase tracking-[.06em] text-(--ink-3)">{label}<ExternalLink className="h-3 w-3" /></p><p className="mono mt-2 break-all text-[9.5px] font-semibold group-hover:text-(--blue)">{shortHash(value)}</p></a>; }
 function Th({ children }: { children: React.ReactNode }) { return <th className="px-4 py-3 font-semibold">{children}</th>; }
 function Td({ children }: { children: React.ReactNode }) { return <td className="whitespace-nowrap px-4 py-3">{children}</td>; }

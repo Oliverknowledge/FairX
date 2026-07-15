@@ -12,20 +12,20 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: "FairX",
   title: {
-    default: "FairX V4 — Fixed-Payout Sports Vault",
+    default: "FairX — Execution Integrity for Live Sports Markets",
     template: "%s | FairX",
   },
-  description: "An isolated fixed-payout Solana vault replay using recorded TxLINE France-Morocco evidence.",
+  description: "Solana execution infrastructure that returns stale-sequence order principal while synchronized live-sports trading continues.",
   openGraph: {
     type: "website",
-    title: "FairX V4 — Fixed-Payout Sports Vault",
-    description: "A deterministic France-Morocco replay with genuine TxLINE odds, event and final-result proofs.",
+    title: "FairX — Return the Stale Order. Keep the Market Open.",
+    description: "Operator infrastructure demonstrated with a genuine TxLINE historical replay and independently verified Solana settlement.",
     siteName: "FairX",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FairX — Selective Stale-Price Protection",
-    description: "An unaudited Solana devnet settlement-guard prototype.",
+    title: "FairX — Sequence-Bound Execution on Solana",
+    description: "Stale-sequence principal returns. Synchronized trading continues. Every liability is publicly verifiable.",
   },
 };
 

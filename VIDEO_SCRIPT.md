@@ -1,30 +1,35 @@
-# FairX four-minute demo script
+# FairX V4 four-minute narration
 
-The v3 verifier currently passes. Record only while it shows `VERIFIED`; if it degrades to `UNKNOWN`, say so and retry rather than implying live verification.
+## 0:00–0:20 — hook
 
-## 0:00–1:00 — problem and mechanism
+“A goal can reach the official feed before a prediction market updates its price. Fast traders can exploit that stale window. FairX refunds the stale attempt without freezing synchronized positions.”
 
-Show `/`. Explain: a score event can move fair value before a market reprices; cancelling the whole market harms honest traders. FairX signs the expected quote, sequence, slippage and expiry, then refunds only an order capturing excessive stale edge.
+## 0:20–0:45 — product
 
-## 1:00–2:00 — economic trade
+“This is FairX Vault V4, a fully collateralised fixed-payout market on Solana devnet. The operator funds every incremental payout liability. This interface replays one recorded France–Morocco lifecycle using genuine historical TxLINE evidence; the controls do not send new trades.”
 
-Show the market ticket. State that this is a price-weighted parimutuel pool: the execution quote controls shares and winners divide accepted collateral. Do not call it an AMM, order book, live liquidity or fixed-dollar share market.
+## 0:45–1:15 — fair positions
 
-## 2:00–3:10 — three-wallet proof
+“Before the goal, a 0.01 SOL YES and a 0.01 SOL NO position are accepted. Each receives a frozen gross payout, and the vault reserves gross payout minus stake independently. The solvency equation remains exact.”
 
-Open `/proof`. Only if the status is VERIFIED, show:
+## 1:15–1:45 — stale exploit
 
-- Wallet A synchronized YES accepted
-- Wallet B synchronized NO accepted
-- Wallet C stale YES refunded alone
-- TxLINE historical evidence and direct CPI
-- YES resolution and A receiving A+B accepted collateral
-- closed Order/Position accounts and recovered user rent
+“TxLINE's confirmed France goal advances the material sequence from 738 to 739. The displayed old quote is now stale. When the bot attempts that old-sequence order, the stake enters and returns within one instruction. Its receipt is permanently refunded and can never claim.”
 
-Open at least one Explorer transaction and the program hash check. If any item is UNKNOWN, stop and identify the missing evidence.
+## 1:45–2:10 — market continues
 
-## 3:10–4:00 — limitations and close
+“FairX does not freeze the whole market. A post-goal quote is validated against TxLINE and a synchronized YES position is accepted at the new sequence.”
 
-Show the archived v2 section and explicitly say why it is not the primary economic proof. Disclose historical evidence, devnet SOL, pricing-authority trust, retained upgrade authority and unaudited status. Close on the narrow claim: **refund the stale exploit, keep the honest market.**
+## 2:10–2:45 — resolution and accounting
 
-Never use the old script's invented `0.04 SOL` two-sided payout. The canonical gross payout is `0.02 SOL`: A's `0.01 SOL` principal plus B's `0.01 SOL` losing stake.
+“The final TxLINE evidence is sequence 1114: France two, Morocco nil. Two of three configured authorities approve the derived YES result. Both YES positions receive 30,200,572 lamports in total; the NO position closes lost. Two hundred million operator lamports plus thirty million accepted principal, minus payouts, leaves exactly 199,799,428 lamports for the operator to withdraw. Every final vault field and every open position reaches zero.”
+
+## 2:45–3:30 — independent proof
+
+“This is not only a local model. The V4 program is executable on Solana devnet. Its ProgramData contains the exact 422,040-byte binary with SHA-256 7917273c…bffc71f0. The canonical lifecycle contains 24 finalized transactions, and the independent verifier re-fetches the program, accounts, TxLINE roots, transaction messages, balance changes, refund, payouts, solvency, and closures. It currently returns VERIFIED, 20 out of 20. The V3 panel below is explicitly separate historical predecessor evidence, verified 18 out of 18.”
+
+## 3:30–3:55 — limits and close
+
+“FairX is an unaudited, operator-controlled devnet prototype using a historical fixture replay. It is not an AMM, order book, or real-money product, and its upgrade authority is still a single key. What it proves is focused: refund the stale exploit, keep fair positions valid, pay every accepted liability, and reconcile every lamport.”
+
+Full recording instructions and fallback shots: `docs/final-audit/DEMO_VIDEO_FINAL.md` and `docs/final-audit/VIDEO_STORYBOARD.md`.

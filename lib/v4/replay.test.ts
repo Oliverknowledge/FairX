@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixture from "@/fixtures/txline/v4-france-morocco-lifecycle.json";
 import {
+  canonicalStaleCounterfactual,
   executablePrices,
   grossPayout,
   invariantHolds,
@@ -27,6 +28,17 @@ describe("FairX V4 deterministic France-Morocco replay", () => {
     const gross = grossPayout(REPLAY_STAKE_LAMPORTS, 532_785n);
     expect(gross).toBe(18_769_297n);
     expect(gross - REPLAY_STAKE_LAMPORTS).toBe(8_769_297n);
+  });
+
+  it("derives the operator counterfactual from canonical prices without changing settlement", () => {
+    expect(canonicalStaleCounterfactual()).toEqual({
+      stakeLamports: 10_000_000n,
+      staleGrossPayoutLamports: 18_769_297n,
+      synchronizedGrossPayoutLamports: 11_431_275n,
+      staleLiabilityLamports: 8_769_297n,
+      synchronizedLiabilityLamports: 1_431_275n,
+      excessStaleLiabilityLamports: 7_338_022n,
+    });
   });
 
   it("contains the genuine goal and final-period proof, never the 1-0 record", () => {

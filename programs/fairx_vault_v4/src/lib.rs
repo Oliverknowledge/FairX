@@ -8,9 +8,8 @@ use anchor_lang::solana_program::{
 use anchor_lang::system_program::{transfer, Transfer};
 use solana_sha256_hasher::hash;
 
-// This is an isolated, non-V2/V3 program address derived for the local prototype.
-// Phase C must explicitly approve generation of the deployable program keypair and ID sync.
-declare_id!("79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG");
+// Approved Phase C deployment-candidate address. The corresponding keypair remains external.
+declare_id!("2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p");
 
 const MICROS_ONE: u64 = 1_000_000;
 const CANONICAL_FIXTURE_ID: u64 = 18_209_181;
@@ -65,13 +64,12 @@ const CANONICAL_HARD_STOP_UNIX_SECONDS: i64 = 1_783_634_788;
 const CANONICAL_ORACLE_GRACE_SECONDS: i64 = 3_600;
 const VOID_REASON_ORACLE_UNAVAILABLE: u8 = 1;
 
-// Public, deterministic B.1 test bootstrap address. Its seed is intentionally public and must
-// never secure a deployment. Phase C must replace this constant with a freshly generated public
-// key before the final reproducible build; no corresponding deployable private key is committed.
-// GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB
+// Approved Phase C bootstrap administrator public key. Its private key remains external and is
+// never required by the build or repository verification workflow.
+// ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq
 const BOOTSTRAP_ADMIN: Pubkey = Pubkey::new_from_array([
-    234, 74, 108, 99, 226, 156, 82, 10, 190, 245, 80, 123, 19, 46, 197, 249, 149, 71, 118, 174,
-    190, 190, 123, 146, 66, 30, 234, 105, 20, 70, 210, 44,
+    198, 44, 96, 106, 50, 224, 149, 244, 185, 210, 223, 241, 133, 36, 164, 188, 116, 203, 42, 163,
+    48, 49, 80, 148, 59, 202, 6, 143, 18, 31, 132, 8,
 ]);
 
 // 6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J

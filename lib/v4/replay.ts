@@ -1,7 +1,7 @@
 import fixture from "@/fixtures/txline/v4-france-morocco-lifecycle.json";
+export { V4_PROGRAM_ID } from "@/lib/v4/program";
 
 export const V4_REPLAY_SLUG = "france-morocco-v4-replay";
-export const V4_PROGRAM_ID = "79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG";
 export const REPLAY_LABEL = "Deterministic replay using recorded TxLINE event, odds and final-result proofs.";
 export const MICROS_ONE = 1_000_000n;
 export const REPLAY_SPREAD_MICROS = 10_000n;
@@ -70,6 +70,28 @@ export function grossPayout(stakeLamports: bigint, executionPriceMicros: bigint)
     throw new Error("Invalid stake or execution price");
   }
   return (stakeLamports * MICROS_ONE) / executionPriceMicros;
+}
+
+/**
+ * Canonical economic counterfactual for the recorded stale-order moment.
+ * This is presentation-only arithmetic derived from the same recorded prices
+ * and payout formula as the lifecycle; it does not alter settlement behavior.
+ */
+export function canonicalStaleCounterfactual() {
+  const pre = executablePrices(V4_EVIDENCE.preGoal.odds.Prices);
+  const post = executablePrices(V4_EVIDENCE.postGoal.odds.Prices);
+  const staleGrossPayoutLamports = grossPayout(REPLAY_STAKE_LAMPORTS, pre.yesPriceMicros);
+  const synchronizedGrossPayoutLamports = grossPayout(REPLAY_STAKE_LAMPORTS, post.yesPriceMicros);
+  const staleLiabilityLamports = staleGrossPayoutLamports - REPLAY_STAKE_LAMPORTS;
+  const synchronizedLiabilityLamports = synchronizedGrossPayoutLamports - REPLAY_STAKE_LAMPORTS;
+  return {
+    stakeLamports: REPLAY_STAKE_LAMPORTS,
+    staleGrossPayoutLamports,
+    synchronizedGrossPayoutLamports,
+    staleLiabilityLamports,
+    synchronizedLiabilityLamports,
+    excessStaleLiabilityLamports: staleLiabilityLamports - synchronizedLiabilityLamports,
+  };
 }
 
 function position(

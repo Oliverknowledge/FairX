@@ -1,35 +1,34 @@
-# FairX — selective stale-price protection on Solana
+# FairX — execution integrity for live sports markets
 
-FairX is an unaudited Solana devnet prototype. LineGuard evaluates each signed order against a newer committed price: only an order capturing excessive stale-price edge is refunded; honest accepted collateral remains in the market. **Devnet SOL only. No mainnet or real-money operation.**
+FairX is Solana infrastructure for prediction-market operators. If genuine TxLINE evidence advances before an executable quote catches up, the order's quote sequence no longer matches the market's required event sequence: its principal returns, no position liability is created, and synchronized orders continue. The sequence decision, liabilities, claims, and operator withdrawal are independently re-readable on Solana. **Unaudited devnet prototype only. No mainnet or real-money operation.**
+
+The current submission is **FairX Vault V4**: a fixed-payout, fully-collateralised market. An operator funds a liquidity vault; every accepted order's gross payout is frozen and its incremental liability reserved from free collateral before it can execute (the vault invariant `A = F + R + S` holds at every step). A genuine TxLINE material-event sequence (the France goal, sequence 739) invalidates the prior quote, so a stale-quote order entering afterward is refunded within a single instruction and can never claim.
 
 ## Current truth
 
-- **REAL / HISTORICAL:** the archived France–Morocco v2 run used genuine historical TxLINE evidence, a direct `ValidateStatV2` CPI, threshold resolution, a per-market vault and a wallet-owned Position.
-- **MISLEADING if called economically complete:** that v2 winner recovered only its own `0.01 SOL`; no losing counterparty funded the payout.
-- **REAL and independently verified:** the current devnet binary signs execution price, slippage, pricing/odds sequences and expiry; prices create pool shares; ephemeral user accounts close. The canonical 14-transaction three-wallet lifecycle is finalized and `/api/verify/v3-lifecycle` recomputes it from RPC as `VERIFIED`.
-- **REAL economics:** A's synchronized YES and B's synchronized NO were accepted; C's stale YES alone was refunded; YES resolved from TxLINE evidence; A received the full `0.02 SOL` accepted pool. Excluding equal setup funding, A finished `+0.01 SOL`, B `-0.01 SOL`, and C flat.
-- **HISTORICAL, not live:** the canonical TxLINE capture is a replay of fixture `18209181`, sequence `739`.
-- **REAL external reference, READ-ONLY:** the opening quote for the current France–Spain reference market is the public Polymarket order-book midpoint (`/reference`), recomputed from best bid/ask and hash-captured. It is an external reference, not FairX liquidity, not an oracle, and not routed to Polymarket. The France–Morocco proof stays TxLINE StablePrice history and is unchanged. See [POLYMARKET_REFERENCE.md](POLYMARKET_REFERENCE.md).
+Read this before the demo. Nothing below is exaggerated.
 
-The target lifecycle is:
+- **REAL and reproducible now — build:** a clean rebuild with the pinned toolchain produces byte-identical SBF (`sha256 7917273c…bffc71f0`, 422,040 bytes). `bash scripts/fairx-v4-reproducibility.sh`.
+- **REAL and reproducible now — TxLINE:** the genuine TxLINE devnet program (`6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`) validates all three settlement proofs — pre-goal odds, post-goal odds, and the final France 2–0 result — by **read-only RPC simulation**, each returning `true`. No transaction is signed or sent. `npm run v4:verify-proofs`.
+- **REAL on devnet now — deployment:** the executable V4 Program and ProgramData accounts are loader-owned; the temporary upload buffer was drained and purged by deployment. `/proof` reads this state live.
+- **LOCAL, exact-binary:** the full signed lifecycle and the void lifecycle both pass in LiteSVM against the exact deploy binary. `npm run v4:test-lifecycle`, `npm run v4:test-void`.
+- **DETERMINISTIC REPLAY UI:** `/markets/france-morocco-v4-replay` and `/portfolio` replay the fixed canonical scenario from recorded TxLINE and finalized V4 evidence. They do not submit new trades.
+- **LIVE DEVNET PROTOTYPE:** the V4 program is deployed and executable at `2x3vh…yF7p`. The 24-transaction France–Morocco lifecycle is finalized and independently re-verifies **20/20** from RPC, including the strict stale refund, fixed payouts, France 2–0 resolution, vault reconciliation, position closures and operator withdrawal.
+- **REAL, HISTORICAL predecessor:** an earlier LineGuard program (v2/v3) *was* deployed to devnet and independently RPC-verified for the France–Morocco lifecycle. V4 is a from-scratch, better-collateralised redesign; it does not reuse that program or claim its transactions as its own.
 
-```text
-Wallet A: synchronized YES accepted ─┐
-Wallet B: synchronized NO accepted  ├─ YES resolves → A receives A+B collateral
-Wallet C: stale exploit refunded ───┘             → B/C close their Position rent
-```
+The pricing model is a centrally-quoted, fully-collateralised fixed-payout vault — not an AMM or order book. TxLINE anchors the sports-event and final-result evidence; it does **not** attest FairX's prices, spread, or stale-edge policy.
 
-The pricing model is a price-weighted parimutuel pool, not an AMM or order book. Accepted shares are `stake × 1,000,000 / execution_price`; winners divide accepted collateral by winning shares. The pricing authority still supplies quotes.
+## What is deployed
+
+Program `2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p` and its 24-transaction France–Morocco lifecycle are live on devnet. The record contains real transaction signatures, account owners, receipts and balance deltas. This repo contains no signer keypair.
 
 ## Judge routes
 
-- `/` — problem and selective-refund thesis
-- `/walkthrough` — lifecycle and trust boundaries
-- `/markets/france-morocco-france-win` — archived v2 state, trading disabled
-- `/reference` — live Polymarket external reference quote + RECORDED-EVIDENCE proof (France–Spain)
-- `/proof` — v3 verifier first; archived v2 evidence second
-- `/portfolio` — wallet-owned positions and rent recovery
-- `/integrate` — exact implemented and missing capabilities
+- `/` — the operator problem, canonical economic counterfactual, and product thesis
+- `/markets/france-morocco-v4-replay` — the five-chapter historical replay (does not send transactions)
+- `/integrate` — the operator integration boundary and ownership model
+- `/proof` — live deployment, lifecycle, trust boundary, and reconciliation evidence
+- `/portfolio` — the four canonical position outcomes
 
 ## Verification
 
@@ -38,14 +37,14 @@ npm install
 npm run typecheck
 npm test
 npm run build
-NO_DNA=1 anchor test
-NO_DNA=1 cargo clippy --manifest-path programs/lineguard/Cargo.toml -- -D warnings
+npm run v4:verify-proofs      # read-only RPC: real TxLINE devnet program returns true for all three proofs
+npm run v4:test-lifecycle     # LiteSVM signed lifecycle against the exact deploy binary
+npm run v4:test-void          # LiteSVM void/refund lifecycle
+bash scripts/fairx-v4-reproducibility.sh   # full reproducible build + hash pinning (clean tree, pinned TxLINE .so)
 ```
-
-Use `NO_DNA=1 anchor test --validator legacy` for the full local suite with the cloned external TxLINE executable. The default validator profile skips that genuine CPI test.
 
 ## Deployment boundary
 
-The hardened binary was deployed to devnet at slot `475972063`; its dumped bytes exactly match local SHA-256 `1903958567efc17f3a31a2b3d6e4bcd594fe2f601b458ec82ec946badd3830cc`. The separate canonical lifecycle proves the deployed economic path. Upgrade authority remains `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`; it is neither frozen nor multisig-controlled. Server-side operator routes fail closed unless `LINEGUARD_OPERATOR_API_TOKEN` is configured.
+The V4 program is deployed but remains an unaudited devnet prototype. Its upgrade authority is a single devnet key (`ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`), neither frozen nor multisig-controlled. Any real-value use requires a multisig/frozen upgrade authority, managed signers, rate limits and an external audit.
 
 See [PRODUCT_TRUTH.md](PRODUCT_TRUTH.md), [ARCHITECTURE.md](ARCHITECTURE.md), [PROOF.md](PROOF.md), [TXLINE.md](TXLINE.md), and [DEPLOYMENT.md](DEPLOYMENT.md).

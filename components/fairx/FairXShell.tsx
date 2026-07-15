@@ -51,16 +51,15 @@ export function DevnetBadge({ className = "" }: { className?: string }) {
 export function FairXShell({ children, className = "", compact = false }: FairXShellProps) {
   const pathname = usePathname() ?? "/";
   const navigation = [
-    { href: "/", label: "Home" },
-    { href: `/markets/${V4_REPLAY_SLUG}`, label: "Replay market" },
-    { href: "/portfolio", label: "Positions" },
+    { href: `/markets/${V4_REPLAY_SLUG}`, label: "Replay" },
+    { href: "/integrate", label: "For operators" },
     { href: "/proof", label: "Proof" },
   ] as const;
 
   return (
     <div className="min-h-screen bg-(--surface)">
       <header className="border-b border-(--border) bg-white/90 backdrop-blur">
-        <div className="mx-auto flex min-h-[62px] max-w-[1380px] items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex min-h-[68px] max-w-[1380px] items-center gap-5 px-4 sm:px-6">
           <Link href="/" className="shrink-0" aria-label="FairX home">
             <FairXBrand />
           </Link>
@@ -72,7 +71,7 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                    className={`inline-flex min-h-11 items-center rounded-lg px-3 text-[11px] font-semibold transition-colors ${
                     active ? "bg-[#eef4ff] text-(--blue)" : "text-(--ink-2) hover:bg-[#f6f7f9] hover:text-(--ink)"
                   }`}
                 >
@@ -83,26 +82,19 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden rounded-full border border-[#d7e6ff] bg-[#f4f8ff] px-2.5 py-1 text-[10px] font-semibold text-[#245db8] sm:inline-flex">Local V4 replay</span>
-            <Link
-              href="/proof"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-(--blue) px-3 text-[11px] font-bold text-white transition-colors hover:bg-[#1d4ed8]"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.6} />
-              Verify Proof
-            </Link>
+            <span className="hidden rounded-full border border-[#d7e6ff] bg-[#f4f8ff] px-3 py-1.5 text-[10px] font-semibold text-[#245db8] sm:inline-flex"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" />V4 · Solana devnet</span>
           </div>
         </div>
 
-        <div className="border-t border-(--border) px-4 py-1.5 lg:hidden">
-          <nav className="mx-auto flex max-w-[1380px] items-center gap-1 overflow-x-auto" aria-label="Primary navigation">
+        <div className="border-t border-(--border) px-3 lg:hidden">
+          <nav className="mx-auto grid max-w-[520px] grid-cols-3 gap-1" aria-label="Primary navigation">
             {navigation.map((item) => {
               const active = isActive(pathname, item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`shrink-0 rounded-md px-2 py-1 text-[10.5px] font-semibold ${
+                  className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-[11px] font-semibold ${
                     active ? "bg-[#eef4ff] text-(--blue)" : "text-(--ink-2)"
                   }`}
                 >
@@ -110,7 +102,6 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
                 </Link>
               );
             })}
-            <Link href="/proof" className="shrink-0 rounded-md px-2 py-1 text-[10.5px] font-semibold text-(--blue)">Verify Proof</Link>
           </nav>
         </div>
       </header>
@@ -119,8 +110,8 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
 
       <footer className="mx-auto max-w-[1380px] px-4 pb-8 pt-8 text-[10px] leading-relaxed text-(--ink-3) sm:px-6">
         <div className="border-t border-(--border) pt-5 sm:flex sm:items-start sm:justify-between sm:gap-8">
-          <div><p className="font-semibold text-(--ink-2)">Isolated FairX V4 hackathon prototype</p><p className="mt-1">Recorded TxLINE replay only · unaudited · not deployed · no real-money settlement.</p></div>
-          <div className="mt-4 sm:mt-0"><p className="font-semibold text-(--ink-2)">Deliberately excluded</p><p className="mt-1">No market discovery, LP tokens, public creation, AMM, P2P matching, governance UI or analytics.</p></div>
+          <div><p className="font-semibold text-(--ink-2)">FairX · execution integrity for live sports markets</p><p className="mt-1">TxLINE historical replay · unaudited hackathon prototype · Solana devnet · no real-money settlement.</p></div>
+          <div className="mt-4 sm:mt-0"><p className="font-semibold text-(--ink-2)">Evidence before claims</p><p className="mt-1">Read the deployed program, finalized lifecycle and trust assumptions on <Link href="/proof" className="font-semibold underline-offset-2 hover:underline">Proof</Link>.</p></div>
         </div>
       </footer>
     </div>

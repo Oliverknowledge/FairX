@@ -9,11 +9,11 @@ skip-lint = false
 
 [programs.localnet]
 lineguard = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe"
-fairx_vault_v4 = "79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG"
+fairx_vault_v4 = "2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p"
 
 [programs.devnet]
 lineguard = "6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe"
-fairx_vault_v4 = "79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG"
+fairx_vault_v4 = "2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p"
 
 [provider]
 cluster = "localnet"

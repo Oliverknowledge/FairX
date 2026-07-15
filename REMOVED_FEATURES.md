@@ -1,12 +1,20 @@
 # Removed / demoted features — FairX simplification sprint
 
+> **V4 pivot note.** The submission is now **FairX Vault V4** (fixed-payout, fully-collateralised).
+> The public product is exactly four surfaces — `/` · `/markets/france-morocco-v4-replay` ·
+> `/portfolio` · `/proof`. The earlier LineGuard v2/v3 surfaces (`/walkthrough`, `/reference`,
+> `/operator`, `/terminal`, `/attack-lab`, `/integrate`, `/verify/[receiptId]`) now **server-redirect**
+> to the nearest V4 surface so a judge exploring URLs never meets a second, divergent product. Their
+> source and components remain in git history; nothing was deleted destructively. The sections below
+> document the earlier simplification sprint and remain accurate for that LineGuard product.
+
 This file records everything removed, demoted, or hidden during the product
 simplification sprint. **No genuine engineering was deleted.** Every capability
 listed as "demoted" or "hidden" still exists and is still reachable; it was only
 moved out of the primary attention path so the core story reads in three minutes.
 
-Objective: one unforgettable product — **FairX, impossible-to-exploit prediction
-markets** — not fewer files.
+Objective: one unforgettable product — **FairX, protected stale-information
+prediction markets** — not fewer files.
 
 ---
 
@@ -58,7 +66,7 @@ detail" row. None of it was weakened.
 | Change | Where | What happened |
 |---|---|---|
 | Static two-card example → live animation | `app/page.tsx`, new `components/fairx/ExploitAnimation.tsx` | The homepage centrepiece is now an animated side-by-side: the same stale-price snipe plays out on an ordinary market (retail loses) vs FairX (refunded → reprices → trading continues). Pure presentation, no data. Honours `prefers-reduced-motion`. |
-| Hero rewritten to the mental model | `app/page.tsx` | "Impossible-to-exploit prediction markets." + "It's like Polymarket — except a stale-price snipe gets refunded, not rewarded." One primary CTA (Trade), one secondary (Verify Proof). |
+| Hero rewritten to the mental model | `app/page.tsx` | An earlier absolute hero claim was retired; the current V4 hero says exactly what happens: fair trades settle and stale-goal attempts refund. |
 | How It Works collapsed to three sections | `app/walkthrough/page.tsx` | Was 9 steps across "Protected entry" + "Settlement". Now exactly **Capture · Protect · Verify**, one sentence each, answering "Why is this fair?". The technical-details disclosure was dropped from this page (the full evidence still lives on `/proof`). |
 | Trade jargon reduced | `components/fairx/DevnetMarket.tsx` | "Genuine TxLINE odds history / StablePrice de-margined · part1" → "Price history / France goal repriced YES 52¢ → 86¢". "Accepted collateral" → "Total staked"; "Pool payout estimate" → "Est. payout"; "Archived settled v2 market" → "Settled market · outcome verified on Solana". Same chart, plain language. No trade/wallet logic changed. |
 | Dead-end "MARKET RESOLVED" button fixed | `components/fairx/DevnetMarket.tsx` | The disabled grey button on the settled market became a live **"See how this market settled →"** link to `/proof`. Resolved-branch only; the live wallet/order path for an unresolved market is byte-identical. |

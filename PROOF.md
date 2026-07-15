@@ -1,38 +1,29 @@
-# FairX proof hierarchy
+# FairX V4 evidence hierarchy
 
-## Current canonical proof: v3 three-wallet lifecycle
+`/proof` separates reproducible artifacts, the deterministic replay, finalized V4 evidence and the historical V3 predecessor.
 
-`/proof` and `/api/verify/v3-lifecycle` independently verify the target lifecycle from Solana devnet. The verifier checks capture and Borsh hashes, program and ProgramData ownership/hash, TxLINE identities, market/vault/receipt/proposal fields, evidence timestamps, threshold approvals, transaction finality, account closures and wallet balance deltas.
+## 1. Real and reproducible today
 
-The canonical record is `fixtures/lineguard/v3-france-morocco-three-wallet.json`. Its 14 transactions are finalized. The verifier currently reports **VERIFIED** with 18 passed checks, zero failures and zero unknowns. It recomputes final wallet balances of A `0.06 SOL`, B `0.04 SOL`, and C `0.05 SOL`; excluding equal `0.05 SOL` setup funding, the economic deltas are `+0.01`, `-0.01`, and `0 SOL`.
+- **Reproducible build.** The pinned toolchain (Rust 1.89.0 · Anchor 1.1.2 · Solana 3.1.10 · platform tools 1.52) rebuilds a byte-identical SBF, `sha256 7917273c9c1dca1fb9f69f2b0f905b698fe69383913ca462d51f8888bffc71f0`, 422,040 bytes. `bash scripts/fairx-v4-reproducibility.sh`.
+- **Live TxLINE devnet validation.** The genuine TxLINE devnet program `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J` validates all three settlement proofs by read-only RPC simulation and returns `true`:
+  - pre-goal StablePrice odds (odds root `ACo4UtSFM5jtUeQwkrWuv7uDS9qeNVQv858eRBTKpHxh`)
+  - post-goal StablePrice odds (same odds root)
+  - final France 2–0 result, sequence 1114, `validate_stat_v2` (scores root `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`)
+  No transaction is signed or sent. `npm run v4:verify-proofs`.
+- **Deployed devnet program.** The executable Program and ProgramData accounts are live; the temporary upload buffer was drained and purged.
+- **Live deployment status.** `/proof` reads the program and buffer accounts on every load and reports `DEPLOYED` / `BUFFER_FUNDED` / `NOT_STARTED` / `UNKNOWN`. It never asserts deployment; RPC failure degrades to `UNKNOWN`.
+- **V4 lifecycle evidence.** The recorded fixture identifies 24 real finalized devnet transactions. The verifier re-fetches them and the durable accounts from RPC and currently returns `VERIFIED` for all 20 checks.
 
-The v3 record also proves `0.03 deposited = 0.01 refunded + 0.02 paid`, zero claimable collateral, zero rounding dust, and closure of all three Order and Position accounts. A temporary RPC outage changes the live verdict to **UNKNOWN**, not success.
+## 2. Deterministic replay UI
 
-## Archived v2 evidence
+The lifecycle on `/markets/france-morocco-v4-replay` and `/portfolio` is a deterministic replay using recorded TxLINE event, odds and final-result proofs. Ten invariants hold — fixture isolation, both StablePrice branches, the confirmed goal (seq 739), final-not-mid-game evidence (seq 1114, 2–0), regulation-time period 100, strict stale invalidation, frozen fixed payouts, every `A = F + R + S` snapshot, and final solvency.
 
-- Program: `6k8uu3N8Eedd26be6v96Dfs5H2YrikbhQe7sSz8HWdSe`
-- Deployed slot: `475831626`
-- Market: `GRP8PvhytfrXku1WW5bnaWDgS7L14A84qNG51kRB5E2j`
-- Vault: `2w9qFjUGNjdKjEw3tp9ko3SoCYdk19bwKoxixxZ6KyLb`
-- Position: `FvhAN2x2S1CNvAuu3EQDpQfnWg4cNXiGZkJySsqf9PMJ`
-- TxLINE fixture/sequence: `18209181` / `739` (historical)
-- Direct CPI: `ValidateStatV2` succeeded
-- Resolution: YES from France 1–0 Morocco, 2-of-3 approvals
-- Accounting: `0.02 deposited = 0.01 refunded + 0.01 paid + 0 remaining`
+Replay controls do not submit new trades. `/proof` separately verifies the real finalized devnet transactions.
 
-That accounting is solvent, but the accepted pool contained only the winner's own stake. The v2 record must never be used to claim that a winner captured a loser's collateral.
+## 3. Finalized on-chain proof
 
-## Polymarket reference-price proof (RECORDED EVIDENCE)
+Program `2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p` is deployed. The 24-transaction lifecycle is re-read from RPC — program bytes, real signatures, account owners, TxLINE receipts, settlement fields, balance deltas and closed positions — and currently verifies 20/20.
 
-`/reference` and `/api/reference-quotes/fifwc-fra-esp-2026-07-14-france-win/history` verify the bundled
-Polymarket reference capture. The verifier ([lib/polymarket/verify.ts](lib/polymarket/verify.ts))
-recomputes `rawPayloadHash`, `mappingHash`, `normalizedQuoteHash`, and `pricingPolicyHash`, and
-re-derives best bid/ask, midpoint, spread, depth, method and validity from the stored raw book. Four
-statuses must pass: mapping verified, fixture/YES-orientation verified, order-book integrity verified,
-reference quote verified. Tampering with any level, the midpoint, the mapping, the timestamp, or a hash
-fails verification (32 unit tests in `lib/polymarket/*.test.ts`).
+## Historical predecessor (not V4 evidence)
 
-This is **RECORDED EVIDENCE** — a bundled capture re-verified offline. It never re-fetches Polymarket,
-so it is never presented as **LIVE VERIFIED**. Live serving is labelled `LIVE`/`RECENTLY_CACHED`/
-`HISTORICAL_CAPTURE`/`UNAVAILABLE`. The reference midpoint is an external market reference, not an
-oracle; TxLINE remains the settlement source and this capture does not resolve the market.
+An earlier LineGuard v2/v3 program was deployed to devnet and independently RPC-verified for the France–Morocco three-wallet lifecycle. It demonstrates that the team ships and verifies on-chain settlement, but it is a **different program**; its transactions are never presented as V4 evidence.

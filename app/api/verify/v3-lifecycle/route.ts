@@ -6,6 +6,19 @@ import { verifyV3Lifecycle } from "@/lib/proof/v3LifecycleVerifier";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+let verificationInFlight: ReturnType<typeof verifyV3Lifecycle> | undefined;
+
+async function verifyOnceAtATime(record: unknown) {
+  if (verificationInFlight) return verificationInFlight;
+  const started = verifyV3Lifecycle(record);
+  verificationInFlight = started;
+  try {
+    return await started;
+  } finally {
+    if (verificationInFlight === started) verificationInFlight = undefined;
+  }
+}
+
 export async function GET(): Promise<Response> {
   let record: unknown;
   try {
@@ -13,7 +26,7 @@ export async function GET(): Promise<Response> {
   } catch {
     record = undefined;
   }
-  const verification = await verifyV3Lifecycle(record);
+  const verification = await verifyOnceAtATime(record);
   return Response.json(verification, {
     status: verification.status === "UNKNOWN" && !record ? 404 : 200,
     headers: { "Cache-Control": "no-store, max-age=0" },

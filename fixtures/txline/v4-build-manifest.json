@@ -1,10 +1,10 @@
 {
-  "programIdPlaceholder": "79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG",
-  "bootstrapAdminTestOnly": "GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB",
-  "sourceSha256": "36775266df2c802f73d6f346146cabffcbb262fb5b6e0734ee0b87c56655eeae",
-  "idlSha256": "acd583d9c26eaa01a03315d4e419bbbd68e8445876e8b74bd0bfed619c09bb33",
-  "typesSha256": "62b7ed2e58bd90158d1ffdd939f52d61883353138e948544c03b0ae485e45776",
-  "sbfSha256": "9981d882a96d4d38f50cb3cc5c1f10423cf8a3e77cdc6d56eecfaa25694fbb99",
+  "programId": "2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p",
+  "bootstrapAdmin": "ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq",
+  "sourceSha256": "13e0768f1ea151f67e04e9112b01eeaa8f0b09508b6684db776aeb86ace7b2ae",
+  "idlSha256": "cbe6360ce68440dfd4ad1dba3806d9d46e7121a9bde3bd326e86fbc9707e6ea6",
+  "typesSha256": "cd01c85a8cbd2d9a27e6796a52bbfe6c0435518e450fd2e6944517002d38fb6c",
+  "sbfSha256": "7917273c9c1dca1fb9f69f2b0f905b698fe69383913ca462d51f8888bffc71f0",
   "sbfSizeBytes": 422040,
   "toolchain": {
     "rust": "1.89.0",

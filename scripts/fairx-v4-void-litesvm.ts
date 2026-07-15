@@ -8,22 +8,25 @@ import {
   address,
   appendTransactionMessageInstructions,
   createKeyPairSignerFromPrivateKeyBytes,
+  createNoopSigner,
   createTransactionMessage,
   lamports,
+  partiallySignTransactionMessageWithSigners,
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
-  signTransactionMessageWithSigners,
   type Address,
   type Instruction,
   type KeyPairSigner,
+  type TransactionSigner,
 } from "@solana/kit";
 import { PublicKey } from "@solana/web3.js";
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from "litesvm";
 import fixture from "../fixtures/txline/v4-france-morocco-lifecycle.json";
 import pinned from "../fixtures/txline/v4-pinned-artifacts.json";
+import { deriveV4Pda, V4_BOOTSTRAP_ADMIN_PUBLIC_KEY, V4_PROGRAM_PUBLIC_KEY } from "../lib/v4/program";
 
-const V4_PROGRAM = new PublicKey("79fk2aNCbnGD9WSbMRfHK5KNqRKFwULeiyAPYcV17zyG");
+const V4_PROGRAM = V4_PROGRAM_PUBLIC_KEY;
 const TXLINE_PROGRAM = new PublicKey(pinned.txlineProgramId);
 const SYSTEM_PROGRAM = new PublicKey("11111111111111111111111111111111");
 const COMPUTE_BUDGET_PROGRAM = address("ComputeBudget111111111111111111111111111111");
@@ -39,7 +42,7 @@ const roles = {
 const bytes32 = (label: string): number[] => [...createHash("sha256").update(label).digest()];
 const u64le = (value: bigint) => { const buffer = Buffer.alloc(8); buffer.writeBigUInt64LE(value); return buffer; };
 const kitAddress = (key: PublicKey): Address => address(key.toBase58());
-const pda = (...seeds: Buffer[]) => PublicKey.findProgramAddressSync(seeds, V4_PROGRAM)[0];
+const pda = deriveV4Pda;
 const proofNodes = (nodes: ProofNode[]) => nodes.map((node) => ({ hash: node.hash, is_right_sibling: node.isRightSibling }));
 const testSigner = (byte: number) => createKeyPairSignerFromPrivateKeyBytes(new Uint8Array(32).fill(byte), true);
 const field = <T>(record: Record<string, unknown>, snake: string, camel: string): T => {
@@ -111,15 +114,18 @@ async function main() {
   }
 
   const signerList: KeyPairSigner[] = [];
-  for (let byte = 7; byte <= 15; byte += 1) signerList.push(await testSigner(byte));
-  const [adminSigner, operatorSigner, feedSigner, pricingSigner, resolutionASigner, resolutionBSigner, resolutionCSigner, traderASigner, traderBSigner] = signerList;
-  const admin = new PublicKey(adminSigner.address);
+  for (let byte = 8; byte <= 16; byte += 1) signerList.push(await testSigner(byte));
+  const [operatorSigner, feedSigner, pricingSigner, resolutionASigner, resolutionBSigner, resolutionCSigner, traderASigner, traderBSigner] = signerList;
+  const bootstrapSigner = createNoopSigner(address(V4_BOOTSTRAP_ADMIN_PUBLIC_KEY.toBase58()));
+  const allSigners: TransactionSigner[] = [bootstrapSigner, ...signerList];
+  const admin = V4_BOOTSTRAP_ADMIN_PUBLIC_KEY;
   const operator = new PublicKey(operatorSigner.address);
   const feed = new PublicKey(feedSigner.address);
   const pricing = new PublicKey(pricingSigner.address);
   const resolution = [resolutionASigner, resolutionBSigner, resolutionCSigner].map((signer) => new PublicKey(signer.address));
   const traders = [new PublicKey(traderASigner.address), new PublicKey(traderBSigner.address)];
-  const signerByAddress = new Map(signerList.map((signer) => [signer.address, signer]));
+  const signerByAddress = new Map(allSigners.map((signer) => [signer.address, signer]));
+  svm.airdrop(bootstrapSigner.address, lamports(2_000_000_000n));
   for (const signer of signerList) svm.airdrop(signer.address, lamports(2_000_000_000n));
 
   const marketId = Buffer.from(bytes32("fairx-v4-france-morocco"));
@@ -138,15 +144,20 @@ async function main() {
     data: new Uint8Array(instructionCoder.encode(name, args)),
   });
   const send = async (label: string, payer: PublicKey, instructions: Instruction[], expectFailure = false) => {
-    const payerSigner = signerByAddress.get(kitAddress(payer));
+    const payerSigner = payer.equals(admin) ? operatorSigner : signerByAddress.get(kitAddress(payer));
     assert(payerSigner);
     const message = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayerSigner(payerSigner, tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: svm.latestBlockhash(), lastValidBlockHeight: 999_999n }, tx),
-      (tx) => appendTransactionMessageInstructions(instructions.map((ix) => addSignersToInstruction(signerList, ix)), tx),
+      (tx) => appendTransactionMessageInstructions(instructions.map((ix) => addSignersToInstruction(allSigners, ix)), tx),
     );
-    const result = svm.sendTransaction(await signTransactionMessageWithSigners(message));
+    const partial = await partiallySignTransactionMessageWithSigners(message);
+    const transaction = {
+      ...partial,
+      signatures: Object.fromEntries(Object.entries(partial.signatures).map(([key, signature]) => [key, signature ?? new Uint8Array(64)])),
+    };
+    const result = svm.sendTransaction(transaction);
     if (expectFailure) {
       assert(result instanceof FailedTransactionMetadata, `${label} unexpectedly succeeded`);
       return;
@@ -163,13 +174,17 @@ async function main() {
     initial_material_event_sequence: new BN(738), operator, feed_authority: feed, pricing_authority: pricing,
     resolution_authorities: resolution, resolution_threshold: 2,
   };
+  // The external bootstrap private key is never loaded. Only this initialization transaction uses
+  // its public no-op signer with signature verification disabled; verification resumes immediately.
+  svm.withSigverify(false);
   await send("initialize", admin, [makeIx("initialize_market_v4", { args: initArgs }, [[admin, roles.writableSigner], [authorityConfig, roles.writable], [market, roles.writable], system])]);
+  svm.withSigverify(true);
   await send("initialize vault", operator, [makeIx("initialize_liquidity_vault", { min_stake_lamports: new BN(1_000_000), max_stake_lamports: new BN(100_000_000) }, [[operator, roles.writableSigner], [authorityConfig, roles.readonly], [market, roles.readonly], [vault, roles.writable], system])]);
   await send("deposit", operator, [makeIx("deposit_liquidity", { amount: new BN(200_000_000) }, [[operator, roles.writableSigner], [authorityConfig, roles.readonly], [market, roles.readonly], [vault, roles.writable], system])]);
   const quote = { args: { quote_sequence: new BN(1), material_event_sequence: new BN(738), spread_micros: new BN(10_000), odds: odds(fixture.preGoalOddsValidation) } };
   await send("commit quote", pricing, [makeIx("commit_txline_quote", quote, [[pricing, roles.signer], [authorityConfig, roles.readonly], [market, roles.writable]])]);
   const verify = { args: { quote_sequence: new BN(1), odds: odds(fixture.preGoalOddsValidation), summary: oddsSummary(fixture.preGoalOddsValidation), sub_tree_proof: proofNodes(fixture.preGoalOddsValidation.subTreeProof), main_tree_proof: proofNodes(fixture.preGoalOddsValidation.mainTreeProof) } };
-  await send("verify quote", admin, [computeIx, makeIx("verify_txline_quote", verify, [[admin, roles.writableSigner], [market, roles.writable], [new PublicKey(pinned.oddsRoot.pda), roles.readonly], [TXLINE_PROGRAM, roles.readonly], [quoteReceipt, roles.writable], system])]);
+  await send("verify quote", operator, [computeIx, makeIx("verify_txline_quote", verify, [[operator, roles.writableSigner], [market, roles.writable], [new PublicKey(pinned.oddsRoot.pda), roles.readonly], [TXLINE_PROGRAM, roles.readonly], [quoteReceipt, roles.writable], system])]);
   const encodedQuote = instructionCoder.encode("commit_txline_quote", quote);
   const quoteHash = [...createHash("sha256").update(encodedQuote.subarray(32)).digest()];
   for (const [index, side, price] of [[0, 0, 532_785], [1, 1, 487_215]] as const) {
@@ -229,29 +244,37 @@ async function main() {
     assert(account);
     staleSvm.setAccount(account);
   }
+  staleSvm.airdrop(bootstrapSigner.address, lamports(2_000_000_000n));
   for (const signer of signerList) staleSvm.airdrop(signer.address, lamports(2_000_000_000n));
   const staleSend = async (label: string, payer: PublicKey, instructions: Instruction[], expectFailure = false) => {
-    const payerSigner = signerByAddress.get(kitAddress(payer));
+    const payerSigner = payer.equals(admin) ? operatorSigner : signerByAddress.get(kitAddress(payer));
     assert(payerSigner);
     const message = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayerSigner(payerSigner, tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: staleSvm.latestBlockhash(), lastValidBlockHeight: 999_999n }, tx),
-      (tx) => appendTransactionMessageInstructions(instructions.map((ix) => addSignersToInstruction(signerList, ix)), tx),
+      (tx) => appendTransactionMessageInstructions(instructions.map((ix) => addSignersToInstruction(allSigners, ix)), tx),
     );
-    const result = staleSvm.sendTransaction(await signTransactionMessageWithSigners(message));
+    const partial = await partiallySignTransactionMessageWithSigners(message);
+    const transaction = {
+      ...partial,
+      signatures: Object.fromEntries(Object.entries(partial.signatures).map(([key, signature]) => [key, signature ?? new Uint8Array(64)])),
+    };
+    const result = staleSvm.sendTransaction(transaction);
     if (expectFailure) {
       assert(result instanceof FailedTransactionMetadata, `${label} unexpectedly succeeded`);
       return;
     }
     if (result instanceof FailedTransactionMetadata) throw new Error(`${label}: ${result.err()}\n${result.meta().prettyLogs()}`);
   };
+  staleSvm.withSigverify(false);
   await staleSend("stale scenario initialize", admin, [makeIx("initialize_market_v4", { args: initArgs }, [[admin, roles.writableSigner], [authorityConfig, roles.writable], [market, roles.writable], system])]);
+  staleSvm.withSigverify(true);
   await staleSend("stale scenario commit pre-event quote", pricing, [makeIx("commit_txline_quote", quote, [[pricing, roles.signer], [authorityConfig, roles.readonly], [market, roles.writable]])]);
   const eventIx = makeIx("ingest_material_event_v4", { sequence: new BN(739), source_ts: new BN(fixture.goal.ts), payload_hash: [...Buffer.from(fixture.goal.sourcePayloadSha256, "hex")] }, [[feed, roles.signer], [authorityConfig, roles.readonly], [market, roles.writable]]);
   await staleSend("event wins race", feed, [eventIx]);
   await staleSend("duplicate event rejected", feed, [eventIx], true);
-  await staleSend("historical old quote proof remains valid", admin, [computeIx, makeIx("verify_txline_quote", verify, [[admin, roles.writableSigner], [market, roles.writable], [new PublicKey(pinned.oddsRoot.pda), roles.readonly], [TXLINE_PROGRAM, roles.readonly], [quoteReceipt, roles.writable], system])]);
+  await staleSend("historical old quote proof remains valid", operator, [computeIx, makeIx("verify_txline_quote", verify, [[operator, roles.writableSigner], [market, roles.writable], [new PublicKey(pinned.oddsRoot.pda), roles.readonly], [TXLINE_PROGRAM, roles.readonly], [quoteReceipt, roles.writable], system])]);
   const staleMarketAccount = staleSvm.getAccount(kitAddress(market));
   const staleReceiptAccount = staleSvm.getAccount(kitAddress(quoteReceipt));
   assert(staleMarketAccount && staleReceiptAccount);
@@ -260,10 +283,10 @@ async function main() {
   assert.equal(field(staleMarket, "quote_verified", "quoteVerified"), false);
   assert.equal(field(staleReceipt, "direct_cpi_verified", "directCpiVerified"), true);
   assert.equal(field(staleReceipt, "currently_executable", "currentlyExecutable"), false);
-  await staleSend("duplicate quote verification rejected", admin, [computeIx, makeIx("verify_txline_quote", verify, [[admin, roles.writableSigner], [market, roles.writable], [new PublicKey(pinned.oddsRoot.pda), roles.readonly], [TXLINE_PROGRAM, roles.readonly], [quoteReceipt, roles.writable], system])], true);
+  await staleSend("duplicate quote verification rejected", operator, [computeIx, makeIx("verify_txline_quote", verify, [[operator, roles.writableSigner], [market, roles.writable], [new PublicKey(pinned.oddsRoot.pda), roles.readonly], [TXLINE_PROGRAM, roles.readonly], [quoteReceipt, roles.writable], system])], true);
 
   console.log(JSON.stringify({
-    mode: "signed LiteSVM VOID lifecycle",
+    mode: "LiteSVM exact-binary VOID lifecycle; public no-op bootstrap signer only during initialization, signature verification enabled thereafter",
     externalTransactionsSent: false,
     checks: {
       prematureVoidRejected: true, deterministicReasonEnforced: true, oneAuthorityRejected: true,

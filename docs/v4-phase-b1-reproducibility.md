@@ -1,6 +1,13 @@
-# FairX Vault V4 Phase B.1 reproducibility
+# FairX Vault V4 Phase C reproducibility
 
-This is the isolated France–Morocco test build. It is not deployment authorization.
+> Historical build-gate record: this document describes the pre-deployment reproducibility gate.
+> Deployment and the canonical lifecycle subsequently completed; see
+> `docs/v4-phase-c-deployment-plan.md` for the finalized devnet record.
+
+This was the isolated France–Morocco deployment-candidate build. At this gate it was not deployment
+authorization, and no transaction had yet been signed or sent.
+
+The transaction and signer plan is recorded in `docs/v4-phase-c-deployment-plan.md`.
 
 ## Pinned toolchain
 
@@ -11,19 +18,19 @@ This is the isolated France–Morocco test build. It is not deployment authoriza
 
 `Cargo.lock`, `package-lock.json`, the TxLINE root snapshots, and their hashes are repository inputs.
 
-## Bootstrap administrator
+## Approved public identities
 
-The B.1 binary contains the deliberately public test-only address
-`GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB`. Its deterministic test seed is public and it must
-never secure a deployment.
+The V4 program ID is `2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p`.
+The compiled bootstrap administrator is `ELayKfQEmK6DoEeqn3Di5uzsoNu25KNytAv44qBtbrbq`.
+Only these public values are repository inputs. Their private keypairs remain external.
 
-Before the final Phase C reproducible build:
+The final Phase C reproducible build:
 
-1. Generate the real bootstrap administrator in an approved external wallet or HSM workflow.
-2. Insert only its public key bytes into `BOOTSTRAP_ADMIN` in `programs/fairx_vault_v4/src/lib.rs`.
-3. Never copy its seed, secret key, or keypair JSON into this repository or test environment.
-4. Rebuild twice from clean checkouts and update `v4-build-manifest.json` only if both SBF hashes match.
-5. Obtain explicit deployment approval for that public key, the final program ID, binary hash, and transaction budget.
+1. Compiles the approved bootstrap public key into `BOOTSTRAP_ADMIN`.
+2. Prevents creation of `fairx_vault_v4-keypair.json` during the SBF build.
+3. Never copies a seed, secret key, or keypair JSON into the repository or test environment.
+4. Pins the program ID, bootstrap administrator, IDL hash, generated type hash, binary hash, and binary size in `v4-build-manifest.json`.
+5. Requires separate approval before any deployment transaction is constructed, signed, or sent.
 
 ## TxLINE executable provenance
 
@@ -53,10 +60,14 @@ From a clean checkout with the pinned TxLINE executable present:
 bash scripts/fairx-v4-reproducibility.sh
 ```
 
-The script refuses a dirty tree, checks that no V4 keypair exists, regenerates the IDL, builds SBF
+The script refuses a dirty tree, checks that no V4 keypair exists, verifies both approved public
+identities, regenerates the IDL, builds SBF
 behind a directory sentinel that prevents keypair creation, verifies all expected hashes, runs both
 signed LiteSVM lifecycles, typechecks, and performs the production web build.
 
-LiteSVM signature verification covers deterministic local test signers and transaction signatures.
-It does not prove devnet loader behavior, cluster feature parity, compute pricing, RPC availability,
-or the final live TxLINE program/root state.
+The bootstrap private key remains external. The harness uses a public no-op signer and disables
+LiteSVM signature verification only for `initialize_market_v4`; it immediately restores signature
+verification for every subsequent lifecycle transaction. This proves the compiled public-key check
+without possessing the real bootstrap key. It does not prove control of that key, devnet loader
+behavior, cluster feature parity, compute pricing, RPC availability, or the final live TxLINE
+program/root state.

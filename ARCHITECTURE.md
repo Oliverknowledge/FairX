@@ -1,53 +1,44 @@
-# FairX architecture
+# FairX V4 architecture
 
 ```text
-historical TxLINE capture ──> deterministic odds transform ──> pricing authority commit
+historical TxLINE capture ──> recorded StablePrice odds proofs ──> operator commits quote
                                       │
-wallet signs price + slippage + pricing/odds sequences + expiry
+operator funds liquidity vault; every accepted order freezes gross payout and
+reserves (gross − stake) from free collateral BEFORE it can execute
                                       │
-                         LineGuard evaluates atomically
-                         ├─ excessive stale edge → refund trader; close order
-                         └─ acceptable quote → isolated vault + price-weighted shares
-                                                        │
-feed closes market → direct TxLINE ValidateStatV2 CPI → derived outcome
-                                                        │
-                         2-of-3 resolution approval → winners divide pool
-                                                        │
-                         claim/close Position → user rent recovered
+                         place_fixed_payout_order evaluates atomically
+                         ├─ quote stale (event sequence advanced) → refund trader; no durable vault change
+                         └─ quote current → FixedPayoutPosition; liability reserved
+                                      │
+genuine material event (France goal, seq 739) ──> ingest_material_event_v4 invalidates prior quote
+                                      │
+final result (seq 1114, 2–0) ──> prove_resolution_with_txline_v4 (direct ValidateStatV2 CPI)
+                                      │
+                         2-of-3 approval ──> execute_resolution ──> winners claim frozen payout
+                                      │
+                         losers reconciled; operator withdraws only free collateral; positions close
 ```
 
-## Authority and custody boundaries
+## The vault invariant
 
-- Market snapshots feed, pricing, emergency and three resolution authorities so later config changes cannot silently rewrite an existing market's trust model.
-- Emergency can only void/refund; it cannot choose a winner.
-- Each market uses an isolated vault. Claims are non-expiring and the final winner receives integer remainder dust.
-- Trader is part of Order PDA seeds. Evaluation is permissionless after placement so an absent operator cannot strand escrow.
-- Orders close on evaluation/cancel; winning Positions close on claim; empty/losing/legacy-settled Positions have explicit rent recovery paths.
+At every transition the vault satisfies `A = F + R + S`:
+- `A` spendable balance, `F` free collateral, `R` reserved liability, `S` accepted stake principal.
+
+YES and NO liabilities are reserved **independently** — the market is intentionally over-collateralised (no outcome netting), so the operator can never be short a payout. Free collateral is the only withdrawable amount; accepted stake and reserved liability are never touched by a withdrawal.
 
 ## Economic model
 
-Accepted pool shares equal `stake_lamports × 1,000,000 / execution_price_micros`. Winning payouts divide total accepted collateral by winning shares. This is solvent and makes the signed price economically meaningful, but it is a centrally quoted parimutuel pool—not an AMM or order book.
+A centrally-quoted, fully-collateralised **fixed-payout vault**: the operator supplies both the quote and every payout liability, so an honest fill wins a real payout from operator liquidity rather than merely recovering its stake. This is not an AMM, order book, or permissionless price oracle.
 
-## External reference price (Polymarket)
+## Authority and custody boundaries
 
-```text
-Polymarket public order book ──> recomputed midpoint ──> reference-quote capture (hashed)
-                                      │
-                    commit_txline_odds_v2 (odds_sequence + odds_payload_hash + fair_price_micros)
-                                      │
-                    wallet signs expected_odds_sequence + price + slippage + expiry (place_order_v2)
-```
-
-The canonical opening quote can be sourced from the midpoint of an equivalent Polymarket market
-instead of the operator heuristic. It rides the **already-deployed** LineGuard V2 pricing slot, so no
-program upgrade is required. FairX holds no Polymarket liquidity, routes no orders to Polymarket, and
-custodies no Polygon assets; the midpoint is an external reference, not an oracle. See
-[POLYMARKET_REFERENCE.md](POLYMARKET_REFERENCE.md).
+- The market snapshots its feed, pricing, emergency and three resolution authorities at init, so later config changes cannot rewrite an existing market's trust model.
+- Emergency can only void/refund; it cannot choose a winner. Void requires a deterministic reason and 2-of-3 approval; refunds return principal and cannot double-spend.
+- Trader and a persistent order nonce are part of the position PDA seeds, blocking order-id reuse. Terminal positions (claimed / lost / refunded / voided) close and return rent to the owner; accepted positions cannot close.
 
 ## Trust boundaries
 
-- TxLINE validates historical result evidence; it does not attest FairX's prices or stale-edge policy.
-- Pricing, feed ingestion and resolution submission remain operator services.
-- The upgrade authority is retained by one devnet key, not frozen or controlled by a multisig.
-- Malicious frontend/RPC risk is reduced by wallet-signed constraints, simulation/finalized confirmation and an independent verifier, not eliminated.
-- Program is unaudited and devnet-only.
+- TxLINE validates historical result evidence; it does **not** attest FairX's prices, spread, or stale-edge policy.
+- Pricing, feed ingestion and resolution submission are operator services.
+- The upgrade authority is a single devnet key, not frozen or multisig.
+- The program is deployed on devnet with a finalized canonical lifecycle, but remains unaudited, upgradeable, single-operator, and unsuitable for real-value custody.

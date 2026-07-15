@@ -59,6 +59,12 @@ function accountDelta(transaction: VersionedTransactionResponse, address: string
   return transaction.meta.postBalances[index] - transaction.meta.preBalances[index];
 }
 
+function accountPostBalance(transaction: VersionedTransactionResponse, address: string): number | null {
+  const index = keysFor(transaction).indexOf(address);
+  if (index < 0 || !transaction.meta) return null;
+  return transaction.meta.postBalances[index];
+}
+
 function rpcUnavailable(error: unknown): boolean {
   return /429|too many requests|fetch failed|network|econn|etimedout|socket|rpc unavailable/i.test(error instanceof Error ? error.message : String(error));
 }
@@ -197,7 +203,11 @@ export async function verifyV3Lifecycle(record: unknown, rpcUrl = process.env.SO
       "The record contains exactly the 14 required, uniquely signed, finalized lifecycle steps.",
     );
     const fetched: Array<VersionedTransactionResponse | null> = [];
-    for (const [, transaction] of entries) fetched.push(await getFinalizedTransaction(connection, transaction.signature));
+    const transactionPaceMs = Math.max(0, Number(process.env.V3_RPC_TX_PACE_MS ?? 400));
+    for (const [, transaction] of entries) {
+      fetched.push(await getFinalizedTransaction(connection, transaction.signature));
+      if (transactionPaceMs > 0) await new Promise((resolve) => setTimeout(resolve, transactionPaceMs));
+    }
     const missing = fetched.filter((tx) => tx === null).length;
     if (missing) {
       checks.push({ id: "transactions", label: "Finalized lifecycle transactions", status: "UNKNOWN", detail: `${missing} recorded transaction(s) were unavailable from this RPC; absence is not treated as verification.` });
@@ -261,8 +271,20 @@ export async function verifyV3Lifecycle(record: unknown, rpcUrl = process.env.SO
           ? `Excluding equal setup funding: A ${lifecycleDeltas.A}, B ${lifecycleDeltas.B}, C ${lifecycleDeltas.C} lamports. Operator pays transaction fees; all user-account rent must net to zero.`
           : "The dedicated-wallet funding transaction was missing.",
       );
-      const finalWalletInfos = await connection.getMultipleAccountsInfo(["A", "B", "C"].map((key) => new PublicKey(proof.wallets[key as "A" | "B" | "C"].address)), "finalized");
-      add("final-balances", "Dedicated-wallet final balances", finalWalletInfos[0]?.lamports === proof.wallets.A.balanceAfterLamports && finalWalletInfos[1]?.lamports === proof.wallets.B.balanceAfterLamports && finalWalletInfos[2]?.lamports === proof.wallets.C.balanceAfterLamports, "Current dedicated test-wallet balances match the finalized lifecycle record.");
+      const recordedFinalBalances = (Object.keys(walletDeltas) as Array<keyof typeof walletDeltas>).map((key) => {
+        const address = proof.wallets[key].address;
+        for (let index = complete.length - 1; index >= 0; index -= 1) {
+          const balance = accountPostBalance(complete[index], address);
+          if (balance !== null) return [key, balance] as const;
+        }
+        return [key, null] as const;
+      });
+      add(
+        "final-balances",
+        "Recorded lifecycle final balances",
+        recordedFinalBalances.every(([key, balance]) => balance === proof.wallets[key].balanceAfterLamports),
+        "Each wallet's post-balance in its final recorded V3 transaction matches the lifecycle record; later wallet reuse cannot invalidate historical evidence.",
+      );
     }
   } catch (error) {
     checks.push({ id: "onchain", label: "On-chain proof accounts", status: rpcUnavailable(error) ? "UNKNOWN" : "FAILED", detail: error instanceof Error ? error.message : String(error) });

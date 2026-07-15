@@ -1,110 +1,78 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ExternalLink, GitBranch, Radio, ShieldCheck, Timer, Wrench } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  CircleDollarSign,
+  Code2,
+  Database,
+  ExternalLink,
+  Radio,
+  ShieldCheck,
+  SlidersHorizontal,
+  Vault,
+} from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
-import { RuntimeStatusStrip } from "@/components/fairx/RuntimeStatusStrip";
-import { proofData } from "@/lib/proof/staticProofData";
+import {
+  canonicalStaleCounterfactual,
+  V4_PROGRAM_ID,
+  V4_REPLAY_SLUG,
+} from "@/lib/v4/replay";
 
 export const metadata: Metadata = {
-  title: "Integrate LineGuard",
-  description: "The current LineGuard integration flow, deployed devnet capabilities, and honest production gaps.",
+  title: "For prediction-market operators",
+  description: "How operators use FairX to bind live-sports order execution to verified TxLINE event sequences on Solana.",
 };
 
-const instructions = `// Deployed FairX v2 instruction path
-initialize_authorities(feed, pricing, [resolutionA, B, C], emergency, 2)
-initialize_market_v2(MATCH_WINNER_HOME_V1, fixture commitments,
-                     odds payload + pricing model hashes)
-place_order_v2(order_id, side, stake, max_edge,
-               expected_price, max_slippage,
-               pricing_seq, odds_seq, expiry_slot)
-evaluate_order_v2() // exact refund or price-weighted Position; Order closes
-cancel_order_v2()   // trader timeout recovery; Order closes
-reprice_market_v2()
-close_market_v2()
-prove_resolution_with_txline_v2(borsh_payload_hash, payload)
-  // CPI → fixed TxLINE ValidateStatV2; derives outcome internally
-approve_resolution_v2() // second distinct authority
-execute_resolution_v2() // requires 2-of-3
-claim_position_v2()     // winner signs; MarketVault pays; Position closes
-close_losing_position_v2() / close_empty_position_v2()`;
+const explorerProgram = `https://explorer.solana.com/address/${V4_PROGRAM_ID}?cluster=devnet`;
 
-const liveNow = [
-  "MATCH_WINNER_HOME_V1 template and deterministic TxLINE price commitments",
-  "Wallet-signed price, slippage, pricing sequence, odds sequence, and expiry constraints",
-  "Positive-edge stale-order refund to the trader",
-  "Price-weighted pool shares and isolated per-market MarketVault accounting",
-  "Direct TxLINE ValidateStatV2 CPI and internally derived outcome",
-  "2-of-3 resolution approval, owner-signed claims, and explicit account-rent recovery",
-];
-
-const planned = [
-  "Production oracle decentralization",
-  "Complete counterparty matching or AMM/order book",
-  "Mainnet deployment, independent security audit, and real-money operation",
-];
-
-const flow = [
-  ["1", "Initialize template", "Commit fixture, teams, stat keys, pricing and materiality hashes."],
-  ["2", "Escrow user order", "The trader signs and owns its OrderEscrowV2 and Position PDA."],
-  ["3", "Evaluate", "Refund stale positive edge or accept into the isolated MarketVault."],
-  ["4", "Reprice and close", "Synchronize the quote, then the feed authority closes trading."],
-  ["5", "Validate through CPI", "Invoke TxLINE ValidateStatV2 with the exact Borsh payload."],
-  ["6", "Approve", "Two distinct resolution authorities approve the derived outcome."],
-  ["7", "Resolve", "Execute only the CPI-derived result after threshold."],
-  ["8", "Claim and verify", "The Position owner claims; verify market-vault conservation."],
-];
+function exactSol(lamports: bigint) {
+  return `${(Number(lamports) / 1_000_000_000).toFixed(9)} SOL`;
+}
 
 export default function IntegratePage() {
+  const economics = canonicalStaleCounterfactual();
   return (
-    <FairXShell>
-      <div className="mx-auto max-w-[1120px] space-y-4">
-        <header className="flex flex-col gap-4 border-b border-(--border) pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="section-label">LineGuard protocol integration</p>
-            <h1 className="mt-2 text-[30px] font-extrabold tracking-[-0.05em] text-(--ink)">Add selective stale-order protection.</h1>
-            <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-(--ink-2)">FairX demonstrates LineGuard. A prediction market can integrate the same settlement guard while keeping its own discovery, pricing, and matching layer.</p>
-          </div>
-          <Link href="/walkthrough" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-(--ink) px-4 text-[11px] font-bold text-white hover:bg-[#273244]">Run the proof walkthrough <ArrowRight className="h-3.5 w-3.5" /></Link>
+    <FairXShell compact>
+      <div className="mx-auto max-w-[1120px]">
+        <header className="grid gap-8 border-b border-(--border) pb-10 pt-3 lg:grid-cols-[1fr_.8fr] lg:items-end">
+          <div><p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-(--blue)"><Code2 className="h-4 w-4" />For prediction-market operators</p><h1 className="mt-4 max-w-3xl text-[40px] font-extrabold leading-[.99] tracking-[-.055em] sm:text-[60px]">Add event-sequence protection without replacing your market.</h1><p className="mt-5 max-w-2xl text-[14px] leading-7 text-(--ink-2)">FairX is not an order book, pricing model, or consumer exchange. It is the Solana execution and settlement layer that decides whether an order&apos;s quote sequence is still eligible.</p></div>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5"><p className="text-[9px] font-bold uppercase tracking-[.08em] text-blue-700">The integration contract</p><p className="mt-3 text-[20px] font-extrabold tracking-[-.03em] text-blue-950">Quote sequence = latest verified material-event sequence</p><p className="mt-3 text-[10.5px] leading-5 text-blue-950/70">Match: the position opens and its fixed liability is reserved. Mismatch: principal returns and no position liability is created.</p></div>
         </header>
 
-        <RuntimeStatusStrip detailed />
-
-        <section className="grid gap-3 lg:grid-cols-2">
-          <CapabilityCard title="Implemented in this repository — confirm deployment above" tone="green" items={liveNow} />
-          <CapabilityCard title="Still required for production" tone="amber" items={planned} />
+        <section className="py-12 sm:py-16">
+          <div className="max-w-2xl"><p className="section-label text-(--blue)">What an operator integrates</p><h2 className="mt-3 text-[32px] font-extrabold tracking-[-.045em] sm:text-[44px]">Four boundaries. Existing market UX stays yours.</h2></div>
+          <ol className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-(--border) bg-(--border) md:grid-cols-4">
+            <IntegrationStep index="01" icon={Radio} title="Bind the fixture" detail="Configure the market against genuine TxLINE fixture identity and source evidence." />
+            <IntegrationStep index="02" icon={SlidersHorizontal} title="Publish a quote" detail="Bind the executable price to the latest verified material-event sequence." />
+            <IntegrationStep index="03" icon={ShieldCheck} title="Submit an order" detail="The V4 program compares sequences before creating a durable position liability." />
+            <IntegrationStep index="04" icon={Vault} title="Resolve and reconcile" detail="Valid positions settle; claims and operator withdrawal remain program-constrained." />
+          </ol>
         </section>
 
-        <section className="card p-4 sm:p-5">
-          <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-(--blue)" /><p className="section-label">Integration flow</p></div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {flow.map(([n, title, body]) => <div key={n} className="rounded-lg border border-(--border) bg-[#fbfcfe] p-3"><span className="mono text-[9px] font-bold text-(--blue)">{n.padStart(2, "0")}</span><h2 className="mt-1 text-[11.5px] font-bold text-(--ink)">{title}</h2><p className="mt-1 text-[9.5px] leading-relaxed text-(--ink-3)">{body}</p></div>)}
-          </div>
+        <section className="grid gap-5 lg:grid-cols-[1.05fr_.95fr]">
+          <div className="rounded-3xl border border-slate-800 p-6 text-white sm:p-8" style={{ backgroundColor: "#0c1425" }}><p className="text-[9px] font-bold uppercase tracking-[.1em] text-emerald-300">Canonical operator economics</p><h2 className="mt-3 text-[30px] font-extrabold tracking-[-.04em]">Protection is measurable, not a fairness slogan.</h2><dl className="mt-7 space-y-4"><Metric label="Stale order principal" value={exactSol(economics.stakeLamports)} /><Metric label="Liability if old-price YES were accepted" value={exactSol(economics.staleLiabilityLamports)} /><Metric label="Recorded liability created by returned order" value="0.000000000 SOL" /><Metric label="Next synchronized order" value="Accepted at 87.48%" /></dl><p className="mt-6 border-t border-white/10 pt-5 text-[10px] leading-5 text-slate-400">The first liability is a counterfactual derived from the canonical payout formula. The returned principal and zero created liability are recorded lifecycle outcomes.</p></div>
+          <div className="rounded-3xl border border-(--border) bg-white p-6 sm:p-8"><p className="section-label">Scope you keep</p><h2 className="mt-3 text-[30px] font-extrabold tracking-[-.04em]">FairX does not pretend to be the whole exchange.</h2><div className="mt-6 space-y-3"><ScopeRow label="Operator owns" value="Market discovery · user acquisition · pricing model · frontend · compliance" /><ScopeRow label="TxLINE supplies" value="Fixture-bound event, odds, and final-result source evidence" /><ScopeRow label="FairX enforces" value="Sequence eligibility · fixed liabilities · principal return · claims · withdrawal boundary" /><ScopeRow label="Public RPC verifies" value="Program identity · accounts · transactions · wallet deltas · final solvency" /></div></div>
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]">
-          <div className="overflow-hidden rounded-xl border border-(--border)">
-            <div className="flex items-center justify-between border-b border-(--border) bg-[#f8fafc] px-3.5 py-2.5"><p className="text-[11px] font-bold text-(--ink)">Current repository instruction flow</p><span className="rounded-full bg-(--amber-bg) px-2 py-0.5 text-[9px] font-bold text-(--amber)">not an SDK</span></div>
-            <pre className="thin-scroll overflow-x-auto bg-[#0f1729] p-3.5 text-[10px] leading-relaxed text-[#d7e0ee]"><code>{instructions}</code></pre>
-          </div>
-          <div className="card p-4">
-            <p className="section-label">Deployed program</p>
-            <p className="mono mt-2 break-all text-[11px] font-bold text-(--blue)">{proofData.program.id}</p>
-            <p className="mt-3 text-[10px] leading-relaxed text-(--ink-2)">The status strip checks the executable ProgramData account. Repository instructions are not evidence of deployment; use the independent verifier and explorer links before treating v3 as live.</p>
-            <a href={proofData.program.explorerUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">Open devnet program <ExternalLink className="h-3.5 w-3.5" /></a>
-            <Link href="/proof" className="mt-2 flex items-center gap-1.5 text-[10.5px] font-bold text-(--blue) hover:underline">Inspect on-chain proof <ArrowRight className="h-3.5 w-3.5" /></Link>
-          </div>
+        <section className="py-12 sm:py-16">
+          <div className="rounded-3xl border border-blue-200 bg-blue-50 p-6 sm:p-8"><div className="grid gap-8 lg:grid-cols-[.8fr_1.2fr]"><div><p className="section-label text-blue-700">Why not keep it private?</p><h2 className="mt-3 text-[30px] font-extrabold tracking-[-.04em] text-blue-950">A centralized exchange can apply the rule. It cannot offer the same independent evidence.</h2></div><div className="grid gap-3 sm:grid-cols-2"><Comparison title="Private operator ledger" rows={["Operator reports whether an order was cancelled","Liabilities are an internal database balance","Settlement history can be rewritten internally"]} /><Comparison title="FairX on Solana" rows={["Anyone can re-read the order outcome","Liabilities reserve program-controlled collateral","Finalized settlement and wallet deltas are externally reproducible"]} strong /></div></div></div>
         </section>
 
-        <section className="rounded-xl border border-[#d9e6fc] bg-[#f7faff] p-4 text-[10.5px] leading-relaxed text-[#3d5e95]">
-          <p className="flex items-center gap-2 font-bold"><Radio className="h-4 w-4" />TxLINE boundary</p>
-          <p className="mt-1.5">Only <span className="mono">MATCH_WINNER_HOME_V1</span> is settlement-enabled. <span className="mono">TOTAL_GOALS</span>, <span className="mono">NEXT_GOAL</span>, and custom propositions are rejected. The deployed v2 resolver CPIs into the fixed TxLINE devnet program, requires <span className="mono">ValidateStatV2</span> success, and derives the outcome inside LineGuard.</p>
+        <section className="grid gap-5 border-y border-(--border) py-12 md:grid-cols-3">
+          <OperatorProof icon={Database} label="Program" value="Deployed V4" detail={V4_PROGRAM_ID} />
+          <OperatorProof icon={CheckCircle2} label="Lifecycle" value="RPC verified 20/20" detail="24 finalized devnet transactions" />
+          <OperatorProof icon={CircleDollarSign} label="Final state" value="Every liability zero" detail="Exact 0.199799428 SOL withdrawal" />
         </section>
+
+        <section className="py-12 text-center sm:py-16"><p className="section-label text-(--blue)">Reference implementation</p><h2 className="mx-auto mt-3 max-w-2xl text-[34px] font-extrabold tracking-[-.045em] sm:text-[44px]">See the rule before reading the accounts.</h2><div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Link href={`/markets/${V4_REPLAY_SLUG}`} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-(--ink) px-6 text-[12px] font-bold text-white">Watch the historical replay <ArrowRight className="h-4 w-4" /></Link><Link href="/proof" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-(--border) bg-white px-6 text-[12px] font-bold">Inspect verified settlement</Link><a href={explorerProgram} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-(--border) bg-white px-6 text-[12px] font-bold">Program on Explorer <ExternalLink className="h-4 w-4" /></a></div></section>
       </div>
     </FairXShell>
   );
 }
 
-function CapabilityCard({ title, tone, items }: { title: string; tone: "green" | "amber"; items: string[] }) {
-  const live = tone === "green";
-  return <section className={`rounded-xl border p-4 ${live ? "border-[#bce6d5] bg-(--green-bg)" : "border-[#f0d39a] bg-(--amber-bg)"}`}><div className="flex items-center gap-2">{live ? <ShieldCheck className="h-4 w-4 text-(--green)" /> : <Wrench className="h-4 w-4 text-(--amber)" />}<h2 className={`text-[12px] font-bold ${live ? "text-(--green)" : "text-(--amber)"}`}>{title}</h2></div><ul className="mt-3 space-y-2">{items.map((item) => <li key={item} className="flex items-start gap-2 text-[10px] leading-relaxed text-(--ink-2)">{live ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--green)" /> : <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--amber)" />}{item}</li>)}</ul></section>;
-}
+function IntegrationStep({ index, icon: Icon, title, detail }: { index: string; icon: typeof Radio; title: string; detail: string }) { return <li className="bg-white p-5"><div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-(--blue)"><Icon className="h-5 w-5" /></span><span className="text-[9px] font-bold text-(--ink-3)">{index}</span></div><h3 className="mt-5 text-[13px] font-bold">{title}</h3><p className="mt-2 text-[10.5px] leading-5 text-(--ink-2)">{detail}</p></li>; }
+function Metric({ label, value }: { label: string; value: string }) { return <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4"><dt className="text-[9.5px] text-slate-400">{label}</dt><dd className="num text-right text-[11px] font-bold">{value}</dd></div>; }
+function ScopeRow({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 p-4"><p className="text-[8.5px] font-bold uppercase tracking-[.08em] text-(--ink-3)">{label}</p><p className="mt-2 text-[10.5px] font-semibold leading-5">{value}</p></div>; }
+function Comparison({ title, rows, strong = false }: { title: string; rows: string[]; strong?: boolean }) { return <article className={`rounded-2xl border p-5 ${strong ? "border-emerald-200 bg-white" : "border-blue-200 bg-blue-100/50"}`}><h3 className="text-[12px] font-bold text-blue-950">{title}</h3><ul className="mt-4 space-y-3">{rows.map((row) => <li key={row} className="flex items-start gap-2 text-[10px] leading-5 text-blue-950/70"><CheckCircle2 className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${strong ? "text-emerald-600" : "text-blue-500"}`} />{row}</li>)}</ul></article>; }
+function OperatorProof({ icon: Icon, label, value, detail }: { icon: typeof Database; label: string; value: string; detail: string }) { return <article className="min-w-0"><Icon className="h-5 w-5 text-(--blue)" /><p className="mt-4 text-[8.5px] font-bold uppercase tracking-[.08em] text-(--ink-3)">{label}</p><h3 className="mt-1 text-[16px] font-extrabold">{value}</h3><p className="mt-2 break-all text-[9.5px] leading-4 text-(--ink-2)">{detail}</p></article>; }
