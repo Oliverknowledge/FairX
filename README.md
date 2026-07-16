@@ -34,7 +34,7 @@ The runtime never claims to be a live external TxLINE feed and never sends a tra
 
 ## Provenance
 
-- Submission release: tag `submission-v2.2.0` (public deployments display the live `VERCEL_GIT_COMMIT_SHA` on `/proof`, which is the authoritative deployed-commit source)
+- Submission release: tag `submission-final` (public deployments display the live `VERCEL_GIT_COMMIT_SHA` on `/proof`, which is the authoritative deployed-commit source — the docs deliberately do not pin a commit hash, because every deploy would invalidate it)
 - V4 deployment: `2026-07-15T10:28:14Z`, slot `476416258`
 - Build timestamp: generated into the static Proof page at build time, or supplied with `NEXT_PUBLIC_BUILD_TIMESTAMP`
 
