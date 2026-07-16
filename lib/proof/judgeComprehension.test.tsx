@@ -4,13 +4,13 @@ import HomePage from "@/app/page";
 import PortfolioPage from "@/app/portfolio/page";
 
 describe("V4 judge-first public surfaces", () => {
-  it("positions FairX as a live-market execution firewall", () => {
+  it("positions FairX as operational market-integrity infrastructure", () => {
     const html = renderToStaticMarkup(<HomePage />);
-    expect(html).toContain("Fair execution for live prediction markets.");
-    expect(html).toContain("execution firewall");
-    expect(html).toContain("Run exploit");
-    expect(html).toContain("Runtime simulation using captured TxLINE-schema events.");
-    expect(html).toContain("Bot advantage without FairX");
+    expect(html).toContain("The stale order stops. The market doesn’t.");
+    expect(html).toContain("operational integrity layer");
+    expect(html).toContain("Run integrity incident");
+    expect(html).toContain("Recorded evidence + deterministic controls");
+    expect(html).toContain("Market integrity panel");
     expect(html).toContain("Open proof summary");
     expect(html).not.toContain("Polymarket");
   });
@@ -18,16 +18,16 @@ describe("V4 judge-first public surfaces", () => {
   it("uses only the reduced V4 primary navigation", () => {
     const html = renderToStaticMarkup(<HomePage />);
     const primaryNavigation = html.match(/<nav[^>]*aria-label="Primary navigation"[\s\S]*?<\/nav>/)?.[0] ?? "";
-    for (const label of ["Live Demo", "How It Works", "Proof"]) expect(primaryNavigation).toContain(label);
+    for (const label of ["Demo", "Integrate", "Proof"]) expect(primaryNavigation).toContain(label);
     expect(primaryNavigation).not.toContain("Positions");
     for (const label of ["Create Market", "Attack Lab", "Guard terminal", "Operator status", "Replay"]) expect(primaryNavigation).not.toContain(label);
   });
 
   it("separates canonical France-Morocco evidence from the reusable second scenario", () => {
     const html = renderToStaticMarkup(<HomePage />);
-    expect(html).toContain("Canonical captured TxLINE evidence");
+    expect(html).toContain("Recorded TxLINE evidence");
     expect(html).toContain("ARG–BRA");
-    expect(html).toContain("Argentina–Brazil proves the reusable scenario path and makes no on-chain evidence claim");
+    expect(html).toContain("Argentina–Brazil is a runtime reference and makes no on-chain settlement claim");
     expect(html).toContain("MARKET OPEN");
   });
 

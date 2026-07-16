@@ -7,7 +7,11 @@ import {
   Code2,
   Database,
   ExternalLink,
+  FileCheck2,
+  Gauge,
   Radio,
+  ReceiptText,
+  RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
   Vault,
@@ -40,7 +44,7 @@ export default function IntegratePage() {
     <FairXShell compact>
       <div className="mx-auto max-w-[1120px]">
         <header className="grid gap-8 border-b border-(--border) pb-10 pt-3 lg:grid-cols-[1fr_.8fr] lg:items-end">
-          <div><p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-(--blue)"><Code2 className="h-4 w-4" />For prediction-market operators</p><h1 className="mt-4 max-w-3xl text-[40px] font-extrabold leading-[.99] tracking-[-.055em] sm:text-[60px]">Two inputs. Two outcomes.</h1><p className="mt-5 max-w-2xl text-[14px] leading-7 text-(--ink-2)">Submit a protected order with its quote sequence. FairX returns <strong>ACCEPTED</strong> or <strong>STALE_SEQUENCE_RETURNED</strong> without replacing your market UX.</p></div>
+          <div><p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-(--blue)"><Code2 className="h-4 w-4" />For prediction-market operators</p><h1 className="mt-4 max-w-3xl text-[40px] font-extrabold leading-[.99] tracking-[-.055em] sm:text-[60px]">Integrate with confidence.</h1><p className="mt-5 max-w-2xl text-[14px] leading-7 text-(--ink-2)">Run every decision and validation branch before touching production. The V4 order rule remains exactly two outcomes: <strong>ACCEPTED</strong> or <strong>STALE_SEQUENCE_RETURNED</strong>.</p></div>
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5"><p className="text-[9px] font-bold uppercase tracking-[.08em] text-blue-700">The integration contract</p><p className="mt-3 text-[20px] font-extrabold tracking-[-.03em] text-blue-950">Verified odds → deterministic quote → protected order</p><p className="mt-3 text-[10.5px] leading-5 text-blue-950/70">Matching sequence: accept and reserve liability. Old sequence: return principal and create no position liability.</p></div>
         </header>
 
@@ -49,12 +53,18 @@ export default function IntegratePage() {
         <section className="mt-5 overflow-hidden rounded-2xl border border-(--border) bg-white" aria-labelledby="operator-reality"><div className="border-b border-(--border) p-5"><p className="section-label text-(--blue)">Operator reality</p><h2 id="operator-reality" className="mt-2 text-[22px] font-extrabold">What this reference proves—and what it does not.</h2></div><dl className="grid gap-px bg-(--border) sm:grid-cols-2 lg:grid-cols-4"><RealityFact label="Network" value="Solana devnet" /><RealityFact label="Browser demo" value="Deterministic no-send adapter · 0 transactions" /><RealityFact label="On-chain path" value="Deployed Vault V4 · 24 recorded lifecycle transactions" /><RealityFact label="Order outcomes" value="ACCEPTED · STALE_SEQUENCE_RETURNED" /><RealityFact label="Fees" value="Network transaction fees remain separate from principal" /><RealityFact label="External audit" value="None · unaudited hackathon prototype" /><RealityFact label="Custody" value="Consumer custody and wallet flows are outside this reference" /><RealityFact label="Authority" value="Configured roles · 2-of-3 resolution · single upgrade authority" /></dl></section>
 
         <section className="py-12 sm:py-16">
-          <div className="max-w-2xl"><p className="section-label text-(--blue)">What an operator integrates</p><h2 className="mt-3 text-[32px] font-extrabold tracking-[-.045em] sm:text-[44px]">Four boundaries. Existing market UX stays yours.</h2></div>
-          <ol className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-(--border) bg-(--border) md:grid-cols-4">
-            <IntegrationStep index="01" icon={Radio} title="Bind the fixture" detail="Configure the market against genuine TxLINE fixture identity and source evidence." />
-            <IntegrationStep index="02" icon={SlidersHorizontal} title="Generate a verified quote" detail="QuoteGuard recomputes the executable price from the exact TxLINE odds snapshot." />
-            <IntegrationStep index="03" icon={ShieldCheck} title="Submit an order" detail="The V4 program compares sequences before creating a durable position liability." />
-            <IntegrationStep index="04" icon={Vault} title="Resolve and reconcile" detail="Valid positions settle; claims and operator withdrawal remain program-constrained." />
+          <div className="max-w-3xl"><p className="section-label text-(--blue)">The operator workflow</p><h2 className="mt-3 text-[32px] font-extrabold tracking-[-.045em] sm:text-[44px]">One path from fixture binding to exported evidence.</h2><p className="mt-4 text-[12px] leading-6 text-(--ink-2)">This is the complete integration journey—not ten unrelated features.</p></div>
+          <ol className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-(--border) bg-(--border) sm:grid-cols-2 lg:grid-cols-5">
+            <IntegrationStep index="01" icon={Radio} title="Bind fixture" detail="Anchor the market to the intended TxLINE fixture identity." />
+            <IntegrationStep index="02" icon={Radio} title="Receive TxLINE" detail="Receive verified event and odds evidence for that fixture." />
+            <IntegrationStep index="03" icon={SlidersHorizontal} title="Generate quote" detail="Create the deterministic executable quote commitment." />
+            <IntegrationStep index="04" icon={Gauge} title="Monitor health" detail="Watch required sequence, quote sequence, and stale state." />
+            <IntegrationStep index="05" icon={ShieldCheck} title="Return stale order" detail="Return principal when OrderSequence is behind RequiredSequence." />
+            <IntegrationStep index="06" icon={RefreshCw} title="Synchronize quote" detail="Update the quote to the required event sequence." />
+            <IntegrationStep index="07" icon={ReceiptText} title="Accept retry" detail="Open the synchronized position and reserve its fixed liability." />
+            <IntegrationStep index="08" icon={CheckCircle2} title="Resolve" detail="Use final TxLINE evidence and configured resolution authority." />
+            <IntegrationStep index="09" icon={Vault} title="Reconcile" detail="Pay valid claims and constrain operator withdrawal to free liquidity." />
+            <IntegrationStep index="10" icon={FileCheck2} title="Export evidence" detail="Hand auditors the recorded outcome and complete verification trail." />
           </ol>
         </section>
 

@@ -1,8 +1,8 @@
-# FairX — fair execution for live prediction markets
+# FairX — the market integrity layer for live prediction markets
 
 ## One-line pitch
 
-FairX is an execution firewall for live prediction markets. It detects orders that exploit the gap between a TxLINE event and a market reprice, refunds them atomically, and keeps fair trading open.
+FairX is operational integrity infrastructure for live prediction markets: detect, measure, protect, explain, recover, and verify—without closing the market.
 
 ## Problem
 
@@ -10,9 +10,9 @@ A goal can reach an officiated data feed before a prediction market updates its 
 
 ## Solution
 
-FairX Vault V4 is a centrally quoted, fully collateralised fixed-payout vault. The operator deposits liquidity; every accepted position freezes its gross payout and reserves the incremental liability before execution. An order is eligible only when its quote sequence matches the latest recorded material-event sequence. A mismatch returns principal without creating a position liability; synchronized positions remain valid.
+FairX Vault V4 is a centrally quoted, fully collateralised fixed-payout vault. The operator deposits liquidity; every accepted position freezes its gross payout and reserves the incremental liability before execution. The deployed rule is exact: if `OrderSequence < RequiredSequence`, return `STALE_SEQUENCE_RETURNED`; otherwise return `ACCEPTED`. A returned order gets its principal back and creates no position liability; a synchronized position remains valid.
 
-The main UI is a deterministic six-stage runtime simulation using captured TxLINE-schema events. It supports two fixture configurations through one reusable engine and never sends transactions. Canonical France–Morocco evidence remains a separate finalized 24-transaction Solana devnet record on `/proof`.
+The main UI is a seven-stage operational replay with an integrated market-integrity panel, stale-window timeline, receipt, recovery state, settlement, and proof. `/integrate` adds a five-vector no-send conformance lab. Canonical France–Morocco evidence remains a finalized 24-transaction Solana devnet record on `/proof`.
 
 ## Why TxLINE is essential
 
@@ -36,7 +36,7 @@ FairX needs atomic stake-in/refund-out execution, deterministic PDA isolation, i
 - Public app: [https://fair-x-psi.vercel.app](https://fair-x-psi.vercel.app) — production deployment of the tagged candidate; the Proof page displays the exact build commit supplied by Vercel.
 - GitHub: [https://github.com/Oliverknowledge/FairX](https://github.com/Oliverknowledge/FairX)
 - Demo video: publication URL is added directly to the hackathon listing metadata.
-- Judge route: `/` Live Demo → `/#how-it-works` → `/proof`
+- Judge route: `/` Demo → `/integrate` Conformance Lab → `/proof`
 
 ## Technical architecture
 
@@ -74,7 +74,7 @@ At every transition, spendable vault balance `A = free collateral F + reserved l
 
 ## Historical predecessor
 
-LineGuard V3 is a separate deployed devnet predecessor. Its 14-transaction three-wallet lifecycle independently verifies 18/18 after recomputing immutable transaction evidence. It proves the earlier selective-refund primitive but is never used as V4 evidence.
+LineGuard V3 is a separate deployed devnet predecessor. Its historical transactions are never used as V4 evidence and are intentionally absent from the primary judge journey.
 
 ## Limitations and trust assumptions
 

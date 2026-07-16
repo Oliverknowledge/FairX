@@ -28,7 +28,7 @@ export function FairXBrand({ inverse = false }: { inverse?: boolean }) {
       <span className="leading-none">
         <span className={`block text-[15px] font-bold tracking-[-0.04em] ${inverse ? "text-white" : "text-(--ink)"}`}>FairX</span>
         <span className={`mt-1 block text-[8.5px] font-semibold uppercase tracking-[0.14em] ${inverse ? "text-white/60" : "text-(--ink-3)"}`}>
-          Execution integrity
+          Market integrity
         </span>
       </span>
     </span>
@@ -50,8 +50,8 @@ export function DevnetBadge({ className = "" }: { className?: string }) {
 export function FairXShell({ children, className = "", compact = false }: FairXShellProps) {
   const pathname = usePathname() ?? "/";
   const navigation = [
-    { href: "/", label: "Live Demo" },
-    { href: "/#how-it-works", label: "How It Works" },
+    { href: "/", label: "Demo" },
+    { href: "/integrate", label: "Integrate" },
     { href: "/proof", label: "Proof" },
   ] as const;
 
@@ -109,7 +109,7 @@ export function FairXShell({ children, className = "", compact = false }: FairXS
 
       <footer className="mx-auto max-w-[1380px] px-4 pb-8 pt-8 text-[10px] leading-relaxed text-(--ink-3) sm:px-6">
         <div className="border-t border-(--border) pt-5 sm:flex sm:items-start sm:justify-between sm:gap-8">
-          <div><p className="font-semibold text-(--ink-2)">FairX · execution firewall for live prediction markets</p><p className="mt-1">Runtime simulation using captured TxLINE-schema events · unaudited prototype · Solana devnet · no real-money settlement.</p></div>
+          <div><p className="font-semibold text-(--ink-2)">FairX · market integrity for live prediction markets</p><p className="mt-1">Canonical recorded evidence and clearly labelled runtime references · unaudited prototype · Solana devnet · no real-money settlement.</p></div>
           <div className="mt-4 sm:mt-0"><p className="font-semibold text-(--ink-2)">Evidence before claims</p><p className="mt-1">Read the deployed program, finalized lifecycle and trust assumptions on <Link href="/proof" className="font-semibold underline-offset-2 hover:underline">Proof</Link>.</p></div>
         </div>
       </footer>

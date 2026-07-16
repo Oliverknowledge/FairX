@@ -18,29 +18,33 @@ describe("FairX reusable runtime simulation", () => {
     expect(RUNTIME_SCENARIOS.map((scenario) => validateRuntimeScenario(scenario).id)).toEqual(["france-morocco", "argentina-brazil"]);
   });
 
-  it("voids the France-Morocco stale-benefiting YES order", () => {
+  it("returns the France-Morocco order because its sequence is stale", () => {
     const decision = evaluateIncomingOrder(scenarioById("france-morocco"));
-    expect(decision.decision).toBe("VOID_REFUND");
-    expect(decision.edgePerShare).toBeCloseTo(0.342008, 6);
+    expect(decision.decision).toBe("STALE_SEQUENCE_RETURNED");
+    expect(decision.illustrativePriceMove).toBeCloseTo(0.342008, 6);
   });
 
   it("uses the same engine for the second fixture", () => {
     const scenario = scenarioById("argentina-brazil");
     expect(scenario.event.type).toBe("RED_CARD");
-    expect(deterministicRuntime(scenario)).toHaveLength(6);
+    expect(deterministicRuntime(scenario)).toHaveLength(7);
   });
 
-  it("allows a stale order whose side did not benefit from the event", () => {
+  it("returns a stale order regardless of side or illustrative price direction", () => {
     const decision = evaluateIncomingOrder(scenarioById("argentina-brazil"));
-    expect(decision).toEqual({ decision: "ALLOW_NO_EDGE", edgePerShare: 0, returnedSol: 0 });
+    expect(decision.decision).toBe("STALE_SEQUENCE_RETURNED");
+    expect(decision.illustrativePriceMove).toBeCloseTo(-0.16, 8);
+    expect(decision.returnedSol).toBe(0.01);
   });
 
   it("accepts a synchronized follow-up order", () => {
-    const final = runtimeState(scenarioById("france-morocco"), 5);
-    expect(final.decision).toBe("ACCEPT_SYNCHRONIZED");
+    const final = runtimeState(scenarioById("france-morocco"), 6);
+    expect(final.decision).toBe("ACCEPTED");
     expect(final.synchronized).toBe(true);
     expect(final.acceptedSol).toBe(0.01);
-    expect(nextRuntimeActionLabel(4)).toBe("Retry with synchronized quote");
+    expect(final.orderActor).toBe("Fair trader");
+    expect(final.orderSequence).toBe(739);
+    expect(nextRuntimeActionLabel(4)).toBe("Accept synchronized retry");
   });
 
   it("marks the quote stale before evaluation", () => {
@@ -56,15 +60,16 @@ describe("FairX reusable runtime simulation", () => {
     expect(refunded.acceptedSol).toBe(0);
   });
 
-  it("exposes exactly six semantically consistent stages", () => {
-    expect(RUNTIME_STAGE_COUNT).toBe(6);
+  it("exposes exactly seven semantically consistent stages", () => {
+    expect(RUNTIME_STAGE_COUNT).toBe(7);
     expect(RUNTIME_STAGE_LABELS).toEqual([
-      "Market open and synchronised",
-      "Material TxLINE event arrives",
-      "Market becomes stale",
-      "Exploitative order is voided and refunded",
-      "Market reprices",
-      "Fair order succeeds and proof is available",
+      "Market healthy",
+      "TxLINE event advances sequence",
+      "Stale order arrives",
+      "Principal returned",
+      "Quote recovering",
+      "Synchronized retry accepted",
+      "Settlement verified",
     ]);
   });
 
@@ -76,22 +81,22 @@ describe("FairX reusable runtime simulation", () => {
   it("autoplay progression terminates at the same final state", () => {
     let stage = 0;
     for (let index = 0; index < 20; index += 1) stage = nextRuntimeStage(stage);
-    expect(stage).toBe(5);
-    expect(runtimeState(scenarioById("france-morocco"), stage)).toEqual(deterministicRuntime(scenarioById("france-morocco"))[5]);
+    expect(stage).toBe(6);
+    expect(runtimeState(scenarioById("france-morocco"), stage)).toEqual(deterministicRuntime(scenarioById("france-morocco"))[6]);
   });
 
   it("renders the required judge-facing financial consequence", () => {
     const html = renderToStaticMarkup(<FairXLiveDemo />);
-    expect(html).toContain("Runtime simulation using captured TxLINE-schema events.");
-    expect(html).toContain("Bot advantage without FairX");
-    expect(html).toContain("Bot advantage with FairX");
-    expect(html).toContain("honest market remains open");
+    expect(html).toContain("The stale order stops. The market doesn’t.");
+    expect(html).toContain("Market integrity panel");
+    expect(html).toContain("STALE_SEQUENCE_RETURNED");
+    expect(html).toContain("Stay open without private discretion");
   });
 
   it("uses responsive layouts without a fixed desktop minimum width", () => {
     const html = renderToStaticMarkup(<FairXLiveDemo />);
     expect(html).toContain("sm:grid-cols-2");
-    expect(html).toContain("lg:grid-cols-2");
+    expect(html).toContain("lg:grid-cols-[1.12fr_.88fr]");
     expect(html).not.toContain("min-w-[1180px]");
   });
 });

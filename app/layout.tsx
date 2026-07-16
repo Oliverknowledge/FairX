@@ -12,19 +12,19 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: "FairX",
   title: {
-    default: "FairX — Execution Integrity for Live Sports Markets",
+    default: "FairX — Market Integrity for Live Prediction Markets",
     template: "%s | FairX",
   },
   description: "Solana execution infrastructure that returns stale-sequence order principal while synchronized live-sports trading continues.",
   openGraph: {
     type: "website",
-    title: "FairX — Return the Stale Order. Keep the Market Open.",
-    description: "Operator infrastructure demonstrated with a genuine TxLINE historical replay and independently verified Solana settlement.",
+    title: "FairX — The Stale Order Stops. The Market Doesn’t.",
+    description: "Operational market-integrity infrastructure demonstrated with a genuine TxLINE historical replay and independently verified Solana settlement.",
     siteName: "FairX",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FairX — Sequence-Bound Execution on Solana",
+    title: "FairX — Market Integrity on Solana",
     description: "Stale-sequence principal returns. Synchronized trading continues. Every liability is publicly verifiable.",
   },
 };

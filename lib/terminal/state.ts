@@ -53,7 +53,7 @@ export interface TerminalState {
   market: Market;
   /** Demo color: broadcast has seen the goal; the officiated feed hasn't published yet. */
   goalOnPitch: boolean;
-  /** Which side the bot will attack — the toggle that proves side-awareness. */
+  /** Which side the retired predecessor simulation targets. */
   botSide: Side;
   /** The bot's prepared read of the stale market (attack-ready highlight). */
   botPlan: (SniperReading & { detectedAt: number }) | null;

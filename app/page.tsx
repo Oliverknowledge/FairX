@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Database, Radio, RefreshCw, ShieldCheck, Vault } from "lucide-react";
+import { ArrowRight, CheckCircle2, Database, Gauge, Radio, ReceiptText, RefreshCw, ShieldCheck, Vault } from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
 import { FairXLiveDemo } from "@/components/runtime/FairXLiveDemo";
 import { V4_PROGRAM_ID } from "@/lib/v4/replay";
@@ -8,26 +8,38 @@ const HOW_IT_WORKS = [
   {
     icon: Radio,
     number: "01",
-    title: "Event arrives",
-    text: "A captured TxLINE-schema event advances the material event sequence before the displayed market quote changes.",
+    title: "Detect",
+    text: "Receive fixture-bound TxLINE evidence and advance the required material-event sequence.",
+  },
+  {
+    icon: Gauge,
+    number: "02",
+    title: "Measure",
+    text: "Expose event sequence, quote sequence, sequence delta, stale-window state, and market health together.",
   },
   {
     icon: ShieldCheck,
-    number: "02",
-    title: "FairX compares",
-    text: "The execution firewall checks event sequence, quote sequence, order side and whether the order gained an informational edge.",
+    number: "03",
+    title: "Protect",
+    text: "If OrderSequence is behind RequiredSequence, return the full principal and create no position liability.",
+  },
+  {
+    icon: ReceiptText,
+    number: "04",
+    title: "Explain",
+    text: "Issue a readable integrity receipt with the exact comparison, funds outcome, and evidence source.",
   },
   {
     icon: RefreshCw,
-    number: "03",
-    title: "One order leaves",
-    text: "An advantageous stale order is voided and its principal returns. The entire market does not need to pause.",
+    number: "05",
+    title: "Recover",
+    text: "Synchronize the quote, return market health to green, and give the trader a clean retry path.",
   },
   {
     icon: CheckCircle2,
-    number: "04",
-    title: "Fair trading continues",
-    text: "After repricing, a synchronized order follows the normal path and the canonical Solana evidence remains independently verifiable.",
+    number: "06",
+    title: "Verify",
+    text: "Resolve accepted positions and export the recorded Solana and TxLINE evidence for independent review.",
   },
 ] as const;
 
@@ -41,11 +53,11 @@ export default function HomePage() {
           <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
             <div>
               <p className="section-label text-(--blue)">How It Works</p>
-              <h2 id="how-title" className="mt-3 text-[34px] font-extrabold leading-[1.02] tracking-[-.05em] sm:text-[48px]">An execution firewall, not another destination market.</h2>
+              <h2 id="how-title" className="mt-3 text-[34px] font-extrabold leading-[1.02] tracking-[-.05em] sm:text-[48px]">One operational loop from evidence to proof.</h2>
             </div>
-            <p className="max-w-2xl text-[13px] leading-6 text-(--ink-2) lg:justify-self-end">FairX sits between verified sports evidence and order execution. It removes an information advantage from one order while preserving market availability for everyone else.</p>
+            <p className="max-w-2xl text-[13px] leading-6 text-(--ink-2) lg:justify-self-end">FairX sits between verified sports evidence and order execution. Operators get a deterministic sequence boundary, a recovery workflow, and public evidence without replacing their market frontend.</p>
           </div>
-          <ol className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-(--border) bg-(--border) sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-(--border) bg-(--border) sm:grid-cols-2 lg:grid-cols-3">
             {HOW_IT_WORKS.map(({ icon: Icon, number, title, text }) => (
               <li key={title} className="bg-white p-5 sm:p-6">
                 <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-(--blue)"><Icon className="h-5 w-5" /></span><span className="text-[9px] font-bold text-(--ink-3)">{number}</span></div>

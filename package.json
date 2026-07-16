@@ -2,7 +2,7 @@
   "name": "fairx-fairplay-contracts",
   "version": "0.1.0",
   "private": true,
-  "description": "Unaudited Solana devnet prototype for selectively refunding stale-price exploit orders using historical TxLINE evidence.",
+  "description": "Unaudited Solana devnet market-integrity prototype that returns orders behind the required TxLINE event sequence.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

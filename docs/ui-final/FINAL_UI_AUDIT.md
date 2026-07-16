@@ -5,7 +5,7 @@ Scope: final product-design, Next.js, accessibility, responsive and judge-experi
 
 ## 1. Initial UI weaknesses
 
-- The homepage was a truthful but compact evidence console. It did not teach the stale-price attack, selective refund or full lifecycle in a judge-friendly order.
+- The homepage was a truthful but compact evidence console. It did not teach the stale-sequence incident, principal return or full lifecycle in a judge-friendly order.
 - The replay had correct accounting but read as a technical slideshow: eight dense states, weak motion controls and no singular refund moment.
 - Positions used actor/internal language before explaining who was refunded, paid or closed.
 - Proof exposed too much evidence at once and did not visually demote V3 beneath current V4 proof.
@@ -75,7 +75,7 @@ The structured cold-read test in [JUDGE_COMPREHENSION.md](./JUDGE_COMPREHENSION.
 | Criterion | Score | Reason |
 |---|---:|---|
 | TxLINE use | 10/10 | Genuine historical event/odds provenance is central, truthful and persistent. |
-| Core functionality | 9.5/10 | Selective refund and fair continuation are the dominant interactive story. |
+| Core functionality | 9.5/10 | Strict stale-sequence return and synchronized continuation are the dominant interactive story. |
 | Settlement | 10/10 | Resolution, payouts and exact withdrawal are all visible and canonical. |
 | User experience | 9.2/10 | Strong hierarchy, progressive disclosure, controls and responsive behavior; proof latency is external friction. |
 | Code quality | 9.0/10 | Typed deterministic model, reusable evidence components and tests; some dense JSX remains. |

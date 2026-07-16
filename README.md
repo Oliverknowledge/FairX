@@ -1,6 +1,6 @@
-# FairX — fair execution for live prediction markets
+# FairX — the market integrity layer for live prediction markets
 
-FairX is an execution firewall for live prediction-market operators. It detects orders that exploit the gap between a TxLINE event and a market reprice, refunds them atomically, and keeps fair trading open. The judge-facing runtime is a deterministic simulation using captured TxLINE-schema events; the separate canonical France–Morocco settlement is independently re-readable on Solana. **Unaudited devnet prototype only. No mainnet or real-money operation.**
+FairX gives live prediction-market operators one operational loop: **Detect → Measure → Protect → Explain → Recover → Verify.** When an order's quote sequence is behind the required TxLINE event sequence, V4 returns its principal and creates no position liability. A synchronized order remains executable, so the market can stay open. **Unaudited devnet prototype only. No mainnet or real-money operation.**
 
 The current submission is **FairX Vault V4**: a fixed-payout, fully-collateralised market. An operator funds a liquidity vault; every accepted order's gross payout is frozen and its incremental liability reserved from free collateral before it can execute (the vault invariant `A = F + R + S` holds at every step). A genuine TxLINE material-event sequence (the France goal, sequence 739) invalidates the prior quote, so a stale-quote order entering afterward is refunded within a single instruction and can never claim.
 
@@ -12,7 +12,7 @@ Read this before the demo. Nothing below is exaggerated.
 - **REAL and reproducible now — TxLINE:** the genuine TxLINE devnet program (`6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`) validates all three settlement proofs — pre-goal odds, post-goal odds, and the final France 2–0 result — by **read-only RPC simulation**, each returning `true`. No transaction is signed or sent. `npm run v4:verify-proofs`.
 - **REAL on devnet now — deployment:** the executable V4 Program and ProgramData accounts are loader-owned; the temporary upload buffer was drained and purged by deployment. `/proof` reads this state live.
 - **LOCAL, exact-binary:** the full signed lifecycle and the void lifecycle both pass in LiteSVM against the exact deploy binary. `npm run v4:test-lifecycle`, `npm run v4:test-void`.
-- **DETERMINISTIC RUNTIME UI:** `/` runs a six-stage captured-schema simulation with two fixture configurations, a visible TxLINE event/quote sequence gap, side-aware guard decision, atomic-refund result, synchronized follow-up order and unprotected-versus-FairX economics. It does not submit new trades.
+- **INTEGRATED MARKET INTEGRITY UI:** `/` runs a seven-stage deterministic control panel with event sequence, quote sequence, delta, health, stale-window state, strict V4 outcome, integrity receipt, recovery, settlement, and proof. It does not submit new trades.
 - **CANONICAL EVIDENCE UI:** `/proof` keeps the real France–Morocco deployment, transactions, CPI receipts and accounting evidence separate from the reusable runtime simulation.
 - **LIVE DEVNET PROTOTYPE:** the V4 program is deployed and executable at `2x3vh…yF7p`. The 24-transaction France–Morocco lifecycle is finalized and independently re-verifies **20/20** from RPC, including the strict stale refund, fixed payouts, France 2–0 resolution, vault reconciliation, position closures and operator withdrawal.
 - **REAL, HISTORICAL predecessor:** an earlier LineGuard program (v2/v3) *was* deployed to devnet and independently RPC-verified for the France–Morocco lifecycle. V4 is a from-scratch, better-collateralised redesign; it does not reuse that program or claim its transactions as its own.
@@ -25,8 +25,8 @@ Program `2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p` and its 24-transaction Fr
 
 ## Judge journey
 
-- `/` — **Live Demo:** six deterministic stages, two fixtures, visible stale-price advantage, FairX decision and funds outcome
-- `/#how-it-works` — **How It Works:** event → comparison → selective return → fair trading continues
+- `/` — **Demo:** seven deterministic stages, integrated market-health panel, stale-window timeline, receipt, recovery, and proof
+- `/integrate` — **Conformance Lab:** stale, synchronized, malformed, expired, and future-sequence test vectors plus the single operator workflow
 - `/proof` — **Proof:** concise V4 judge summary first, expandable technical evidence second
 
 The runtime never claims to be a live external TxLINE feed and never sends a transaction. France–Morocco is backed by the canonical captured evidence; Argentina–Brazil is a schema-compatible runtime scenario and makes no on-chain evidence claim.

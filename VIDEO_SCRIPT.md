@@ -1,88 +1,44 @@
-# FairX — final demo script
+# FairX — 2:45 submission demo
 
-Target length: **2:20–2:45**
+Target length: **2:45 maximum**
 
-Primary audience: **TxLINE and Solana hackathon judges**
+Audience: **TxLINE and Solana hackathon judges**
 
-Core sentence: **FairX removes the informational advantage and keeps fair trading open.**
+Thesis: **FairX is the market integrity layer for live prediction markets.**
 
-## 0:00–0:18 — The product in five seconds
+The timeline below is continuous: every second from `0:00` through `2:45` is assigned to a screen, animation, pointer action, narration, and intended reaction.
 
-**Screen:** Open `/`. Hold on the headline, match and market first screen.
+| Time | Screen | Animation | Mouse | Narration | Intended judge reaction |
+|---|---|---|---|---|---|
+| 0:00–0:05 | `/` hero | Hold on headline | None | “The stale order stops. The market doesn’t.” | I understand the promise immediately. |
+| 0:05–0:12 | Hero + thesis | Detect → Verify sentence remains visible | Trace the sentence once | “FairX is the operational integrity layer for live prediction markets.” | This is infrastructure, not another exchange. |
+| 0:12–0:18 | Replay header | Canonical evidence badge | Point to `Recorded TxLINE evidence` | “This replay mirrors one finalized V4 incident; the controls send no transaction.” | The evidence boundary is honest. |
+| 0:18–0:24 | Healthy panel | HEALTHY highlighted | Point to event 738 and quote 738 | “Before the goal, required sequence and quote sequence both equal 738.” | I can read the control plane. |
+| 0:24–0:29 | Run control | Autoplay starts | Click `Run integrity incident` | “Now watch one integrity window open and close.” | Something is about to happen. |
+| 0:29–0:36 | Goal / TxLINE | Score and event sequence change | Follow event sequence 738 → 739 | “A France goal advances the required TxLINE event sequence to 739.” | Cause is clear. |
+| 0:36–0:43 | STALE state | Health turns amber; delta becomes +1 | Move from event 739 to quote 738 | “The quote is still bound to 738. Delta plus one means the market is stale.” | This is measurable, not hand-waving. |
+| 0:43–0:51 | Incoming order | Order block enters | Point to order sequence 738 | “An order arrives carrying the old sequence.” | I see the exact invalid input. |
+| 0:51–1:00 | Decision | `STALE_SEQUENCE_RETURNED` appears | Trace `738 < 739` | “V4 compares integers: OrderSequence below RequiredSequence returns STALE_SEQUENCE_RETURNED.” | The deployed rule is unambiguous. |
+| 1:00–1:08 | Integrity receipt | Receipt fills in | Point to principal and liability | “The full 0.01 SOL principal returns. No position and zero liability are created.” | Funds outcome is obvious. |
+| 1:08–1:15 | Timeline | Protection milestones turn green | Sweep Goal → Principal returned | “The receipt explains what happened without a support ticket.” | Trader and operator confidence improved. |
+| 1:15–1:21 | Operator value | Recorded/counterfactual labels visible | Point to both labels | “The recorded outcome is zero liability; the old-price liability beside it is explicitly illustrative arithmetic.” | No fabricated analytics. |
+| 1:21–1:28 | Retry control | Recovery begins | Click `Synchronize and retry` | “The operator synchronizes the quote instead of pausing every trader.” | Recovery is part of the product. |
+| 1:28–1:35 | RECOVERING | Blue recovery state | Point to RECOVERING | “Health moves from stale, through recovering…” | The state machine feels operational. |
+| 1:35–1:43 | HEALTHY / retry | Quote sequence becomes 739; accepted receipt | Click `Accept synchronized retry` if needed | “…to healthy. The replacement order matches 739 and is accepted.” | Fair trading continues. |
+| 1:43–1:50 | Settlement / proof timeline | Final milestones complete | Point to Settlement and Proof | “Recorded settlement completes the same lifecycle and makes the outcome independently verifiable.” | End-to-end loop is complete. |
+| 1:50–1:55 | Navigation | Integrate highlighted | Click `Integrate` | “An operator can test the contract before adopting it.” | Show me developer readiness. |
+| 1:55–2:04 | Conformance Lab | Five vectors visible | Sweep across vectors | “The conformance lab covers stale, synchronized, malformed, expired, and future-sequence inputs.” | This anticipates real integration failures. |
+| 2:04–2:13 | Stale vector | Request → decision → response | Click `Run selected vector` | “Each vector shows the request, typed response, explanation, and operator responsibility.” | This is integration-grade product thinking. |
+| 2:13–2:21 | Future vector | FUTURE_SEQUENCE response | Click `Future sequence`, then run | “Future sequence is rejected as feed or client skew—never coerced into acceptance.” | Failure semantics are deliberate. |
+| 2:21–2:28 | Operator workflow | Ten-step workflow | Scroll once; trace left to right | “One workflow runs from fixture binding and health monitoring through retry, resolution, reconciliation, and evidence export.” | I can picture deployment. |
+| 2:28–2:33 | Navigation | Proof highlighted | Click `Proof` | “Now the recorded boundary.” | Show me that it is real. |
+| 2:33–2:40 | `/proof` first view | 20/20 status holds | Point to program, lifecycle, TxLINE | “V4 is deployed on Solana devnet: 24 finalized transactions, direct TxLINE validation, and 20 of 20 independent checks.” | Technical credibility established. |
+| 2:40–2:45 | Proof + close | Hold still | None | “FairX: detect, measure, protect, explain, recover, verify—while the market stays open.” | Memorable infrastructure thesis. |
 
-**Narration:**
+## Recording rules
 
-> FairX is an execution firewall for live prediction markets. When a sports event reaches TxLINE before a quote catches up, a latency bot sees free money. FairX sees the stale sequence.
-
-Point out the visible qualifier: **Runtime simulation using captured TxLINE-schema events.** Never call it a live external feed.
-
-## 0:18–1:12 — Run the exploit
-
-**Screen:** Click **Run exploit**. Let autoplay run. Follow the six stage pills without scrolling away from the demo.
-
-**Narration:**
-
-> France and Morocco are scoreless. Event sequence 738 and quote sequence 738 match, so the market is synchronized and open. A captured goal event arrives and advances TxLINE to 739. The market is still priced at 738, so it is now stale. A latency bot submits YES at the obsolete 53.28-cent price.
-
-Pause when stage 4 appears.
-
-> FairX evaluates the sequence and direction. The YES order gained 34.20 cents of immediate pricing advantage, so FairX voids it, atomically returns the full 0.01 SOL principal, creates no position liability, and leaves the market open.
-
-Hold on the split-screen comparison for two seconds.
-
-> Without FairX, the bot captures the stale-price advantage. With FairX, that advantage is zero and honest traders keep access.
-
-Continue through stages 5 and 6.
-
-> Once quote sequence 739 catches up, the next fair order succeeds at the updated price.
-
-## 1:12–1:38 — Prove reuse
-
-**Screen:** Click **ARG–BRA**, then click stage 4 or use **Next step** three times.
-
-**Narration:**
-
-> This is the same deterministic engine with a different fixture and a red-card event. Here the incoming NO order did not benefit from the stale state, so the guard returns a different result: allow, no informational edge. This scenario proves reusable off-chain architecture; it makes no canonical on-chain evidence claim.
-
-Point briefly at: **Same FairX guard. Different fixture. Different event. Same deterministic protection.**
-
-## 1:38–1:53 — How it works
-
-**Screen:** Scroll to **How It Works**.
-
-**Narration:**
-
-> The flow is deliberately small: event arrives, FairX compares event sequence, quote sequence and order direction, one advantageous order leaves, and synchronized trading continues. FairX is infrastructure for existing market frontends, not another destination market.
-
-## 1:53–2:28 — Canonical proof
-
-**Screen:** Open `/proof`. Hold on the first screen only.
-
-**Narration:**
-
-> The runtime explains the product. This separate page proves the canonical deployment. FairX Vault V4 is executable on Solana devnet. Twenty-four finalized transactions independently verify the 0.01 SOL stale-order return, both fixed payouts, final accounting, and direct TxLINE CPI validation for the odds and France two–nil result—20 checks out of 20.
-
-Point to the three cards: **Order protection**, **Settlement and accounting**, **TxLINE verification**.
-
-## 2:28–2:42 — Close
-
-**Screen:** Click **View full technical evidence** once, show that the deeper dossier exists, then return to the proof summary.
-
-**Narration:**
-
-> Every explorer link, transaction, binary hash, trust boundary and known limitation remains available underneath. FairX does not pause the whole market. It removes the informational advantage and keeps fair trading open.
-
-## Backup plan
-
-- The runtime is fully deterministic. If autoplay timing is disrupted, use the six stage buttons or **Next step**.
-- Do not run a fresh RPC scan on camera. Use the timestamped 20/20 result and explorer links.
-- If an explorer is slow, remain on the proof cards; the exact links are already visible.
-- Do not open V3 predecessor evidence unless asked in Q&A.
-- Do not show a wallet or imply that the runtime buttons send transactions.
-
-## Recording setup
-
-- Record at 1920×1080, 100% browser zoom, with notifications and bookmarks hidden.
-- Begin with `/`, keep `/proof` in a second tab, and close unrelated tabs.
-- Move the cursor slowly and pause on the atomic-refund and split-screen payoff.
-- Record three complete takes and keep the final export below three minutes.
+- Record at 1920×1080, 100% zoom, with notifications and bookmarks hidden.
+- Use the canonical France–Morocco scenario. Do not run fresh RPC verification on camera.
+- Never call the browser controls live trading, never imply a transaction was sent, and never present illustrative arithmetic as measured operator loss.
+- Keep `/proof` open in a second tab as a recovery option, but follow the navigation in the primary take.
+- Record three complete takes and reject any take over 2:45.

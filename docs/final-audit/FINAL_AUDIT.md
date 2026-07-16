@@ -18,7 +18,7 @@ The coherent definition is: **FairX demonstrates a protected live-sports predict
 
 ## 3. Is the vision fulfilled?
 
-**Technically, yes for the canonical devnet lifecycle. As an accessible submission, no.** All twelve intended lifecycle outcomes are present in finalized V4 evidence: operator funding, genuine TxLINE inputs, fair acceptance, selective refund, continued synchronized trading, close/resolution, winners, loser closure, free-liquidity withdrawal, exact reconciliation and independent verification. The candidate UI now walks the same sequence and ends at the actual post-withdrawal zero state.
+**Technically, yes for the canonical devnet lifecycle. As an accessible submission, no.** All twelve intended lifecycle outcomes are present in finalized V4 evidence: operator funding, genuine TxLINE inputs, synchronized acceptance, strict stale-sequence return, continued trading, close/resolution, winners, loser closure, free-liquidity withdrawal, exact reconciliation and independent verification. The candidate UI now walks the same sequence and ends at the actual post-withdrawal zero state.
 
 The vision is deliberately narrow: one historical France–Morocco fixture, permissioned authorities, deterministic replay controls and devnet funds. That is acceptable for a hackathon when labelled honestly. Production currently fails that honesty/coherence test.
 
@@ -26,7 +26,7 @@ The vision is deliberately narrow: one historical France–Morocco fixture, perm
 
 | Criterion | Weight | Score | Evidence | Weakness |
 |---|---:|---:|---|---|
-| Core functionality | 10% | 8.8/10 | Complete canonical lifecycle; selective refund and continued trading | One fixture; replay rather than user-driven market |
+| Core functionality | 10% | 8.8/10 | Complete canonical lifecycle; strict stale-sequence return and continued trading | One fixture; replay rather than user-driven market |
 | TxLINE as primary source | 12% | 8.7/10 | Genuine fixture/odds/scores/sequences/roots; proof validation succeeds | Historical source; trusted ingestion roles remain |
 | On-chain settlement | 15% | 9.1/10 | 24 finalized V4 transactions; payouts, loser, withdrawal, closures | Devnet; upgradeable/permissioned |
 | Verification layer | 12% | 8.2/10 | Independent 20/20 verifier and explicit UNKNOWN/FAILED | Public RPC throttling hurts live reliability |
@@ -85,7 +85,7 @@ All 24 lifecycle signatures resolve finalized. The verifier checks the expected 
 
 ## 9. V3 predecessor
 
-V3 remains deployed, executable and useful historical evidence of the original selective-refund primitive. Its canonical transactions independently verify 18/18 after replacing a mutable present-wallet-balance check with each wallet’s immutable final transaction post-balance. It proves the stale wallet is refunded 0.01 SOL, the winner receives the real A+B counterparty pool, and the loser loses 0.01 SOL.
+V3 remains deployed, executable and useful historical evidence of an earlier architecture. Its transactions are not evidence for V4 and are intentionally outside the primary judge journey.
 
 Candidate hierarchy is now correct: current V4 deployment/lifecycle first; deterministic model supporting it; V3 clearly labelled deployed historical predecessor and explicitly not V4 evidence.
 
@@ -101,7 +101,7 @@ The 10,000,000-lamport stale attempt is refunded and never counted as accepted p
 
 ## 11. UX and usability
 
-The corrected homepage passes the five-second test for problem, difference and next action. Within 30 seconds a judge can see historical TxLINE provenance, operator funding and the full eight-step lifecycle. Within 90 seconds the replay makes selective refund, continued trading, final payout and solvency comprehensible. Technical hashes remain on `/proof` rather than leading the story.
+The corrected homepage passes the five-second test for problem, difference and next action. Within 30 seconds a judge can see historical TxLINE provenance, operator funding and the full lifecycle. Within 90 seconds the replay makes strict stale-sequence return, continued trading, final payout and solvency comprehensible. Technical hashes remain on `/proof` rather than leading the story.
 
 Desktop and 390×844 checks found no body overflow on the four primary routes, no hydration error and no browser console warning/error. Status text does not rely on colour alone; long hashes are truncated/contained; buttons are named; navigation stays available. Proof requests now time out rather than load forever, and overlapping page loads share one fresh in-flight verification instead of multiplying RPC traffic. **MEDIUM:** remaining decorative CSS animations lack a global reduced-motion override. **MEDIUM:** a cold live proof can still be slow on public RPC; use a genuine pre-recorded production success for the demo fallback.
 

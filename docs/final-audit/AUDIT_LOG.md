@@ -37,7 +37,7 @@ The public deployment is the product a judge sees. It currently opens with “Im
 | V3 predecessor | independent V3 RPC verifier after immutable-balance correction | `VERIFIED`, 18/18 | PASS |
 | Placeholder scan | fixture/signature/schema review | no placeholder signature or fixture verdict is accepted as proof | PASS |
 
-The V4 verifier derives expected PDAs, decodes instructions/accounts, checks the program IDs and owners, verifies TxLINE roots and quote hashes, checks relevant balance deltas, proves the selective refund, payout, withdrawal and account closures, and computes solvency independently. RPC absence produces `UNKNOWN`; a mismatch produces `FAILED`; neither is converted to `VERIFIED`.
+The V4 verifier derives expected PDAs, decodes instructions/accounts, checks the program IDs and owners, verifies TxLINE roots and quote hashes, checks relevant balance deltas, proves the stale-sequence principal return, payout, withdrawal and account closures, and computes solvency independently. RPC absence produces `UNKNOWN`; a mismatch produces `FAILED`; neither is converted to `VERIFIED`.
 
 ## Canonical lifecycle result
 

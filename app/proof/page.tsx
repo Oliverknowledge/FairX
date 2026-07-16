@@ -8,7 +8,6 @@ import { QuoteGuardProof } from "@/components/quote-guard/QuoteGuardProof";
 import { V4DeploymentStatus } from "@/components/v4/V4DeploymentStatus";
 import type { PublicV4DeploymentStatus } from "@/components/v4/V4DeploymentStatus";
 import { V4LifecycleEvidence } from "@/components/v4/V4LifecycleEvidence";
-import { V3PredecessorEvidence } from "@/components/v4/V3PredecessorEvidence";
 import { formatSol, invariantHolds, runCanonicalLifecycle, shortHash, V4_EVIDENCE, V4_PROGRAM_ID } from "@/lib/v4/replay";
 import manifest from "@/fixtures/txline/v4-build-manifest.json";
 import { initialV4VerificationResponse, V4_LAST_VERIFIED_SNAPSHOT } from "@/lib/proof/v4VerificationSnapshot";
@@ -67,7 +66,7 @@ export default function ProofPage() {
         <JudgeProofSummary provenance={provenance} />
 
         <details id="technical-evidence" className="group mt-5 overflow-hidden rounded-2xl border border-(--border) bg-white">
-          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 text-[12px] font-extrabold sm:px-6"><span><span className="block">View full technical evidence</span><span className="mt-1 block text-[9px] font-normal text-(--ink-3)">Transactions, binary identity, QuoteGuard internals, reconciliation, RPC checks, trust boundaries and V3 predecessor evidence</span></span><ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" /></summary>
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 text-[12px] font-extrabold sm:px-6"><span><span className="block">View full technical evidence</span><span className="mt-1 block text-[9px] font-normal text-(--ink-3)">Transactions, binary identity, QuoteGuard internals, reconciliation, RPC checks and trust boundaries</span></span><ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" /></summary>
           <div className="border-t border-(--border) bg-(--surface) p-3 sm:p-5">
 
         <section className="mt-5 overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50" aria-labelledby="proof-first-paint"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 px-5 py-4"><div><p className="text-[8.5px] font-bold uppercase tracking-[.1em] text-emerald-700">Last complete independent read</p><h2 id="proof-first-paint" className="mt-1 text-[18px] font-extrabold text-emerald-950">V4 deployed · lifecycle verified 20/20</h2></div><span className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-[9px] font-bold text-emerald-700">VERIFIED · {new Date(V4_LAST_VERIFIED_SNAPSHOT.checkedAt).toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" })} UTC</span></div><dl className="grid gap-px bg-emerald-200 sm:grid-cols-2 lg:grid-cols-4"><FirstPaintFact label="Deployment" value="Executable V4 · binary hash matched" /><FirstPaintFact label="Transactions" value="24 finalized successful devnet transactions" /><FirstPaintFact label="Protection" value="0.010000000 SOL principal returned · liability 0" /><FirstPaintFact label="Settlement" value="0.030200572 SOL payouts · all final fields 0" /><FirstPaintFact label="QuoteGuard" value="Pre and post quotes VERIFIED 8/8" /><FirstPaintFact label="Resolution" value="France 2–0 · final sequence 1114" /><FirstPaintFact label="Withdrawal" value="0.199799428 SOL genuinely free liquidity" /><FirstPaintFact label="Program hash" value={shortHash(manifest.sbfSha256)} mono /></dl><p className="border-t border-emerald-200 bg-white/60 px-5 py-3 text-[9px] leading-4 text-emerald-950/65">This cached last-known-good snapshot prevents RPC latency from hiding the proof. “Re-check devnet” performs a fresh read; a failed refresh never becomes a false VERIFIED result.</p></section>
@@ -132,24 +131,16 @@ export default function ProofPage() {
           </div>
         </section>
 
-        <section className="mt-12" aria-labelledby="v3-layer">
-          <LayerHeading number="03" title="Deployed predecessor evidence" description="V3 proved the original selective-refund primitive. V4 is the current architecture; V3 is not evidence for V4." secondary />
-          <details className="group mt-4 overflow-hidden rounded-2xl border border-(--border) bg-slate-50">
-            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between px-5 text-[11px] font-bold text-(--ink-2)"><span>Open LineGuard V3 historical evidence</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>
-            <div className="border-t border-(--border) p-3 sm:p-4"><V3PredecessorEvidence /></div>
-          </details>
-        </section>
-
           </div>
         </details>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-(--border) pt-7 sm:flex-row"><Link href="/" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-(--blue) px-6 text-[11px] font-bold text-white">Run the Live Demo</Link><Link href="/portfolio" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-(--border) bg-white px-6 text-[11px] font-bold">See every canonical position</Link></div>
+        <div className="mt-10 flex flex-col gap-3 border-t border-(--border) pt-7 sm:flex-row"><Link href="/" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-(--blue) px-6 text-[11px] font-bold text-white">Run the Demo</Link><Link href="/portfolio" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-(--border) bg-white px-6 text-[11px] font-bold">See every canonical position</Link></div>
       </div>
     </FairXShell>
   );
 }
 
-function LayerHeading({ number, title, description, secondary = false }: { number: string; title: string; description: string; secondary?: boolean }) { return <div className={secondary ? "opacity-80" : ""}><p className="text-[9px] font-bold uppercase tracking-[.12em] text-(--blue)">Layer {number}</p><h2 className="mt-2 text-[24px] font-extrabold tracking-[-.035em]">{title}</h2><p className="mt-2 max-w-3xl text-[11px] leading-5 text-(--ink-2)">{description}</p></div>; }
+function LayerHeading({ number, title, description }: { number: string; title: string; description: string }) { return <div><p className="text-[9px] font-bold uppercase tracking-[.12em] text-(--blue)">Layer {number}</p><h2 className="mt-2 text-[24px] font-extrabold tracking-[-.035em]">{title}</h2><p className="mt-2 max-w-3xl text-[11px] leading-5 text-(--ink-2)">{description}</p></div>; }
 function BoundaryItem({ text, muted = false }: { text: string; muted?: boolean }) { return <li className={`flex items-start gap-2 rounded-xl bg-white/70 p-3 text-[9.5px] font-semibold leading-4 ${muted ? "text-amber-950/75" : "text-emerald-950/75"}`}>{muted ? <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" /> : <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />}{text}</li>; }
 function RoadmapStep({ label, state, text }: { label: string; state: "IMPLEMENTED" | "PLANNED"; text: string }) { return <article className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-[11px] font-extrabold">{label}</h3><span className={`text-[8px] font-bold tracking-[.08em] ${state === "IMPLEMENTED" ? "text-(--green)" : "text-(--ink-3)"}`}>{state}</span></div><p className="mt-2 text-[9.5px] leading-4 text-(--ink-2)">{text}</p></article>; }
 function EconomicFact({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-blue-100 bg-white p-3"><dt className="text-[8.5px] font-bold uppercase tracking-[.06em] text-blue-700">{label}</dt><dd className="mt-2 text-[16px] font-extrabold text-blue-950">{value}</dd></div>; }

@@ -35,9 +35,9 @@ describe("canonical judge-facing contract", () => {
     const integrate = renderToStaticMarkup(<IntegratePage />);
 
     expect(home).toContain("0.010000000 SOL returned");
-    expect(home).toContain("+34.20¢");
-    expect(home).toContain("53.28%");
-    expect(home).toContain("87.48%");
+    expect(home).toContain("0.008769297 SOL");
+    expect(home).toContain("YES 53.28¢");
+    expect(home).toContain("STALE_SEQUENCE_RETURNED");
 
     expect(positions).toContain("Stale-sequence trader");
     expect(positions).toContain("53.28%");
@@ -53,14 +53,15 @@ describe("canonical judge-facing contract", () => {
     expect(integrate).toContain("87.48%");
   });
 
-  it("exposes exactly the six runtime stages in order", () => {
+  it("exposes exactly the seven runtime stages in order", () => {
     expect(RUNTIME_STAGE_LABELS).toEqual([
-      "Market open and synchronised",
-      "Material TxLINE event arrives",
-      "Market becomes stale",
-      "Exploitative order is voided and refunded",
-      "Market reprices",
-      "Fair order succeeds and proof is available",
+      "Market healthy",
+      "TxLINE event advances sequence",
+      "Stale order arrives",
+      "Principal returned",
+      "Quote recovering",
+      "Synchronized retry accepted",
+      "Settlement verified",
     ]);
   });
 });

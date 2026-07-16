@@ -104,7 +104,7 @@ The market page previously had three technical disclosures ("Technical details",
 
 ## Confirmation: all real engineering still exists
 
-LineGuard, stale-price detection, selective refunds, TxLINE integration, direct
+LineGuard, stale-price detection, stale-sequence returns, TxLINE integration, direct
 TxLINE CPI, the Solana program, wallet integration, the proof verifier, tamper
 detection, deterministic receipts, on-chain settlement, real devnet transactions,
 the real user lifecycle, isolated market vaults, Position PDAs, and every genuine
