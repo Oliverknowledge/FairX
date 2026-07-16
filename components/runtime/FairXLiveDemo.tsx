@@ -95,7 +95,10 @@ export function FairXLiveDemo({ initialScenarioId = "france-morocco" }: { initia
             The stale order stops. The market doesn’t.
           </h1>
           <p className="mt-5 max-w-[760px] text-[14px] leading-6 text-(--ink-2) sm:text-[15px]">
-            FairX is the operational integrity layer for live prediction markets: detect, measure, protect, explain, recover, and verify.
+            FairX is execution-integrity infrastructure for <strong className="font-bold text-(--ink)">operators running live sports markets</strong> — prediction-market and sportsbook operators and the liquidity and risk teams behind them: detect, measure, protect, explain, recover, and verify.
+          </p>
+          <p className="mt-3 max-w-[760px] text-[12.5px] leading-6 text-(--ink-3)">
+            Fans keep access to synchronized markets instead of a full suspension after every material event.
           </p>
         </div>
         <button type="button" onClick={runScenario} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-(--ink) px-6 text-[12px] font-extrabold text-white shadow-[0_16px_35px_rgba(15,23,42,.18)] hover:bg-slate-800">
@@ -212,7 +215,7 @@ function IntegrityPanel({ scenario, state, onRetry }: { scenario: RuntimeScenari
               <p className={`mt-3 break-words text-[15px] font-extrabold ${staleReturned ? "text-emerald-300" : accepted ? "text-blue-300" : state.orderVisible ? "text-amber-200" : "text-slate-500"}`}>
                 {staleReturned ? "STALE_SEQUENCE_RETURNED" : accepted ? "ACCEPTED" : state.orderVisible ? "COMPARING SEQUENCES" : "READY"}
               </p>
-              <p className="mt-1 text-[9px] text-slate-400">{staleReturned ? `${state.orderSequence} < ${state.eventSequence} · principal returned · zero liability` : accepted ? `${state.orderSequence} = ${state.eventSequence} · position and fixed liability created` : "OrderSequence < RequiredSequence → STALE_SEQUENCE_RETURNED; otherwise ACCEPTED"}</p>
+              <p className="mt-1 text-[9px] text-slate-400">{staleReturned ? `${state.orderSequence} < ${state.eventSequence} · principal returned · zero liability` : accepted ? `${state.orderSequence} = ${state.eventSequence} · position and fixed liability created` : "Behind → STALE_SEQUENCE_RETURNED · level → ACCEPTED · ahead → FUTURE_SEQUENCE"}</p>
             </div>
           </div>
         </div>

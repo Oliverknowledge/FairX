@@ -15,6 +15,7 @@ Read this before the demo. Nothing below is exaggerated.
 - **INTEGRATED MARKET INTEGRITY UI:** `/` runs a seven-stage deterministic control panel with event sequence, quote sequence, delta, health, stale-window state, strict V4 outcome, integrity receipt, recovery, settlement, and proof. It does not submit new trades.
 - **CANONICAL EVIDENCE UI:** `/proof` keeps the real France–Morocco deployment, transactions, CPI receipts and accounting evidence separate from the reusable runtime simulation.
 - **LIVE DEVNET PROTOTYPE:** the V4 program is deployed and executable at `2x3vh…yF7p`. The 24-transaction France–Morocco lifecycle is finalized and independently re-verifies **20/20** from RPC, including the strict stale refund, fixed payouts, France 2–0 resolution, vault reconciliation, position closures and operator withdrawal.
+- **PINNED BY DESIGN — canonical V4 scope:** the deployed reference implementation is intentionally pinned to the recorded France–Morocco fixture and its committed TxLINE evidence. `CANONICAL_*` constants in `programs/fairx_vault_v4/src/lib.rs` fix the fixture identity, sequences and captured odds, and `validate_canonical_identity` rejects any other market — so `initialize_market_v4` cannot bind a second fixture without new constants and a redeploy. This is deliberate: pinning is what makes the 24-transaction lifecycle tamper-evident, because the recorded numbers cannot be re-run with different inputs. Runtime scenarios and IntegrationKit demonstrate the reusable policy interface; they are **not** additional on-chain fixture deployments. The next program release removes the canonical constants in favour of arbitrary fixture configuration.
 - **REAL, HISTORICAL predecessor:** an earlier LineGuard program (v2/v3) *was* deployed to devnet and independently RPC-verified for the France–Morocco lifecycle. V4 is a from-scratch, better-collateralised redesign; it does not reuse that program or claim its transactions as its own.
 
 The pricing model is a centrally-authorised, fully-collateralised fixed-payout vault — not an AMM or order book. TxLINE anchors the odds, sports-event, and final-result evidence. QuoteGuard deterministically recomputes the executable YES/NO quote from the committed TxLINE StablePrice update and fixed transformation, then matches it to the on-chain receipt. This proves provenance and transform compliance; it does **not** make the pricing authority permissionless, externally audited, or universally economically optimal.
@@ -33,7 +34,7 @@ The runtime never claims to be a live external TxLINE feed and never sends a tra
 
 ## Provenance
 
-- Source base commit: `26db8b50a78953c897f81c9bace4051c1428b046` (public deployments display `VERCEL_GIT_COMMIT_SHA` when available)
+- Submission release: tag `submission-v2.1.0` (public deployments display the live `VERCEL_GIT_COMMIT_SHA` on `/proof`, which is the authoritative deployed-commit source)
 - V4 deployment: `2026-07-15T10:28:14Z`, slot `476416258`
 - Build timestamp: generated into the static Proof page at build time, or supplied with `NEXT_PUBLIC_BUILD_TIMESTAMP`
 
