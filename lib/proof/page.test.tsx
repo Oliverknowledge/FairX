@@ -15,6 +15,38 @@ describe("isolated V4 proof page", () => {
     expect(html).toContain("View full technical evidence");
   });
 
+  // The listing explicitly asks submissions to show how TxLINE powers the backend.
+  it("shows the direct TxLINE CPI chain without requiring raw logs", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    expect(html).toContain("How TxLINE powers the backend");
+    expect(html).toContain("Direct CPI into TxLINE");
+    expect(html).toContain("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
+    expect(html).toContain(V4_PROGRAM_ID);
+    expect(html).toContain("ValidateOdds");
+    expect(html).toContain("ValidateStatV2");
+    expect(html).toContain("Odds 2/2 · result verified");
+    expect(html).toContain("Settlement cannot execute without TxLINE.");
+    expect(html).toContain("direct_cpi_verified");
+  });
+
+  // A displayed test count that drifts above the real one is an overclaim.
+  it("never displays a test count higher than the suite actually runs", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    const claimed = Number(html.match(/(\d+)\s*app tests/)?.[1] ?? "0");
+    expect(claimed).toBeGreaterThan(0);
+    // Keep in step with `npx vitest run`. Never raise this above the real total.
+    expect(claimed).toBeLessThanOrEqual(330);
+  });
+
+  // A technical judge must meet this before they find the CANONICAL_* constants themselves.
+  it("discloses the pinned canonical scope of the deployed program", () => {
+    const html = renderToStaticMarkup(<ProofPage />);
+    expect(html).toContain("Canonical V4 scope: pinned by design");
+    expect(html).toContain("validate_canonical_identity");
+    expect(html).toContain("cannot bind a second fixture");
+    expect(html).toContain("not generic across fixtures");
+  });
+
   it("presents only the genuine France-Morocco proof chain", () => {
     const html = renderToStaticMarkup(<ProofPage />);
     for (const title of ["Genuine historical source", "Objective stale-sequence return", "Fixed payouts", "Final—not mid-game—result", "Conservative collateral", "Exact final state"]) expect(html).toContain(title);
