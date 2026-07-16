@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, ExternalLink, Loader2, RefreshCw, ShieldAlert, Timer } from "lucide-react";
 import type { V4DeploymentStatus } from "@/lib/v4/deploymentStatus";
 
+export type PublicV4DeploymentStatus = Omit<V4DeploymentStatus, "rpcUrl"> & { privateRpcConfigured: boolean };
+
 type State =
   | { kind: "loading" }
-  | { kind: "ready"; status: V4DeploymentStatus }
+  | { kind: "ready"; status: PublicV4DeploymentStatus }
   | { kind: "error"; message: string };
 
 const PHASE_STYLE: Record<V4DeploymentStatus["phase"], { border: string; bg: string; text: string; label: string }> = {
@@ -16,14 +18,14 @@ const PHASE_STYLE: Record<V4DeploymentStatus["phase"], { border: string; bg: str
   UNKNOWN: { border: "border-slate-300", bg: "bg-slate-50", text: "text-slate-700", label: "RPC UNAVAILABLE" },
 };
 
-export function V4DeploymentStatus() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+export function V4DeploymentStatus({ initialStatus }: { initialStatus?: PublicV4DeploymentStatus }) {
+  const [state, setState] = useState<State>(initialStatus ? { kind: "ready", status: initialStatus } : { kind: "loading" });
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
       const response = await fetch("/api/verify/v4-status", { cache: "no-store" });
-      const status = (await response.json()) as V4DeploymentStatus;
+      const status = (await response.json()) as PublicV4DeploymentStatus;
       setState({ kind: "ready", status });
     } catch (error) {
       setState({ kind: "error", message: error instanceof Error ? error.message : String(error) });
@@ -31,8 +33,8 @@ export function V4DeploymentStatus() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!initialStatus) void load();
+  }, [initialStatus, load]);
 
   if (state.kind === "loading") {
     return (
@@ -80,7 +82,7 @@ export function V4DeploymentStatus() {
         <button type="button" onClick={() => void load()} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-(--border) bg-white px-4 text-[11px] font-bold text-(--ink)">
           <RefreshCw className="h-3.5 w-3.5" />Re-check devnet
         </button>
-        <span className="text-[9.5px] text-(--ink-3)">Read-only getMultipleAccounts · no signing · {new Date(status.checkedAt).toLocaleTimeString()}</span>
+        <span className="text-[9.5px] text-(--ink-3)">Read-only getMultipleAccounts · no signing · server RPC private: {status.privateRpcConfigured ? "yes" : "no"} · {new Date(status.checkedAt).toISOString().slice(11, 19)} UTC</span>
       </div>
       <details className="group mt-4 rounded-xl border border-(--border) bg-white/60">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-[10px] font-bold text-(--ink-2)">Deployment technical details <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></summary>

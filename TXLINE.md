@@ -45,7 +45,7 @@ Two distinct layers are intentionally shown:
 - **Read-only proof validation:** `npm run v4:verify-proofs` submits the exact `validate_odds` and `validate_stat_v2` inputs to the genuine TxLINE devnet program and confirms all three return `true`. It signs and sends nothing. This independently checks the captured proof material.
 - **Finalized V4 CPI evidence:** the deployed V4 lifecycle contains finalized `verify_txline_quote` instructions for the pre-goal and post-goal odds and a finalized `prove_resolution_with_txline_v4` instruction for France 2–0. Those instructions validate the approved TxLINE root accounts and invoke the real TxLINE program by CPI. V4 records receipts only after TxLINE returns successfully.
 
-TxLINE proof validation proves the sports evidence, not the fairness of FairX's operator-set quote or spread. The V4 verifier checks the CPI-bound receipts and lifecycle separately.
+TxLINE proof validation proves the source odds and sports evidence. QuoteGuard then proves that the executable quote followed the committed StablePrice update and `fairx-v4-demargin-spread-v1` transformation: normalized post-goal probability `86.4793%`, executable YES `87.4793%`, and executable NO `14.5207%`. This does not make the configured pricing authority permissionless or externally audited. The V4 verifier checks the CPI-bound receipts and lifecycle separately.
 
 ## Historical predecessor CPI (real, not V4 evidence)
 

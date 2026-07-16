@@ -124,7 +124,7 @@ export function runCanonicalLifecycle() {
   const positions = [
     position("pre-yes", "Honest wallet A", "YES", pre.yesPriceMicros, 738, "Pre-goal", "ACCEPTED"),
     position("pre-no", "Honest wallet B", "NO", pre.noPriceMicros, 738, "Pre-goal", "ACCEPTED"),
-    position("stale-bot", "Stale bot wallet", "YES", pre.yesPriceMicros, 738, "Invalidated by seq 739", "REFUNDED"),
+    position("stale-bot", "Stale-sequence trader", "YES", pre.yesPriceMicros, 738, "Invalidated by seq 739", "REFUNDED"),
     position("post-yes", "Synchronized wallet", "YES", post.yesPriceMicros, 739, "Post-goal", "ACCEPTED"),
   ] satisfies ReplayPosition[];
 
@@ -149,7 +149,7 @@ export function runCanonicalLifecycle() {
   snapshot("France goal seq 739 invalidated quote seq 1");
 
   // The stale stake enters and leaves within one instruction; no durable vault field changes.
-  snapshot("Old-quote bot atomically refunded");
+  snapshot("Stale-sequence principal returned");
   accept(positions[3]);
 
   for (const winner of positions.filter((item) => item.status === "ACCEPTED" && item.side === "YES")) {

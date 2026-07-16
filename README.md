@@ -1,6 +1,6 @@
-# FairX — execution integrity for live sports markets
+# FairX — fair execution for live prediction markets
 
-FairX is Solana infrastructure for prediction-market operators. If genuine TxLINE evidence advances before an executable quote catches up, the order's quote sequence no longer matches the market's required event sequence: its principal returns, no position liability is created, and synchronized orders continue. The sequence decision, liabilities, claims, and operator withdrawal are independently re-readable on Solana. **Unaudited devnet prototype only. No mainnet or real-money operation.**
+FairX is an execution firewall for live prediction-market operators. It detects orders that exploit the gap between a TxLINE event and a market reprice, refunds them atomically, and keeps fair trading open. The judge-facing runtime is a deterministic simulation using captured TxLINE-schema events; the separate canonical France–Morocco settlement is independently re-readable on Solana. **Unaudited devnet prototype only. No mainnet or real-money operation.**
 
 The current submission is **FairX Vault V4**: a fixed-payout, fully-collateralised market. An operator funds a liquidity vault; every accepted order's gross payout is frozen and its incremental liability reserved from free collateral before it can execute (the vault invariant `A = F + R + S` holds at every step). A genuine TxLINE material-event sequence (the France goal, sequence 739) invalidates the prior quote, so a stale-quote order entering afterward is refunded within a single instruction and can never claim.
 
@@ -12,23 +12,30 @@ Read this before the demo. Nothing below is exaggerated.
 - **REAL and reproducible now — TxLINE:** the genuine TxLINE devnet program (`6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`) validates all three settlement proofs — pre-goal odds, post-goal odds, and the final France 2–0 result — by **read-only RPC simulation**, each returning `true`. No transaction is signed or sent. `npm run v4:verify-proofs`.
 - **REAL on devnet now — deployment:** the executable V4 Program and ProgramData accounts are loader-owned; the temporary upload buffer was drained and purged by deployment. `/proof` reads this state live.
 - **LOCAL, exact-binary:** the full signed lifecycle and the void lifecycle both pass in LiteSVM against the exact deploy binary. `npm run v4:test-lifecycle`, `npm run v4:test-void`.
-- **DETERMINISTIC REPLAY UI:** `/markets/france-morocco-v4-replay` and `/portfolio` replay the fixed canonical scenario from recorded TxLINE and finalized V4 evidence. They do not submit new trades.
+- **DETERMINISTIC RUNTIME UI:** `/` runs a six-stage captured-schema simulation with two fixture configurations, a visible TxLINE event/quote sequence gap, side-aware guard decision, atomic-refund result, synchronized follow-up order and unprotected-versus-FairX economics. It does not submit new trades.
+- **CANONICAL EVIDENCE UI:** `/proof` keeps the real France–Morocco deployment, transactions, CPI receipts and accounting evidence separate from the reusable runtime simulation.
 - **LIVE DEVNET PROTOTYPE:** the V4 program is deployed and executable at `2x3vh…yF7p`. The 24-transaction France–Morocco lifecycle is finalized and independently re-verifies **20/20** from RPC, including the strict stale refund, fixed payouts, France 2–0 resolution, vault reconciliation, position closures and operator withdrawal.
 - **REAL, HISTORICAL predecessor:** an earlier LineGuard program (v2/v3) *was* deployed to devnet and independently RPC-verified for the France–Morocco lifecycle. V4 is a from-scratch, better-collateralised redesign; it does not reuse that program or claim its transactions as its own.
 
-The pricing model is a centrally-quoted, fully-collateralised fixed-payout vault — not an AMM or order book. TxLINE anchors the sports-event and final-result evidence; it does **not** attest FairX's prices, spread, or stale-edge policy.
+The pricing model is a centrally-authorised, fully-collateralised fixed-payout vault — not an AMM or order book. TxLINE anchors the odds, sports-event, and final-result evidence. QuoteGuard deterministically recomputes the executable YES/NO quote from the committed TxLINE StablePrice update and fixed transformation, then matches it to the on-chain receipt. This proves provenance and transform compliance; it does **not** make the pricing authority permissionless, externally audited, or universally economically optimal.
 
 ## What is deployed
 
 Program `2x3vhmoj2itZYkFejDUBfTFUy59VK4APKDU4GvSqyF7p` and its 24-transaction France–Morocco lifecycle are live on devnet. The record contains real transaction signatures, account owners, receipts and balance deltas. This repo contains no signer keypair.
 
-## Judge routes
+## Judge journey
 
-- `/` — the operator problem, canonical economic counterfactual, and product thesis
-- `/markets/france-morocco-v4-replay` — the five-chapter historical replay (does not send transactions)
-- `/integrate` — the operator integration boundary and ownership model
-- `/proof` — live deployment, lifecycle, trust boundary, and reconciliation evidence
-- `/portfolio` — the four canonical position outcomes
+- `/` — **Live Demo:** six deterministic stages, two fixtures, visible stale-price advantage, FairX decision and funds outcome
+- `/#how-it-works` — **How It Works:** event → comparison → selective return → fair trading continues
+- `/proof` — **Proof:** concise V4 judge summary first, expandable technical evidence second
+
+The runtime never claims to be a live external TxLINE feed and never sends a transaction. France–Morocco is backed by the canonical captured evidence; Argentina–Brazil is a schema-compatible runtime scenario and makes no on-chain evidence claim.
+
+## Provenance
+
+- Source base commit: `26db8b50a78953c897f81c9bace4051c1428b046` (public deployments display `VERCEL_GIT_COMMIT_SHA` when available)
+- V4 deployment: `2026-07-15T10:28:14Z`, slot `476416258`
+- Build timestamp: generated into the static Proof page at build time, or supplied with `NEXT_PUBLIC_BUILD_TIMESTAMP`
 
 ## Verification
 

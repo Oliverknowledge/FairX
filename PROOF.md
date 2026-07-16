@@ -11,7 +11,7 @@
   - final France 2–0 result, sequence 1114, `validate_stat_v2` (scores root `EUCbk9vftUek4vChr6rnXP9hhR8UuHGBDJKLsAQTZ9Zr`)
   No transaction is signed or sent. `npm run v4:verify-proofs`.
 - **Deployed devnet program.** The executable Program and ProgramData accounts are live; the temporary upload buffer was drained and purged.
-- **Live deployment status.** `/proof` reads the program and buffer accounts on every load and reports `DEPLOYED` / `BUFFER_FUNDED` / `NOT_STARTED` / `UNKNOWN`. It never asserts deployment; RPC failure degrades to `UNKNOWN`.
+- **Reliable first paint plus fresh read.** `/proof` renders the timestamped last complete `VERIFIED 20/20` lifecycle and deployment identity immediately, then offers explicit read-only devnet re-checks. A refresh failure reports `UNKNOWN`; it never becomes a false verified state or hides the timestamp of the cached result.
 - **V4 lifecycle evidence.** The recorded fixture identifies 24 real finalized devnet transactions. The verifier re-fetches them and the durable accounts from RPC and currently returns `VERIFIED` for all 20 checks.
 
 ## 2. Deterministic replay UI
@@ -19,6 +19,8 @@
 The lifecycle on `/markets/france-morocco-v4-replay` and `/portfolio` is a deterministic replay using recorded TxLINE event, odds and final-result proofs. Ten invariants hold — fixture isolation, both StablePrice branches, the confirmed goal (seq 739), final-not-mid-game evidence (seq 1114, 2–0), regulation-time period 100, strict stale invalidation, frozen fixed payouts, every `A = F + R + S` snapshot, and final solvency.
 
 Replay controls do not submit new trades. `/proof` separately verifies the real finalized devnet transactions.
+
+The replay exposes six judge chapters: Fair market, Quote verified, Goal verified, Principal returned, Market continues, and Settlement verified. Detailed settlement states remain internal to the last chapter.
 
 ## 3. Finalized on-chain proof
 

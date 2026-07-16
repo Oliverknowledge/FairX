@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
+@source "../components/runtime";
+@source "../components/proof";
+@source "../lib/runtime";
 
 /* ── LineGuard elemental demo — light-mode trading-terminal tokens ────────── */
 

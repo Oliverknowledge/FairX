@@ -1,4 +1,5 @@
 import { V4_BOOTSTRAP_ADMIN, V4_PROGRAM_ID } from "@/lib/v4/program";
+import { createResilientRpcFetch } from "@/lib/proof/serverRpc";
 
 /**
  * Live, read-only devnet deployment status for the FairX Vault V4 program.
@@ -134,7 +135,7 @@ export async function fetchV4DeploymentStatus(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(rpcUrl, {
+    const response = await createResilientRpcFetch({ requestTimeoutMs: timeoutMs, maxAttempts: 3, signal: controller.signal })(rpcUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal: controller.signal,

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Connection, PublicKey, type AccountInfo, type VersionedTransactionResponse } from "@solana/web3.js";
 import { BorshAccountsCoder, type Idl } from "@anchor-lang/core";
+import { createServerRpcConnection } from "@/lib/proof/serverRpc";
 import idl from "@/lib/v4/idl.json";
 import manifest from "@/fixtures/txline/v4-build-manifest.json";
 import { V4_PROGRAM_ID } from "@/lib/v4/program";
@@ -45,6 +46,7 @@ export interface V4RpcClient {
   getSlot(commitment?: string): Promise<number>;
   getMultipleAccountsInfo(keys: PublicKey[], commitment?: string): Promise<(AccountInfo<Buffer> | null)[]>;
   getTransaction(signature: string, opts: { commitment: "finalized"; maxSupportedTransactionVersion: number }): Promise<VersionedTransactionResponse | null>;
+  getTransactions?(signatures: string[], opts: { commitment: "finalized"; maxSupportedTransactionVersion: number }): Promise<(VersionedTransactionResponse | null)[]>;
 }
 
 const UPGRADEABLE_LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
@@ -119,6 +121,47 @@ async function getFinalizedTransaction(client: V4RpcClient, signature: string): 
   throw lastError;
 }
 
+async function getFinalizedTransactions(
+  client: V4RpcClient,
+  signatures: string[],
+  batchSize: number,
+  paceMs: number,
+): Promise<(VersionedTransactionResponse | null)[]> {
+  if (!client.getTransactions) {
+    const out: (VersionedTransactionResponse | null)[] = [];
+    for (const signature of signatures) out.push(await getFinalizedTransaction(client, signature));
+    return out;
+  }
+  const out: (VersionedTransactionResponse | null)[] = [];
+  const size = Math.max(1, batchSize);
+  if (size === 1) {
+    for (let index = 0; index < signatures.length; index += 1) {
+      out.push(await getFinalizedTransaction(client, signatures[index]));
+      if (paceMs > 0 && index + 1 < signatures.length) await new Promise((resolve) => setTimeout(resolve, paceMs));
+    }
+    return out;
+  }
+  for (let offset = 0; offset < signatures.length; offset += size) {
+    const chunk = signatures.slice(offset, offset + size);
+    let lastError: unknown;
+    let completed = false;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        out.push(...await client.getTransactions(chunk, { commitment: "finalized", maxSupportedTransactionVersion: 0 }));
+        completed = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!rpcUnavailable(error)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+      }
+    }
+    if (!completed) throw lastError;
+    if (paceMs > 0 && offset + size < signatures.length) await new Promise((resolve) => setTimeout(resolve, paceMs));
+  }
+  return out;
+}
+
 function decode(name: string, info: AccountInfo<Buffer> | null): Record<string, unknown> | null {
   if (!info) return null;
   try {
@@ -161,7 +204,7 @@ function popcount(mask: number): number {
 
 export async function verifyV4Lifecycle(
   record: unknown,
-  deps: { client?: V4RpcClient; rpcUrl?: string } = {},
+  deps: { client?: V4RpcClient; rpcUrl?: string; transactionBatchSize?: number; transactionBatchPaceMs?: number } = {},
 ): Promise<V4LifecycleVerification> {
   const rpcUrl = deps.rpcUrl ?? process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
   const checkedAt = new Date().toISOString();
@@ -262,7 +305,7 @@ export async function verifyV4Lifecycle(
   // ---- RPC availability --------------------------------------------------
   let client: V4RpcClient;
   try {
-    client = deps.client ?? (new Connection(rpcUrl, "confirmed") as unknown as V4RpcClient);
+    client = deps.client ?? (createServerRpcConnection({ rpcUrl }) as unknown as V4RpcClient);
     await client.getSlot("confirmed");
   } catch (error) {
     checks.push({ id: "rpc", label: "Solana RPC", status: "UNKNOWN", detail: `RPC unavailable: ${error instanceof Error ? error.message : String(error)}` });
@@ -360,14 +403,12 @@ export async function verifyV4Lifecycle(
       "On-chain quote-receipt payload hashes equal the recorded pre-goal and post-goal quote hashes.");
 
     // ---- transactions ----------------------------------------------------
-    const fetched: Array<VersionedTransactionResponse | null> = [];
-    // The public devnet endpoint rate-limits bursts by RPC method. Pace cold
-    // proof-page verification so V4 and predecessor checks can run together.
-    const transactionPaceMs = deps.client ? 0 : Math.max(0, Number(process.env.V4_RPC_TX_PACE_MS ?? 400));
-    for (const t of proof.transactions) {
-      fetched.push(await getFinalizedTransaction(client, t.signature));
-      if (transactionPaceMs > 0) await new Promise((resolve) => setTimeout(resolve, transactionPaceMs));
-    }
+    const fetched = await getFinalizedTransactions(
+      client,
+      proof.transactions.map((transaction) => transaction.signature),
+      deps.transactionBatchSize ?? Math.max(1, Number(process.env.V4_RPC_BATCH_SIZE ?? 1)),
+      deps.transactionBatchPaceMs ?? Math.max(0, Number(process.env.V4_RPC_BATCH_PACE_MS ?? 500)),
+    );
     const missing = fetched.filter((t) => t === null).length;
     if (missing) {
       checks.push({ id: "transactions", label: "Finalized lifecycle transactions", status: "UNKNOWN", detail: `${missing} recorded transaction(s) were unavailable from this RPC; absence is never treated as verification.` });
@@ -387,7 +428,7 @@ export async function verifyV4Lifecycle(
       const refundTx = complete[proof.transactions.findIndex((t) => t.label === "refundStaleBot")];
       const staleWallet = proof.wallets.find((w) => w.role === "traderStaleBot");
       const refundDelta = refundTx && staleWallet ? accountDelta(refundTx, staleWallet.address) : NaN;
-      add("stale-refund", "Stale exploit refunded",
+      add("stale-refund", "Stale-sequence principal returned",
         Boolean(staleWallet && Number.isFinite(refundDelta) && refundDelta > -V4_CANONICAL.stakeLamports && refundDelta === proof.staleOrder.walletNetLamports),
         "The stale order's transaction returns the full stake; the wallet loses only position rent and the transaction fee.");
 

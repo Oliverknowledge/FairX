@@ -10,7 +10,8 @@ import {
   type SupportedMarket,
 } from "@/lib/markets/supportedMarkets";
 
-const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+// This client hook must never receive a keyed/private RPC URL.
+const RPC_URL = "https://api.devnet.solana.com";
 
 /**
  * Resolve the primary Trade destination from verified on-chain state.

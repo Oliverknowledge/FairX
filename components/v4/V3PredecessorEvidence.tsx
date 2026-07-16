@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { CheckCircle2, CircleDashed, ExternalLink, History, Loader2, RefreshCw, XCircle } from "lucide-react";
 
 interface V3Verification {
   status: "VERIFIED" | "FAILED" | "UNKNOWN";
   summary: { verified: number; failed: number; unknown: number };
-  rpcUrl: string;
+  checkedAt: string;
+  privateRpcConfigured: boolean;
+  durationMs: number;
+  rpcRequestCount: number;
 }
 
 // Real, finalized facts from fixtures/lineguard/v3-france-morocco-three-wallet.json.
@@ -20,14 +23,14 @@ const addr = (a: string) => `https://explorer.solana.com/address/${a}?cluster=de
 const txUrl = (t: string) => `https://explorer.solana.com/tx/${t}?cluster=devnet`;
 
 export function V3PredecessorEvidence() {
-  const [result, setResult] = useState<V3Verification | "loading" | "error">("loading");
+  const [result, setResult] = useState<V3Verification | "idle" | "loading" | "error">("idle");
 
   const load = useCallback(async () => {
     setResult("loading");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 35_000);
     try {
-      const response = await fetch("/api/verify/v3-lifecycle", { cache: "no-store", signal: controller.signal });
+      const response = await fetch("/api/verify/v3-lifecycle?force=1", { cache: "no-store", signal: controller.signal });
       setResult((await response.json()) as V3Verification);
     } catch {
       setResult("error");
@@ -35,9 +38,9 @@ export function V3PredecessorEvidence() {
       clearTimeout(timeout);
     }
   }, []);
-  useEffect(() => { void load(); }, [load]);
 
   const badge = (() => {
+    if (result === "idle") return { text: "not re-read on page load", cls: "border-slate-300 text-slate-600", Icon: CircleDashed, spin: false };
     if (result === "loading") return { text: "checking…", cls: "border-slate-300 text-slate-600", Icon: Loader2, spin: true };
     if (result === "error") return { text: "verifier unavailable", cls: "border-slate-300 text-slate-600", Icon: CircleDashed, spin: false };
     if (result.status === "VERIFIED") return { text: `VERIFIED · ${result.summary.verified} checks`, cls: "border-emerald-300 text-emerald-800", Icon: CheckCircle2, spin: false };
@@ -56,21 +59,23 @@ export function V3PredecessorEvidence() {
 
       <p className="mt-3 max-w-3xl text-[11.5px] leading-relaxed text-(--ink-2)">
         V3 (LineGuard) is FairX&rsquo;s <strong>deployed historical predecessor</strong>. On Solana devnet it proves the original core primitive:
-        selective refund of only the stale-price exploit order, and genuine counterparty collateral settlement. Its transactions are real and
+        selective return of only the stale-sequence order, and genuine counterparty collateral settlement. Its transactions are real and
         independently re-read from RPC (18 checks). <strong>V4 is the hardened successor</strong> with the operator-liquidity fixed-payout vault.
         This V3 evidence is <strong>not</strong> V4 lifecycle evidence; the separate layers above verify V4.
       </p>
 
+      {result === "idle" && <p className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] text-(--ink-2)"><strong>Last-known canonical summary:</strong> VERIFIED 18/18. V3 is intentionally not queried during initial proof-page load; use the button below for an explicit predecessor RPC scan.</p>}
+
       <div className="mt-4 grid gap-2 text-[10.5px] sm:grid-cols-2">
         <a href={addr(V3.programId)} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-(--border) bg-white px-3 py-2"><span className="text-(--ink-3)">V3 program</span><span className="mono flex items-center gap-1 font-semibold">{V3.programId.slice(0, 8)}…{V3.programId.slice(-6)}<ExternalLink className="h-3 w-3 opacity-40" /></span></a>
         <a href={addr(V3.market)} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-(--border) bg-white px-3 py-2"><span className="text-(--ink-3)">Resolved market</span><span className="mono flex items-center gap-1 font-semibold">{V3.market.slice(0, 8)}…{V3.market.slice(-6)}<ExternalLink className="h-3 w-3 opacity-40" /></span></a>
-        <a href={txUrl(V3.refundTx)} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-(--border) bg-white px-3 py-2"><span className="text-(--ink-3)">Selective refund (C)</span><span className="flex items-center gap-1 font-semibold text-(--green)">stale exploit refunded 0.01 SOL<ExternalLink className="h-3 w-3 opacity-40" /></span></a>
+        <a href={txUrl(V3.refundTx)} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-(--border) bg-white px-3 py-2"><span className="text-(--ink-3)">Selective return (C)</span><span className="flex items-center gap-1 font-semibold text-(--green)">stale-sequence principal returned · 0.01 SOL<ExternalLink className="h-3 w-3 opacity-40" /></span></a>
         <a href={txUrl(V3.claimTx)} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-(--border) bg-white px-3 py-2"><span className="text-(--ink-3)">Winner payout (A)</span><span className="flex items-center gap-1 font-semibold text-(--green)">received 0.02 SOL (A+B pool)<ExternalLink className="h-3 w-3 opacity-40" /></span></a>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-(--ink-3)">
         <span>Net of equal setup funding: <strong className="text-(--green)">A +0.01</strong> · <strong className="text-(--red)">B −0.01</strong> (real losing counterparty) · <strong>C 0</strong> (refunded).</span>
-        <button type="button" onClick={() => void load()} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-(--border) bg-white px-4 text-[10.5px] font-bold text-(--ink)"><RefreshCw className="h-3.5 w-3.5" />Re-verify V3</button>
+        <button type="button" onClick={() => void load()} disabled={result === "loading"} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-(--border) bg-white px-4 text-[10.5px] font-bold text-(--ink) disabled:opacity-60"><RefreshCw className={`h-3.5 w-3.5 ${result === "loading" ? "animate-spin" : ""}`} />Verify predecessor evidence</button>
       </div>
     </div>
   );

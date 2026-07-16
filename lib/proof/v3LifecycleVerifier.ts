@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Connection, PublicKey, type VersionedTransactionResponse } from "@solana/web3.js";
+import { createServerRpcConnection, serverRpcUrl } from "@/lib/proof/serverRpc";
 import canonicalCapture from "@/fixtures/txline/canonical.json";
 import { hashRawEvent } from "@/lib/proof/eventHash";
 import { recomputeBorshPayloadHash } from "@/lib/proof/v2Lifecycle";
@@ -69,18 +70,49 @@ function rpcUnavailable(error: unknown): boolean {
   return /429|too many requests|fetch failed|network|econn|etimedout|socket|rpc unavailable/i.test(error instanceof Error ? error.message : String(error));
 }
 
-async function getFinalizedTransaction(connection: Connection, signature: string): Promise<VersionedTransactionResponse | null> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      return await connection.getTransaction(signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
-    } catch (error) {
-      lastError = error;
-      if (!rpcUnavailable(error)) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+async function getFinalizedTransactions(connection: Connection, signatures: string[], requestedBatchSize?: number, requestedPaceMs?: number): Promise<(VersionedTransactionResponse | null)[]> {
+  const out: (VersionedTransactionResponse | null)[] = [];
+  const batchSize = Math.max(1, requestedBatchSize ?? Number(process.env.V3_RPC_BATCH_SIZE ?? 1));
+  const paceMs = Math.max(0, requestedPaceMs ?? Number(process.env.V3_RPC_BATCH_PACE_MS ?? 500));
+  if (batchSize === 1) {
+    for (let index = 0; index < signatures.length; index += 1) {
+      let lastError: unknown;
+      let transaction: VersionedTransactionResponse | null | undefined;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          transaction = await connection.getTransaction(signatures[index], { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+          break;
+        } catch (error) {
+          lastError = error;
+          if (!rpcUnavailable(error)) throw error;
+          await new Promise((resolve) => setTimeout(resolve, Math.min(500 * 2 ** attempt, 4_000)));
+        }
+      }
+      if (transaction === undefined) throw lastError;
+      out.push(transaction);
+      if (paceMs > 0 && index + 1 < signatures.length) await new Promise((resolve) => setTimeout(resolve, paceMs));
     }
+    return out;
   }
-  throw lastError;
+  for (let offset = 0; offset < signatures.length; offset += batchSize) {
+    const chunk = signatures.slice(offset, offset + batchSize);
+    let lastError: unknown;
+    let completed = false;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        out.push(...await connection.getTransactions(chunk, { commitment: "finalized", maxSupportedTransactionVersion: 0 }));
+        completed = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!rpcUnavailable(error)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+      }
+    }
+    if (!completed) throw lastError;
+    if (paceMs > 0 && offset + batchSize < signatures.length) await new Promise((resolve) => setTimeout(resolve, paceMs));
+  }
+  return out;
 }
 
 function parseReceipt(raw: Buffer) {
@@ -112,7 +144,11 @@ function parseProposal(raw: Buffer) {
   };
 }
 
-export async function verifyV3Lifecycle(record: unknown, rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com"): Promise<V3LifecycleVerification> {
+export async function verifyV3Lifecycle(
+  record: unknown,
+  rpcUrl = serverRpcUrl(),
+  deps: { connection?: Connection; transactionBatchSize?: number; transactionBatchPaceMs?: number } = {},
+): Promise<V3LifecycleVerification> {
   const checks: VerificationCheck[] = [];
   const checkedAt = new Date().toISOString();
   if (!record || typeof record !== "object" || (record as any).version !== 3) {
@@ -128,7 +164,7 @@ export async function verifyV3Lifecycle(record: unknown, rpcUrl = process.env.SO
 
   let connection: Connection;
   try {
-    connection = new Connection(rpcUrl, "confirmed");
+    connection = deps.connection ?? createServerRpcConnection({ rpcUrl });
     await connection.getSlot("confirmed");
   } catch (error) {
     checks.push({ id: "rpc", label: "Solana RPC", status: "UNKNOWN", detail: `RPC unavailable: ${error instanceof Error ? error.message : String(error)}` });
@@ -202,12 +238,12 @@ export async function verifyV3Lifecycle(record: unknown, rpcUrl = process.env.SO
         && entries.every(([, transaction]) => transaction.finalized),
       "The record contains exactly the 14 required, uniquely signed, finalized lifecycle steps.",
     );
-    const fetched: Array<VersionedTransactionResponse | null> = [];
-    const transactionPaceMs = Math.max(0, Number(process.env.V3_RPC_TX_PACE_MS ?? 400));
-    for (const [, transaction] of entries) {
-      fetched.push(await getFinalizedTransaction(connection, transaction.signature));
-      if (transactionPaceMs > 0) await new Promise((resolve) => setTimeout(resolve, transactionPaceMs));
-    }
+    const fetched = await getFinalizedTransactions(
+      connection,
+      entries.map(([, transaction]) => transaction.signature),
+      deps.transactionBatchSize,
+      deps.transactionBatchPaceMs,
+    );
     const missing = fetched.filter((tx) => tx === null).length;
     if (missing) {
       checks.push({ id: "transactions", label: "Finalized lifecycle transactions", status: "UNKNOWN", detail: `${missing} recorded transaction(s) were unavailable from this RPC; absence is not treated as verification.` });

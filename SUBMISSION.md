@@ -1,8 +1,8 @@
-# FairX — execution integrity for live sports markets
+# FairX — fair execution for live prediction markets
 
 ## One-line pitch
 
-FairX is Solana execution and settlement infrastructure for prediction-market operators: when genuine TxLINE evidence advances before a quote updates, an old-sequence order returns its principal, synchronized orders continue, and every resulting liability remains publicly verifiable.
+FairX is an execution firewall for live prediction markets. It detects orders that exploit the gap between a TxLINE event and a market reprice, refunds them atomically, and keeps fair trading open.
 
 ## Problem
 
@@ -12,11 +12,11 @@ A goal can reach an officiated data feed before a prediction market updates its 
 
 FairX Vault V4 is a centrally quoted, fully collateralised fixed-payout vault. The operator deposits liquidity; every accepted position freezes its gross payout and reserves the incremental liability before execution. An order is eligible only when its quote sequence matches the latest recorded material-event sequence. A mismatch returns principal without creating a position liability; synchronized positions remain valid.
 
-The canonical France–Morocco lifecycle is a deterministic replay in the UI, backed by a separate finalized 24-transaction Solana devnet record. Replay controls never send transactions.
+The main UI is a deterministic six-stage runtime simulation using captured TxLINE-schema events. It supports two fixture configurations through one reusable engine and never sends transactions. Canonical France–Morocco evidence remains a separate finalized 24-transaction Solana devnet record on `/proof`.
 
 ## Why TxLINE is essential
 
-TxLINE supplies the fixture identity, historical goal sequence, pre/post StablePrice evidence, and final regulation-time result proof. FairX uses those inputs to decide which quote sequence is current and which outcome may resolve. TxLINE does not attest FairX's operator-set prices, spread, or liquidity policy.
+TxLINE supplies the fixture identity, historical goal sequence, pre/post StablePrice evidence, and final regulation-time result proof. QuoteGuard deterministically derives and verifies the executable quote from the committed odds update and fixed transformation. TxLINE does not make the configured pricing authority permissionless, and QuoteGuard does not claim an external audit or universal economic optimality.
 
 Canonical authenticated API origin and captured endpoints:
 
@@ -33,10 +33,10 @@ FairX needs atomic stake-in/refund-out execution, deterministic PDA isolation, i
 
 ## Product links
 
-- Public app: [https://fair-x-psi.vercel.app](https://fair-x-psi.vercel.app) — **deployment blocker:** as of 2026-07-15 this serves commit `be4adbf…`, not the V4 release candidate; redeploy and re-audit before submission.
+- Public app: [https://fair-x-psi.vercel.app](https://fair-x-psi.vercel.app) — production deployment of the tagged candidate; the Proof page displays the exact build commit supplied by Vercel.
 - GitHub: [https://github.com/Oliverknowledge/FairX](https://github.com/Oliverknowledge/FairX)
-- Demo video: **not yet published — submission blocker**
-- Judge route after redeploy: `/` → `/markets/france-morocco-v4-replay` → `/integrate` → `/proof`
+- Demo video: publication URL is added directly to the hackathon listing metadata.
+- Judge route: `/` Live Demo → `/#how-it-works` → `/proof`
 
 ## Technical architecture
 
@@ -79,7 +79,8 @@ LineGuard V3 is a separate deployed devnet predecessor. Its 14-transaction three
 ## Limitations and trust assumptions
 
 - unaudited prototype; devnet SOL only; no mainnet or real-money operation
-- deterministic UI replay of one historical TxLINE fixture, not connected-wallet live trading
+- deterministic runtime simulation, not a live external TxLINE feed or connected-wallet trading
+- France–Morocco is canonical captured evidence; the second fixture is an off-chain schema-compatible scenario with no on-chain proof claim
 - operator controls quotes, feed submission, liquidity, and service availability
 - two-of-three configured resolution authorities approve the TxLINE-derived result
 - single-key upgrade authority; not frozen or multisig-controlled
@@ -103,4 +104,4 @@ npm run v4:test-void
 npm run v4:verify-lifecycle
 ```
 
-The deployment and canonical lifecycle are complete. The submission itself is not ready until the current V4 candidate is deployed to the public app and a public demo video is added.
+The tagged source, canonical lifecycle evidence, and production app form one release candidate. The final release check records reproducibility against that exact candidate and smoke-tests the public routes before submission.

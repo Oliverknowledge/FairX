@@ -1,35 +1,88 @@
-# FairX V4 four-minute narration
+# FairX — final demo script
 
-## 0:00–0:20 — hook
+Target length: **2:20–2:45**
 
-“A goal can reach the official feed before a prediction market updates its price. Fast traders can exploit that stale window. FairX refunds the stale attempt without freezing synchronized positions.”
+Primary audience: **TxLINE and Solana hackathon judges**
 
-## 0:20–0:45 — product
+Core sentence: **FairX removes the informational advantage and keeps fair trading open.**
 
-“This is FairX Vault V4, a fully collateralised fixed-payout market on Solana devnet. The operator funds every incremental payout liability. This interface replays one recorded France–Morocco lifecycle using genuine historical TxLINE evidence; the controls do not send new trades.”
+## 0:00–0:18 — The product in five seconds
 
-## 0:45–1:15 — fair positions
+**Screen:** Open `/`. Hold on the headline, match and market first screen.
 
-“Before the goal, a 0.01 SOL YES and a 0.01 SOL NO position are accepted. Each receives a frozen gross payout, and the vault reserves gross payout minus stake independently. The solvency equation remains exact.”
+**Narration:**
 
-## 1:15–1:45 — stale exploit
+> FairX is an execution firewall for live prediction markets. When a sports event reaches TxLINE before a quote catches up, a latency bot sees free money. FairX sees the stale sequence.
 
-“TxLINE's confirmed France goal advances the material sequence from 738 to 739. The displayed old quote is now stale. When the bot attempts that old-sequence order, the stake enters and returns within one instruction. Its receipt is permanently refunded and can never claim.”
+Point out the visible qualifier: **Runtime simulation using captured TxLINE-schema events.** Never call it a live external feed.
 
-## 1:45–2:10 — market continues
+## 0:18–1:12 — Run the exploit
 
-“FairX does not freeze the whole market. A post-goal quote is validated against TxLINE and a synchronized YES position is accepted at the new sequence.”
+**Screen:** Click **Run exploit**. Let autoplay run. Follow the six stage pills without scrolling away from the demo.
 
-## 2:10–2:45 — resolution and accounting
+**Narration:**
 
-“The final TxLINE evidence is sequence 1114: France two, Morocco nil. Two of three configured authorities approve the derived YES result. Both YES positions receive 30,200,572 lamports in total; the NO position closes lost. Two hundred million operator lamports plus thirty million accepted principal, minus payouts, leaves exactly 199,799,428 lamports for the operator to withdraw. Every final vault field and every open position reaches zero.”
+> France and Morocco are scoreless. Event sequence 738 and quote sequence 738 match, so the market is synchronized and open. A captured goal event arrives and advances TxLINE to 739. The market is still priced at 738, so it is now stale. A latency bot submits YES at the obsolete 53.28-cent price.
 
-## 2:45–3:30 — independent proof
+Pause when stage 4 appears.
 
-“This is not only a local model. The V4 program is executable on Solana devnet. Its ProgramData contains the exact 422,040-byte binary with SHA-256 7917273c…bffc71f0. The canonical lifecycle contains 24 finalized transactions, and the independent verifier re-fetches the program, accounts, TxLINE roots, transaction messages, balance changes, refund, payouts, solvency, and closures. It currently returns VERIFIED, 20 out of 20. The V3 panel below is explicitly separate historical predecessor evidence, verified 18 out of 18.”
+> FairX evaluates the sequence and direction. The YES order gained 34.20 cents of immediate pricing advantage, so FairX voids it, atomically returns the full 0.01 SOL principal, creates no position liability, and leaves the market open.
 
-## 3:30–3:55 — limits and close
+Hold on the split-screen comparison for two seconds.
 
-“FairX is an unaudited, operator-controlled devnet prototype using a historical fixture replay. It is not an AMM, order book, or real-money product, and its upgrade authority is still a single key. What it proves is focused: refund the stale exploit, keep fair positions valid, pay every accepted liability, and reconcile every lamport.”
+> Without FairX, the bot captures the stale-price advantage. With FairX, that advantage is zero and honest traders keep access.
 
-Full recording instructions and fallback shots: `docs/final-audit/DEMO_VIDEO_FINAL.md` and `docs/final-audit/VIDEO_STORYBOARD.md`.
+Continue through stages 5 and 6.
+
+> Once quote sequence 739 catches up, the next fair order succeeds at the updated price.
+
+## 1:12–1:38 — Prove reuse
+
+**Screen:** Click **ARG–BRA**, then click stage 4 or use **Next step** three times.
+
+**Narration:**
+
+> This is the same deterministic engine with a different fixture and a red-card event. Here the incoming NO order did not benefit from the stale state, so the guard returns a different result: allow, no informational edge. This scenario proves reusable off-chain architecture; it makes no canonical on-chain evidence claim.
+
+Point briefly at: **Same FairX guard. Different fixture. Different event. Same deterministic protection.**
+
+## 1:38–1:53 — How it works
+
+**Screen:** Scroll to **How It Works**.
+
+**Narration:**
+
+> The flow is deliberately small: event arrives, FairX compares event sequence, quote sequence and order direction, one advantageous order leaves, and synchronized trading continues. FairX is infrastructure for existing market frontends, not another destination market.
+
+## 1:53–2:28 — Canonical proof
+
+**Screen:** Open `/proof`. Hold on the first screen only.
+
+**Narration:**
+
+> The runtime explains the product. This separate page proves the canonical deployment. FairX Vault V4 is executable on Solana devnet. Twenty-four finalized transactions independently verify the 0.01 SOL stale-order return, both fixed payouts, final accounting, and direct TxLINE CPI validation for the odds and France two–nil result—20 checks out of 20.
+
+Point to the three cards: **Order protection**, **Settlement and accounting**, **TxLINE verification**.
+
+## 2:28–2:42 — Close
+
+**Screen:** Click **View full technical evidence** once, show that the deeper dossier exists, then return to the proof summary.
+
+**Narration:**
+
+> Every explorer link, transaction, binary hash, trust boundary and known limitation remains available underneath. FairX does not pause the whole market. It removes the informational advantage and keeps fair trading open.
+
+## Backup plan
+
+- The runtime is fully deterministic. If autoplay timing is disrupted, use the six stage buttons or **Next step**.
+- Do not run a fresh RPC scan on camera. Use the timestamped 20/20 result and explorer links.
+- If an explorer is slow, remain on the proof cards; the exact links are already visible.
+- Do not open V3 predecessor evidence unless asked in Q&A.
+- Do not show a wallet or imply that the runtime buttons send transactions.
+
+## Recording setup
+
+- Record at 1920×1080, 100% browser zoom, with notifications and bookmarks hidden.
+- Begin with `/`, keep `/proof` in a second tab, and close unrelated tabs.
+- Move the cursor slowly and pause on the atomic-refund and split-screen payoff.
+- Record three complete takes and keep the final export below three minutes.

@@ -1,7 +1,9 @@
 # FairX V4 architecture
 
 ```text
-historical TxLINE capture ──> recorded StablePrice odds proofs ──> operator commits quote
+historical TxLINE capture ──> recorded StablePrice odds proof ──> QuoteGuard fixed transform
+                                                                  │
+                                                    executable YES/NO quote + receipt
                                       │
 operator funds liquidity vault; every accepted order freezes gross payout and
 reserves (gross − stake) from free collateral BEFORE it can execute
@@ -28,7 +30,7 @@ YES and NO liabilities are reserved **independently** — the market is intentio
 
 ## Economic model
 
-A centrally-quoted, fully-collateralised **fixed-payout vault**: the operator supplies both the quote and every payout liability, so an honest fill wins a real payout from operator liquidity rather than merely recovering its stake. This is not an AMM, order book, or permissionless price oracle.
+A centrally-authorised, fully-collateralised **fixed-payout vault**: QuoteGuard constrains each supported quote to the committed TxLINE odds update and fixed demargin-plus-spread transform, while the operator supplies every payout liability. An accepted fill can therefore win a fixed payout from operator liquidity rather than merely recovering its stake. This is not an AMM, order book, permissionless price oracle, or externally audited pricing authority.
 
 ## Authority and custody boundaries
 
@@ -38,7 +40,7 @@ A centrally-quoted, fully-collateralised **fixed-payout vault**: the operator su
 
 ## Trust boundaries
 
-- TxLINE validates historical result evidence; it does **not** attest FairX's prices, spread, or stale-edge policy.
+- TxLINE validates the recorded odds and historical result evidence. QuoteGuard verifies FairX's fixed transform and receipt; it does **not** prove authority availability, signer security, or economic optimality.
 - Pricing, feed ingestion and resolution submission are operator services.
 - The upgrade authority is a single devnet key, not frozen or multisig.
 - The program is deployed on devnet with a finalized canonical lifecycle, but remains unaudited, upgradeable, single-operator, and unsuitable for real-value custody.

@@ -13,6 +13,9 @@ import {
   Vault,
 } from "lucide-react";
 import { FairXShell } from "@/components/fairx/FairXShell";
+import { IntegrationKitDemo } from "@/components/integration-kit/IntegrationKitDemo";
+import { CANONICAL_POST_GOAL_QUOTE, CANONICAL_PRE_GOAL_QUOTE } from "@/lib/quote-guard/canonical";
+import { evaluateReferenceProtectedOrder } from "@/lib/integration-kit/reference";
 import {
   canonicalStaleCounterfactual,
   V4_PROGRAM_ID,
@@ -32,27 +35,32 @@ function exactSol(lamports: bigint) {
 
 export default function IntegratePage() {
   const economics = canonicalStaleCounterfactual();
+  const initialKitResult = evaluateReferenceProtectedOrder({ marketId: "fairx-v4-france-morocco", side: "YES", stakeLamports: 10_000_000n, quote: CANONICAL_PRE_GOAL_QUOTE, latestMaterialEventSequence: 739, submittedAtMs: CANONICAL_PRE_GOAL_QUOTE.sourceTimestampMs + 110_000 });
   return (
     <FairXShell compact>
       <div className="mx-auto max-w-[1120px]">
         <header className="grid gap-8 border-b border-(--border) pb-10 pt-3 lg:grid-cols-[1fr_.8fr] lg:items-end">
-          <div><p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-(--blue)"><Code2 className="h-4 w-4" />For prediction-market operators</p><h1 className="mt-4 max-w-3xl text-[40px] font-extrabold leading-[.99] tracking-[-.055em] sm:text-[60px]">Add event-sequence protection without replacing your market.</h1><p className="mt-5 max-w-2xl text-[14px] leading-7 text-(--ink-2)">FairX is not an order book, pricing model, or consumer exchange. It is the Solana execution and settlement layer that decides whether an order&apos;s quote sequence is still eligible.</p></div>
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5"><p className="text-[9px] font-bold uppercase tracking-[.08em] text-blue-700">The integration contract</p><p className="mt-3 text-[20px] font-extrabold tracking-[-.03em] text-blue-950">Quote sequence = latest verified material-event sequence</p><p className="mt-3 text-[10.5px] leading-5 text-blue-950/70">Match: the position opens and its fixed liability is reserved. Mismatch: principal returns and no position liability is created.</p></div>
+          <div><p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-(--blue)"><Code2 className="h-4 w-4" />For prediction-market operators</p><h1 className="mt-4 max-w-3xl text-[40px] font-extrabold leading-[.99] tracking-[-.055em] sm:text-[60px]">Two inputs. Two outcomes.</h1><p className="mt-5 max-w-2xl text-[14px] leading-7 text-(--ink-2)">Submit a protected order with its quote sequence. FairX returns <strong>ACCEPTED</strong> or <strong>STALE_SEQUENCE_RETURNED</strong> without replacing your market UX.</p></div>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5"><p className="text-[9px] font-bold uppercase tracking-[.08em] text-blue-700">The integration contract</p><p className="mt-3 text-[20px] font-extrabold tracking-[-.03em] text-blue-950">Verified odds → deterministic quote → protected order</p><p className="mt-3 text-[10.5px] leading-5 text-blue-950/70">Matching sequence: accept and reserve liability. Old sequence: return principal and create no position liability.</p></div>
         </header>
+
+        <div className="mt-8"><IntegrationKitDemo preQuote={CANONICAL_PRE_GOAL_QUOTE} postQuote={CANONICAL_POST_GOAL_QUOTE} initialResult={initialKitResult} /></div>
+
+        <section className="mt-5 overflow-hidden rounded-2xl border border-(--border) bg-white" aria-labelledby="operator-reality"><div className="border-b border-(--border) p-5"><p className="section-label text-(--blue)">Operator reality</p><h2 id="operator-reality" className="mt-2 text-[22px] font-extrabold">What this reference proves—and what it does not.</h2></div><dl className="grid gap-px bg-(--border) sm:grid-cols-2 lg:grid-cols-4"><RealityFact label="Network" value="Solana devnet" /><RealityFact label="Browser demo" value="Deterministic no-send adapter · 0 transactions" /><RealityFact label="On-chain path" value="Deployed Vault V4 · 24 recorded lifecycle transactions" /><RealityFact label="Order outcomes" value="ACCEPTED · STALE_SEQUENCE_RETURNED" /><RealityFact label="Fees" value="Network transaction fees remain separate from principal" /><RealityFact label="External audit" value="None · unaudited hackathon prototype" /><RealityFact label="Custody" value="Consumer custody and wallet flows are outside this reference" /><RealityFact label="Authority" value="Configured roles · 2-of-3 resolution · single upgrade authority" /></dl></section>
 
         <section className="py-12 sm:py-16">
           <div className="max-w-2xl"><p className="section-label text-(--blue)">What an operator integrates</p><h2 className="mt-3 text-[32px] font-extrabold tracking-[-.045em] sm:text-[44px]">Four boundaries. Existing market UX stays yours.</h2></div>
           <ol className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-(--border) bg-(--border) md:grid-cols-4">
             <IntegrationStep index="01" icon={Radio} title="Bind the fixture" detail="Configure the market against genuine TxLINE fixture identity and source evidence." />
-            <IntegrationStep index="02" icon={SlidersHorizontal} title="Publish a quote" detail="Bind the executable price to the latest verified material-event sequence." />
+            <IntegrationStep index="02" icon={SlidersHorizontal} title="Generate a verified quote" detail="QuoteGuard recomputes the executable price from the exact TxLINE odds snapshot." />
             <IntegrationStep index="03" icon={ShieldCheck} title="Submit an order" detail="The V4 program compares sequences before creating a durable position liability." />
             <IntegrationStep index="04" icon={Vault} title="Resolve and reconcile" detail="Valid positions settle; claims and operator withdrawal remain program-constrained." />
           </ol>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[1.05fr_.95fr]">
+        <section className="mt-12 grid gap-5 lg:grid-cols-[1.05fr_.95fr]">
           <div className="rounded-3xl border border-slate-800 p-6 text-white sm:p-8" style={{ backgroundColor: "#0c1425" }}><p className="text-[9px] font-bold uppercase tracking-[.1em] text-emerald-300">Canonical operator economics</p><h2 className="mt-3 text-[30px] font-extrabold tracking-[-.04em]">Protection is measurable, not a fairness slogan.</h2><dl className="mt-7 space-y-4"><Metric label="Stale order principal" value={exactSol(economics.stakeLamports)} /><Metric label="Liability if old-price YES were accepted" value={exactSol(economics.staleLiabilityLamports)} /><Metric label="Recorded liability created by returned order" value="0.000000000 SOL" /><Metric label="Next synchronized order" value="Accepted at 87.48%" /></dl><p className="mt-6 border-t border-white/10 pt-5 text-[10px] leading-5 text-slate-400">The first liability is a counterfactual derived from the canonical payout formula. The returned principal and zero created liability are recorded lifecycle outcomes.</p></div>
-          <div className="rounded-3xl border border-(--border) bg-white p-6 sm:p-8"><p className="section-label">Scope you keep</p><h2 className="mt-3 text-[30px] font-extrabold tracking-[-.04em]">FairX does not pretend to be the whole exchange.</h2><div className="mt-6 space-y-3"><ScopeRow label="Operator owns" value="Market discovery · user acquisition · pricing model · frontend · compliance" /><ScopeRow label="TxLINE supplies" value="Fixture-bound event, odds, and final-result source evidence" /><ScopeRow label="FairX enforces" value="Sequence eligibility · fixed liabilities · principal return · claims · withdrawal boundary" /><ScopeRow label="Public RPC verifies" value="Program identity · accounts · transactions · wallet deltas · final solvency" /></div></div>
+          <div className="rounded-3xl border border-(--border) bg-white p-6 sm:p-8"><p className="section-label">Scope you keep</p><h2 className="mt-3 text-[30px] font-extrabold tracking-[-.04em]">FairX does not pretend to be the whole exchange.</h2><div className="mt-6 space-y-3"><ScopeRow label="Operator owns" value="Market discovery · user acquisition · liquidity · frontend · compliance" /><ScopeRow label="TxLINE supplies" value="Fixture-bound event, odds, and final-result source evidence" /><ScopeRow label="FairX enforces" value="Quote derivation · sequence eligibility · fixed liabilities · principal return · claims · withdrawal boundary" /><ScopeRow label="Public RPC verifies" value="Quote receipts · program identity · transactions · wallet deltas · final solvency" /></div></div>
         </section>
 
         <section className="py-12 sm:py-16">
@@ -76,3 +84,4 @@ function Metric({ label, value }: { label: string; value: string }) { return <di
 function ScopeRow({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 p-4"><p className="text-[8.5px] font-bold uppercase tracking-[.08em] text-(--ink-3)">{label}</p><p className="mt-2 text-[10.5px] font-semibold leading-5">{value}</p></div>; }
 function Comparison({ title, rows, strong = false }: { title: string; rows: string[]; strong?: boolean }) { return <article className={`rounded-2xl border p-5 ${strong ? "border-emerald-200 bg-white" : "border-blue-200 bg-blue-100/50"}`}><h3 className="text-[12px] font-bold text-blue-950">{title}</h3><ul className="mt-4 space-y-3">{rows.map((row) => <li key={row} className="flex items-start gap-2 text-[10px] leading-5 text-blue-950/70"><CheckCircle2 className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${strong ? "text-emerald-600" : "text-blue-500"}`} />{row}</li>)}</ul></article>; }
 function OperatorProof({ icon: Icon, label, value, detail }: { icon: typeof Database; label: string; value: string; detail: string }) { return <article className="min-w-0"><Icon className="h-5 w-5 text-(--blue)" /><p className="mt-4 text-[8.5px] font-bold uppercase tracking-[.08em] text-(--ink-3)">{label}</p><h3 className="mt-1 text-[16px] font-extrabold">{value}</h3><p className="mt-2 break-all text-[9.5px] leading-4 text-(--ink-2)">{detail}</p></article>; }
+function RealityFact({ label, value }: { label: string; value: string }) { return <div className="bg-white p-4"><dt className="text-[8.5px] font-bold uppercase tracking-[.08em] text-(--ink-3)">{label}</dt><dd className="mt-2 text-[10px] font-semibold leading-5">{value}</dd></div>; }

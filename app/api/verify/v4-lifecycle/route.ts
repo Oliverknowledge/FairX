@@ -1,39 +1,25 @@
 import "server-only";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { verifyV4Lifecycle } from "@/lib/proof/v4LifecycleVerifier";
-import { V4_NOT_RECORDED } from "@/lib/v4/lifecycleEvidence";
+import { after } from "next/server";
+import { currentV4VerificationResponse, refreshV4Verification, v4VerificationIsInFlight } from "@/lib/proof/v4VerificationService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-let verificationInFlight: ReturnType<typeof verifyV4Lifecycle> | undefined;
-
-async function verifyOnceAtATime(record: unknown) {
-  if (verificationInFlight) return verificationInFlight;
-  const started = verifyV4Lifecycle(record);
-  verificationInFlight = started;
-  try {
-    return await started;
-  } finally {
-    if (verificationInFlight === started) verificationInFlight = undefined;
-  }
-}
-
 /** Independent RPC verification of the recorded V4 lifecycle. Read-only; never signs or sends. */
-export async function GET(): Promise<Response> {
-  let record: unknown;
-  try {
-    record = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/lineguard/v4-france-morocco-lifecycle.json"), "utf8"));
-  } catch {
-    record = V4_NOT_RECORDED;
+export async function GET(request: Request): Promise<Response> {
+  const force = new URL(request.url).searchParams.get("force") === "1";
+  if (force) {
+    const response = await refreshV4Verification();
+    const unavailable = response.latestAttempt?.status === "UNKNOWN" && !response.verification;
+    return Response.json(response, {
+      status: unavailable ? 503 : 200,
+      headers: { "Cache-Control": "private, no-store, max-age=0" },
+    });
   }
-  // A cold verification re-reads 24 transactions. Concurrent page loads share
-  // that same fresh run instead of multiplying public-RPC traffic.
-  const verification = await verifyOnceAtATime(record);
-  const rpcUnknown = verification.status === "UNKNOWN" && verification.recordState === "recorded";
-  return Response.json(verification, {
-    status: rpcUnknown ? 503 : 200,
-    headers: { "Cache-Control": "no-store, max-age=0" },
+
+  const response = currentV4VerificationResponse();
+  if (response.cache.stale && !v4VerificationIsInFlight()) after(() => refreshV4Verification());
+  return Response.json(response, {
+    headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=86400" },
   });
 }
