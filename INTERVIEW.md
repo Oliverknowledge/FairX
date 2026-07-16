@@ -67,3 +67,39 @@ Remove the canonical constants so any TxLINE fixture can be configured at market
 | "Isn't returning every order in the window just suspension with extra steps?" | No — suspension blocks every trader for the whole window; we block one order and leave the book open. The window is per-order and closes as soon as the quote resyncs, and every returned order carries a reason and a retry path. |
 | "Your program only does one match — isn't the on-chain part theatre?" | The pinning is deliberate and disclosed before you find it. It buys tamper-evidence: this lifecycle cannot be re-run with different numbers. The reusable part is the policy and the interface; genericity is the next release, and I'm not claiming it today. |
 | "The rule is one line of code. What's hard?" | The rule is trivial; the accounting around it is not. Fixed payouts frozen at acceptance, independent YES/NO reservation with no netting, a solvency invariant re-checked after every mutation, and settlement gated on a real TxLINE CPI — that's what makes the returned order provably free of liability. |
+
+---
+
+## The five conceptual objections
+
+These are the strongest attacks on the **idea**, not the implementation. None of them are removable — they are properties of the design. Raise them before the judge does; getting there first converts each one from an ambush into evidence that you understand your own problem.
+
+### 1. "You prove the orders you saw were handled right. How do I know you saw all of them?"
+
+**You don't, and that is the honest boundary.** FairX makes a vault-level claim, not a network-level one: every order that touches the vault is recorded, sequenced by a monotonic nonce, and completely accounted for. It does not compel the operator to route flow through the vault — the same limitation any escrow has. An operator could run most flow through FairX and handle some privately, and the public record would still look clean.
+
+What FairX removes is the operator's ability to lie about **what happened to an order it accepted**. What it does not remove is the operator's choice of **what to submit**. That is a real relocation of trust, not an elimination of it, and the fix is a venue-level commitment to route a named market through the vault — which is a business commitment, not a cryptographic one.
+
+### 2. "A trader watching the stadium feed beats TxLINE. Your guard never sees them."
+
+**Correct — FairX catches the second-fastest adversary, not the fastest.** The guard bounds exposure to *feed-relative* staleness: orders slower than TxLINE but faster than the operator's requote. Someone with a broadcast or co-located edge knows about the goal before TxLINE publishes sequence 739; their order arrives while 738 is still required, and it passes.
+
+That is not a gap we can close. No on-chain guard can prove what a human saw on a television. FairX bounds the staleness that is *provable* and makes no claim about the staleness that is not. A design that claimed to eliminate all latency arbitrage would be lying.
+
+### 3. "This is operator protection. Why call it integrity?"
+
+**Because the alternative denies everyone, and this denies one order.** But the objection lands: the rule is not fairness to the individual trader, it is consistency. A trader who watched the goal and clicked is *right*, and we return their order anyway — the demo shows this deliberately, returning an ordinary "Incoming trader" on the runtime fixture, not a cartoon bot.
+
+The trader-side benefit is **access, not fills**: without the guard the operator suspends the market and nobody trades; with it, only the obsolete order is returned and synchronized traders keep trading. That is a genuine trade, and it is the one the product actually makes. "Verifiable adverse-selection protection" is the more precise name; "market integrity" is the shorter one.
+
+### 4. "The operator controls when the quote updates. Doesn't your design reward being slow?"
+
+**Yes, and the protocol does not bound it.** Returning an order is good for the operator — it is free optionality against informed flow — and the operator decides when to requote. Nothing in V4 caps the stale window or penalises latency. Taken to the limit, a market that returns every order is suspension with extra steps.
+
+What the design does provide is visibility rather than enforcement: sequence delta is public, and every return is a durable on-chain receipt, so a systematically slow operator produces a public trail of mass returns rather than a silent one. A protocol-enforced maximum window — return the order *and* penalise the operator's collateral past a bound — is the obvious next design question, and it is not in this release.
+
+### 5. "Who is actually asking for this?"
+
+**Nobody yet, and I am not going to pretend otherwise.** No regulator requires an on-chain order-decision receipt and no trader picks a venue for one. The demand is reputational and regulatory in a direction this market has not travelled yet. We have no pilots, no revenue and no users.
+
+The bet is that verifiable execution becomes a procurement question for prediction markets the way proof-of-reserves became one for exchanges — after an incident, not before. That is a bet on timing, and it is the honest reason to build the primitive now rather than a claim that anyone is buying it today.

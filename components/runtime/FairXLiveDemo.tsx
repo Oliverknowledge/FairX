@@ -264,7 +264,7 @@ function IntegrityReceipt({ scenario, state, onRetry }: { scenario: RuntimeScena
       {returned && state.stage < 5 && (
         <button type="button" onClick={onRetry} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-[10px] font-extrabold text-slate-950"><RefreshCw className="h-4 w-4" /> Synchronize and retry</button>
       )}
-      <p className="mt-4 text-[8.5px] leading-4 text-slate-500">Replay controls send no transaction. “Recorded On-chain” identifies the canonical order mirrored by this replay.</p>
+      <p className="mt-4 text-[8.5px] leading-4 text-slate-500">Replay controls send no transaction. {scenario.canonicalEvidence ? "“Recorded On-chain” identifies the canonical order mirrored by this replay." : "“Runtime Reference” means this scenario has no on-chain record; it exercises the same sequence rule against a schema-compatible fixture."}</p>
     </aside>
   );
 }
@@ -311,7 +311,7 @@ function OperatorValue({ scenario, state }: { scenario: RuntimeScenario; state: 
   const revealed = state.stage >= 3;
   return (
     <section className={`grid gap-px border-t border-white/10 bg-white/10 transition-opacity sm:grid-cols-3 ${revealed ? "opacity-100" : "opacity-45"}`} aria-label="Operator value">
-      <ValueFact label="PROTECTED OUTCOME" value={revealed ? "Principal returned · zero liability" : "Awaiting decision"} detail="Recorded outcome for the canonical stale order" />
+      <ValueFact label="PROTECTED OUTCOME" value={revealed ? "Principal returned · zero liability" : "Awaiting decision"} detail={scenario.canonicalEvidence ? "Recorded outcome for the canonical stale order" : "Deterministic outcome for this runtime scenario · no on-chain record"} />
       <ValueFact label={scenario.canonicalEvidence ? "ILLUSTRATIVE COUNTERFACTUAL" : "ILLUSTRATIVE PRICE MOVE"} value={scenario.canonicalEvidence ? lamportsToSol(economics.staleLiabilityLamports) : `${evaluation.illustrativePriceMove >= 0 ? "+" : ""}${cents(evaluation.illustrativePriceMove)}`} detail={scenario.canonicalEvidence ? "Old-price liability if the order had been accepted" : "Not a measured loss, latency, or adoption metric"} />
       <ValueFact label="OPERATOR PAYOFF" value="Stay open without private discretion" detail="Every returned order has a reason and a recovery path" strong />
     </section>
