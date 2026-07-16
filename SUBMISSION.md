@@ -46,7 +46,7 @@ FairX needs atomic stake-in/refund-out execution, deterministic PDA isolation, i
 
 - Public app: [https://fair-x-psi.vercel.app](https://fair-x-psi.vercel.app) — production deployment of the tagged candidate; the Proof page displays the exact build commit supplied by Vercel.
 - GitHub: [https://github.com/Oliverknowledge/FairX](https://github.com/Oliverknowledge/FairX)
-- Release: tag `submission-v2.2.0` · commit `9b87378c3cca65b43643634f0159ccda23805e27` — this is the commit production serves; `/proof` displays it live from `VERCEL_GIT_COMMIT_SHA`
+- Release: tag [`submission-final`](https://github.com/Oliverknowledge/FairX/releases/tag/submission-final) — the exact deployed commit is displayed live on `/proof`, read from Vercel's `VERCEL_GIT_COMMIT_SHA`, so it is always the authoritative answer to "what code is this?"
 - Demo video: `<<PASTE YOUTUBE/LOOM URL HERE BEFORE SUBMITTING>>`
 - Judge route: `/` Demo → `/integrate` Conformance Lab → `/proof`
 
@@ -65,8 +65,8 @@ Judge route: / (Demo) -> /integrate (Conformance Lab) -> /proof (Evidence)
 ### Field: Public repo
 ```
 https://github.com/Oliverknowledge/FairX
-Release tag: submission-v2.2.0
-Commit: 9b87378c3cca65b43643634f0159ccda23805e27
+Release tag: submission-final
+The exact deployed commit is shown live on https://fair-x-psi.vercel.app/proof
 ```
 
 ### Field: Demo video
